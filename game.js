@@ -22,7 +22,7 @@ const CONFIG = {
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
     enemyDmgScale: 0.57,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
-    tempoCap: 3,          // Max. Bonus durch "pro zuvor gespielter Karte"  // Globaler Regler für ALLEN Gegnerschaden (vor der Schwierigkeitsstufe)
+    tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,          // Max. Bonus durch "pro zuvor gespielter Karte"  // Globaler Regler für ALLEN Gegnerschaden (vor der Schwierigkeitsstufe)
   },
 
   // Element-System: Multiplikatoren pro Gegner-Element (bei Doppel-Elementen werden sie multipliziert)
@@ -89,7 +89,7 @@ const CONFIG = {
   ],
 
   // Typ-Tags, die für Vielfalts-Effekte und Lenkung zählen (Element-IDs kommen automatisch dazu)
-  typeTags: ["feuer", "gift", "blut", "block"],
+  typeTags: ["feuer", "gift", "blut", "block", "dornen", "pakt", "heilung", "ruestung"],   // diese Tags zählen für Synergien und die Beute-Lenkung
 };
 
 __exports.CONFIG = CONFIG;
@@ -114,7 +114,7 @@ function normalize(kind, id, def, packId) {
   if (kind === "items") { out.stats = def.stats ?? {}; out.maxStack = def.maxStack ?? CONFIG.items.maxStack; }
   if (kind === "enemies") out.elements = def.elements ?? [];
   if (kind === "achievements") { out.group = def.group ?? "runs"; out.secret = Boolean(def.secret); }
-  if (kind === "classes") { out.stats = def.stats ?? {}; out.starterWeapons = def.starterWeapons ?? [def.weapon]; out.shopBasics = def.shopBasics ?? []; }
+  if (kind === "classes") { out.stats = def.stats ?? {}; out.starterWeapons = def.starterWeapons ?? [def.weapon]; out.shopBasics = def.shopBasics ?? []; out.passive = def.passive ?? null; }
   if (kind === "reactions") out.key = [...def.pair].sort().join("+");   // ungeordnetes Elementpaar
   if (kind === "encounters") { out.kind = def.kind ?? "normal"; out.tier = def.tier ?? 1; }   // normal | elite | miniboss | boss
   return out;
@@ -308,7 +308,8 @@ __exports.default = {
 
   classes: {
     nahkaempfer: {
-      name: "Nahkämpfer", hp: 95, stats: {}, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
+      name: "Nahkämpfer", hp: 90, stats: {}, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
+      passive: { id: "unbeugsam", name: "Unbeugsam", text: "Am Zugende gehen 25 % deines übrigen Blocks als Schaden an den ersten Gegner (höchstens 2)." },
       deck: ["hieb", "hieb", "hieb", "hieb", "wuchtschlag", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung", "deckung"],
       weapon: "rostiges_schwert", starterWeapons: ["rostiges_schwert", "flammenschwert", "giftdolch"], items: [],
     },
@@ -1075,6 +1076,46 @@ __exports.default = {
 
 
 });
+__define("content/packs/bollwerk.js", function (__exports, __require) {
+// NAHKÄMPFER-AUSBAU: drei Pfade für die Klasse mit den wenigsten eigenen Karten.
+//  - Bollwerk: Block wird zur Waffe (Schildstoß, Dornen), "Unbeugsam" (Klassen-Passiv) gibt übrigem Block einen Nutzen.
+//  - Aderlass: Pakt mit dem eigenen Blut (HP gegen Energie und Karten), Heilung durch Blutung.
+//  - Blutrausch: Blutung als Hauptschaden (Zerfleischen).
+// Neue Bausteine: Aktion loseHp, fromBlock (Schaden aus Block), ifTarget (nur wenn das Ziel den Status trägt), Spieler-Status "dornen".
+__exports.default = {
+  id: "bollwerk",
+  name: "Nahkämpfer-Ausbau",
+  cards: {
+    schildstoss:    { name: "Schildstoß", cost: 1, pools: ["nahkaempfer"], tags: ["block", "angriff", "nahkampf"],
+      text: "Schaden gleich deinem Block (max. 12). Der Block bleibt.", play: [{ action: "damage", base: 0, fromBlock: { max: 12 } }] },
+    dornenpanzer:   { name: "Dornenpanzer", cost: 2, pools: ["nahkaempfer"], tags: ["block", "dornen", "ruestung"],
+      text: "8 Block. Dornen 2: Angreifer erleiden bis zu deinem Zug 2 Schaden.", play: [{ action: "block", value: 8 }, { action: "playerStatus", status: "dornen", stacks: 2 }] },
+    eiserner_wille: { name: "Eiserner Wille", cost: 1, rarity: "ungewoehnlich", pools: ["nahkaempfer"], tags: ["block", "heilung"],
+      text: "5 Block. Heile 2 HP.", play: [{ action: "block", value: 5 }, { action: "heal", value: 2 }] },
+    bollwerk:       { name: "Bollwerk", cost: 2, rarity: "ungewoehnlich", pools: ["nahkaempfer"], tags: ["block", "ruestung"],
+      text: "12 Block. Ziehe 1 Karte.", play: [{ action: "block", value: 12 }, { action: "draw", value: 1 }] },
+    festungsbau:    { name: "Festungsbau", cost: 3, rarity: "selten", pools: ["nahkaempfer"], tags: ["block", "dornen", "ruestung"],
+      text: "16 Block. Dornen 4: Angreifer erleiden bis zu deinem Zug 4 Schaden.", play: [{ action: "block", value: 16 }, { action: "playerStatus", status: "dornen", stacks: 4 }] },
+    aderlass:       { name: "Aderlass", cost: 0, rarity: "ungewoehnlich", pools: ["nahkaempfer"], tags: ["pakt", "blut"],
+      text: "Verliere 5 HP (nie unter 1). +1 Energie.", play: [{ action: "loseHp", value: 5 }, { action: "energy", value: 1 }] },
+    blutdurst:      { name: "Blutdurst", cost: 1, pools: ["nahkaempfer"], tags: ["blut", "heilung", "angriff", "nahkampf"],
+      text: "Schaden: 4 + Waffe. Blutet das Ziel: heile 3 HP.", play: [{ action: "damage", base: 4, weaponScale: 1 }, { action: "heal", value: 3, ifTarget: "blutung" }] },
+    zerfleischen:   { name: "Zerfleischen", cost: 2, rarity: "selten", pools: ["nahkaempfer"], tags: ["blut", "angriff", "nahkampf"],
+      text: "Schaden: 4 + Waffe, +4 pro Blutung auf dem Ziel.", play: [{ action: "damage", base: 4, weaponScale: 1, bonusPerStatus: { status: "blutung", value: 4 } }] },
+  },
+  items: {
+    narbenleder:   { name: "Narbenleder", tags: ["blut", "ruestung", "item"],
+      passives: [{ trigger: "on_status_applied", whenStatus: "blutung", action: "block", value: 2, maxPerTurn: 3 }], text: "Blutung aufgetragen: 2 Block (max. 3x/Zug)." },
+    stachelschild: { name: "Stachelschild", tags: ["dornen", "block", "item"],
+      passives: [{ trigger: "on_turn_start", action: "player_status", status: "dornen", stacks: 2 }], text: "Zugbeginn: Dornen 2 (Angreifer erleiden 2 Schaden)." },
+    eisenfaust:    { name: "Eisenfaust", rarity: "ungewoehnlich", tags: ["block", "ruestung", "item"],
+      passives: [{ trigger: "damage_calc", cardTag: "block", op: "add", value: 3 }], text: "Block-Karten: +3 Schaden." },
+  },
+};
+
+
+
+});
 __define("content/packs/story.js", function (__exports, __require) {
 // GESCHICHTE: Sprecher und Dialoge als Daten. Neue Geschichten (z. B. je Klasse, je Boss, je Schwierigkeit) = nur Einträge ergänzen.
 // lines: Text oder { perClass: { <klassen-id>: "...", default: "..." } }
@@ -1107,7 +1148,7 @@ __exports.default = {
     startladen: {
       speaker: "brumm",
       lines: [
-        "Na also, die Ratten hast du schon mal überlebt. Bevor es tiefer geht: Schau dich hier um, ich habe ein paar Sachen für dich. Halber Preis, weil ich dich mag.",
+        "Die Ratten hast du überlebt. Schau dich um, halber Preis, weil ich dich mag.",
       ],
     },
     outro: {
@@ -1139,10 +1180,11 @@ const fernkaempfer = __require("content/packs/fernkaempfer.js").default;
 const magier = __require("content/packs/magier.js").default;
 const achievements = __require("content/packs/achievements.js").default;
 const aktiv = __require("content/packs/aktiv.js").default;
+const bollwerk = __require("content/packs/bollwerk.js").default;
 const story = __require("content/packs/story.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 const problems = CONTENT.validate();
@@ -1435,7 +1477,7 @@ function createCombat({ spec, encounterId, seed = 1, playerHp, verbose = false, 
     diff: CONFIG.difficulty[difficulty] ?? CONFIG.difficulty[0],
     encounter: CONTENT.encounters[encounterId], waveIndex: -1, turn: 0,
     player: { hp: Math.min(playerHp ?? maxHp, maxHp), maxHp, block: 0, energy: 0, statuses: {} },
-    lastElement: null, fx: [], killLog: [], usedItems: [],
+    lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null,
     // Zähler für Erfolge: höchster Einzeltreffer, erlittener Schaden, Karten/Reaktionen pro Zug, höchster Status-Stapel
     metrics: { plays: 0, reactions: 0, reactionIds: [], maxHit: 0, damageTaken: 0, maxPlaysTurn: 0, reactionsTurn: 0, maxReactionsTurn: 0, maxStatus: {} },
     piles: {
@@ -1527,6 +1569,7 @@ function startPlayerTurn(s) {
   s.player.block = s.build.stats.blockStart;
   s.player.energy = CONFIG.player.startEnergy + s.build.stats.energy;
   s.player.statuses.ausweichen = 0;     // Ausweichen hält nur einen Zug
+  s.player.statuses.dornen = 0;         // Dornen wirken in der Gegnerphase und enden mit dem nächsten eigenen Zug
   s.lastElement = null;                 // Reaktionen gelten nur innerhalb eines Zuges
   log(s, `=== Zug ${s.turn} (HP ${s.player.hp}/${s.player.maxHp})`);
   fx(s, { t: "turn", n: s.turn });
@@ -1581,6 +1624,8 @@ function damagePlayer(s, amount, source, attacker) {
   s.metrics.damageTaken += lost;
   log(s, `  ${source} trifft dich für ${lost} (Block ${absorbed})`);
   fx(s, { t: "phit", uid: attacker?.uid, amount: lost, blocked: absorbed });
+  const thorns = s.player.statuses.dornen ?? 0;
+  if (thorns > 0 && attacker && attacker.hp > 0) { log(s, `  Dornen treffen ${attacker.name} für ${thorns}`); dealDamage(s, attacker, thorns, "Dornen", { pierce: true }); }
   if (s.player.hp <= 0) { s.result = "lost"; return; }
   if (lost > 0) emit(s, "on_player_hit", { target: attacker }, 0);
 }
@@ -1666,9 +1711,14 @@ function triggerReaction(s, a, b, target) {
   emit(s, "on_reaction", { target, reaction: r }, 0);
 }
 
+// Aktion mit Laufzeitwerten: "fromBlock" macht den Schaden vom aktuellen Block abhängig (z. B. Schildstoß), ohne den Block zu verbrauchen
+const effectiveAction = (s, a) => (a.fromBlock ? { ...a, base: Math.min(a.fromBlock.max ?? 99, Math.floor(s.player.block * (a.fromBlock.factor ?? 1))) } : a);
+
 // Wirkungen einer Karte (oder eines aktiven Items) ausführen. def = { play: [...], element?, tags, name }
 function runActions(s, def, chosen) {
-  for (const action of def.play) {
+  for (const raw of def.play) {
+    const action = effectiveAction(s, raw);
+    if (raw.ifTarget && !((chosen?.statuses[raw.ifTarget] ?? 0) > 0)) continue;     // z. B. Heilung nur, wenn das Ziel blutet
     const targets = action.target === "all" ? aliveEnemies(s) : (chosen && chosen.hp > 0 ? [chosen] : []);
     if (action.action === "damage") {
       for (const t of targets) {
@@ -1693,6 +1743,10 @@ function runActions(s, def, chosen) {
       draw(s, action.value);
     } else if (action.action === "energy") {
       s.player.energy += action.value;
+    } else if (action.action === "loseHp") {                   // Pakt-Kosten: nie tödlich, zählt nicht als erlittener Schaden
+      const before = s.player.hp;
+      s.player.hp = Math.max(1, s.player.hp - action.value);
+      if (before > s.player.hp) { log(s, `  Du verlierst ${before - s.player.hp} HP`); fx(s, { t: "phit", amount: before - s.player.hp, blocked: 0 }); }
     } else if (action.action === "heal") {
       const before = s.player.hp;
       s.player.hp = Math.min(s.player.maxHp, s.player.hp + action.value);
@@ -1768,6 +1822,10 @@ function playCard(s, handIndex, targetUid) {
 function endPlayerTurn(s) {
   if (s.result) return;
   emit(s, "on_turn_end", {}, 0);
+  if (s.classPassive === "unbeugsam" && s.player.block > 0) {      // Nahkämpfer: ein Teil des übrigen Blocks wird als Schaden abgegeben (der Block bleibt)
+    const target = aliveEnemies(s)[0], dmg = Math.min(CONFIG.balance.unbeugsamCap, Math.floor(s.player.block * CONFIG.balance.unbeugsamPct));
+    if (target && dmg > 0) { log(s, `  Unbeugsam: ${dmg} Schaden`); dealDamage(s, target, dmg, "Unbeugsam", { pierce: true }); }
+  }
   checkProgress(s);
   if (s.result) return;
   s.piles.discard.push(...s.piles.hand);
@@ -1833,6 +1891,7 @@ __exports.aliveEnemies = aliveEnemies;
 __exports.getIntent = getIntent;
 __exports.createCombat = createCombat;
 __exports.intentOf = intentOf;
+__exports.effectiveAction = effectiveAction;
 __exports.activeDef = activeDef;
 __exports.activeItems = activeItems;
 __exports.useItem = useItem;
@@ -2369,7 +2428,7 @@ const takeNewAchievements = (run) => (run?.achQueue ?? []).splice(0);
 const specOf = (run) => {
   const cls = CONTENT.classes[run.classId];
   const stats = { ...cls.stats, luck: (cls.stats.luck ?? 0) + (run.shinyHero ? CONFIG.shiny.heroLuck : 0) };   // Chrom-Held: +1 Glück
-  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp, stats };
+  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp, stats, classId: run.classId };
 };
 const buildOf = (run) => resolveBuild(specOf(run));
 const computeMaxHp = (run) => Math.max(1, CONTENT.classes[run.classId].hp + run.bonusMaxHp + buildOf(run).stats.maxHp);
@@ -2737,7 +2796,7 @@ __define("engine/autoplay.js", function (__exports, __require) {
 // Keine feste Reihenfolge, sondern eine Bewertung: erwarteter Schaden (inkl. Kill-Bonus), nötiger Block, Debuffs, Reaktionen, Kartenzug.
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
-const { aliveEnemies, intentOf, activeItems } = __require("engine/combat.js");
+const { aliveEnemies, intentOf, activeItems, effectiveAction } = __require("engine/combat.js");
 const { computeDamage } = __require("engine/modifiers.js");
 
 // Braucht die Karte ein einzelnes Ziel? (Flächen-, Block- und Zieh-Karten nicht)
@@ -2772,7 +2831,9 @@ function statusValue(status, stacks, t) {
 function cardValue(s, def, target, th) {
   const alive = aliveEnemies(s);
   let v = 0;
-  for (const a of def.play) {
+  for (const raw of def.play) {
+    const a = effectiveAction(s, raw);
+    if (raw.ifTarget && !((target.statuses[raw.ifTarget] ?? 0) > 0)) continue;
     if (a.action === "damage") {
       for (const t of a.target === "all" ? alive : [target]) {
         for (let h = 0; h < (a.hits ?? 1); h++) {
@@ -2784,11 +2845,12 @@ function cardValue(s, def, target, th) {
         }
       }
     } else if (a.action === "block") v += Math.min(a.value, th.needBlock) * 1.15 + (th.needBlock > 0 ? 0 : 0.2);
-    else if (a.action === "playerStatus") v += th.hits > 0 ? Math.min(a.stacks, th.hits) * 4 : 0.2;
+    else if (a.action === "playerStatus") v += a.status === "dornen" ? a.stacks * Math.max(1, th.hits) * 0.9 : th.hits > 0 ? Math.min(a.stacks, th.hits) * 4 : 0.2;
     else if (a.action === "status") for (const t of a.target === "all" ? alive : [target]) v += statusValue(a.status, a.stacks, t);
     else if (a.action === "multiplyStatus") for (const t of a.target === "all" ? alive : [target]) v += (t.statuses[a.status] ?? 0) * 0.9;
     else if (a.action === "draw") v += s.piles.hand.length < 5 ? 2.6 * a.value : a.value;
     else if (a.action === "energy") v += 3;
+    else if (a.action === "loseHp") v -= a.value * (s.player.hp < s.player.maxHp * 0.4 ? 1.5 : 0.35);      // Pakt-Kosten: teuer, wenn man wenig HP hat
     else if (a.action === "heal") v += Math.min(a.value, s.player.maxHp - s.player.hp) * (s.player.hp < s.player.maxHp * 0.6 ? 1.3 : 0.15);
   }
   if (def.element && s.lastElement && s.lastElement !== def.element && CONTENT.reactionFor(s.lastElement, def.element)) v += 6;   // Reaktion
@@ -3281,6 +3343,7 @@ const MARKS = {
 
 // Zuordnung: Item-ID -> [Form, Palette, optionales Zeichen]
 const ITEM_ART = {
+  narbenleder: ["belt", "blut"], stachelschild: ["orb", "eisen", "thorn"], eisenfaust: ["hammer", "eisen", "bolt"],
   feuerflasche: ["flask", "feuer", "flame"], heiltrank: ["flask", "blut", "drop"], rauchbombe: ["orb", "asche"], giftphiole: ["vial", "gift", "skull"],
   frostphiole: ["vial", "eis", "snow"], blutampulle: ["vial", "blut", "drop"], schlachtrufrolle: ["scroll", "gold", "bolt"],
   prismasplitter: ["gem", "prisma", "bolt"], phoenixasche: ["bowl", "feuer", "wing"],
@@ -4295,7 +4358,7 @@ const elementName = (id) => CONTENT.elements[id]?.name ?? id;
 
 // Status -> [Symbol-ID, Name]
 const STATUS = {
-  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"],
+  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"],
 };
 const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
 const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
@@ -4460,15 +4523,17 @@ function achievementsView(ui) {
   const visible = all.filter((a) => !a.secret), secrets = all.filter((a) => a.secret);
   const isDone = (a) => Boolean(meta.achievements[a.id]);
   const secDone = secrets.filter(isDone);
-  const sections = GROUPS.map(([g, title]) => {
-    const list = visible.filter((a) => a.group === g);
-    return `<div class="section"><h3>${title} <span class="muted">${list.filter(isDone).length}/${list.length}</span></h3><div class="grid2">${list.map((a) => achCard(meta, a)).join("")}</div></div>`;
-  }).join("");
-  // Geheimbereich: erst sichtbar, wenn man den ersten geheimen Erfolg erreicht hat. Offene bleiben als "???" ohne jeden Hinweis.
-  const secret = secDone.length
-    ? `<div class="section"><h3 class="chrome">Geheim <span class="muted">${secDone.length} entdeckt</span></h3><div class="grid2">${secDone.map((a) => achCard(meta, a)).join("")}${secrets.filter((a) => !isDone(a)).map(hiddenCard).join("")}</div></div>`
-    : `<div class="muted small center pad">Manche Erfolge zeigen sich erst, wenn du sie erreichst.</div>`;
-  return `<div class="screen scroll"><div class="pad stack"><h2>Erfolge</h2><div class="muted">${visible.filter(isDone).length} von ${visible.length} freigeschaltet</div>${sections}${secret}${btn("Zurück", "to-title", undefined, { cls: "primary" })}</div></div>`;
+  // Reiter: eine Gruppe pro Reiter, damit nichts gescrollt werden muss. Geheimbereich erst, wenn der erste geheime Erfolg erreicht ist.
+  const tabs = GROUPS.map(([g, title]) => ({ key: g, title, list: visible.filter((a) => a.group === g) }));
+  if (secDone.length) tabs.push({ key: "geheim", title: "Geheim", secret: true });
+  const cur = tabs.find((x) => x.key === ui.tab.ach) ?? tabs[0];
+  const body = cur.secret
+    ? `<div class="achgrid">${secDone.map((a) => achCard(meta, a)).join("")}${secrets.filter((a) => !isDone(a)).map(hiddenCard).join("")}</div>`   // offene bleiben "???" ohne jeden Hinweis
+    : `<div class="achgrid">${cur.list.map((a) => achCard(meta, a)).join("")}</div>`;
+  const label = (x) => x.secret ? `Geheim <span class="muted">${secDone.length}</span>` : `${x.title} <span class="muted">${x.list.filter(isDone).length}/${x.list.length}</span>`;
+  return `<div class="screen collection"><div class="pg-head"><h2>Erfolge</h2><span class="muted small">${visible.filter(isDone).length} von ${visible.length}</span>
+    <div class="tabs">${tabs.map((x) => `<span class="tab ${x.key === cur.key ? "on" : ""}"${at("set-tab", "ach", x.key)}>${label(x)}</span>`).join("")}</div><span class="grow"></span>${btn("Zurück", "to-title", undefined, { cls: "primary small" })}</div>
+    <div class="pg-body">${body}${secDone.length ? "" : `<div class="muted small center pad">Manche Erfolge zeigen sich erst, wenn du sie erreichst.</div>`}</div></div>`;
 }
 
 // Was fehlt noch, um eine Freischaltung zu bekommen? (geheime Erfolge verraten nichts)
@@ -4485,15 +4550,16 @@ function cosmeticsView(ui) {
       ...Object.values(CONTENT.skins).filter((s) => s.hero === cl.id).map((s) => meta.unlocked[`skins/${s.id}`]
         ? `<span class="chip ${cur === s.id ? "on" : ""}"${at("pick-skin", cl.id, s.id)}>${esc(s.name)}</span>`
         : `<span class="chip lock">${ico("lock", 12)} ${esc(s.name)}: ${esc(lockHint(s))}</span>`)];
-    return `<div class="px pad skinrow"><div class="skinart">${spr("hero", cl.id, { pal: skinPal(cur), attrs: 'height="92"' })}</div><div class="grow stack"><b>${esc(cl.name)}</b><div class="chips">${chips.join("")}</div></div></div>`;
+    return `<div class="px pad skinrow"><div class="skinart">${spr("hero", cl.id, { pal: skinPal(cur), attrs: 'height="96"' })}</div><div class="grow stack"><b>${esc(cl.name)}</b><div class="chips">${chips.join("")}</div></div></div>`;
   }).join("");
   const frames = [`<span class="chip ${frame === "default" ? "on" : ""}"${at("pick-frame", "default")}><span class="framesample"></span> Standard</span>`,
     ...Object.values(CONTENT.frames).map((f) => meta.unlocked[`frames/${f.id}`]
       ? `<span class="chip ${frame === f.id ? "on" : ""}"${at("pick-frame", f.id)}><span class="framesample frame-${esc(f.id)}"></span> ${esc(f.name)}</span>`
       : `<span class="chip lock">${ico("lock", 12)} ${esc(f.name)}: ${esc(lockHint(f))}</span>`)];
-  return `<div class="screen scroll"><div class="pad stack"><h2>Aussehen</h2><h3>Farbvarianten der Helden</h3>${heroes}
-    <h3>Rahmen für Karten und Gegenstände</h3><div class="px pad"><div class="chips">${frames.join("")}</div></div>
-    <div class="muted small">Neue Varianten und Rahmen schaltest du über Erfolge frei.</div>${btn("Zurück", "to-title", undefined, { cls: "primary" })}</div></div>`;
+  const tab = ui.tab.cosm === "rahmen" ? "rahmen" : "farben";
+  const body = tab === "farben" ? `<div class="skingrid">${heroes}</div>` : `<div class="px pad"><div class="chips">${frames.join("")}</div></div>`;
+  return `<div class="screen collection"><div class="pg-head"><h2>Aussehen</h2><div class="tabs"><span class="tab ${tab === "farben" ? "on" : ""}"${at("set-tab", "cosm", "farben")}>Farben der Helden</span><span class="tab ${tab === "rahmen" ? "on" : ""}"${at("set-tab", "cosm", "rahmen")}>Rahmen</span></div><span class="grow"></span>${btn("Zurück", "to-title", undefined, { cls: "primary small" })}</div>
+    <div class="pg-body">${body}<div class="muted small pad">Neue Varianten und Rahmen schaltest du über Erfolge frei.</div></div></div>`;
 }
 
 // Meldung, die kurz eingeblendet wird, wenn ein Erfolg erreicht wurde
@@ -4607,14 +4673,14 @@ const props = (b) => {
 };
 
 // ---- Boden mit Perspektive
-function floor(b, id) {
+function floor(b, id, ext = 0) {
   const vp = 92, t = (HORIZON - vp) / (H - vp);
-  const rays = [-220, -140, -60, 20, 100, 180, 260, 340, 420, 500, 580].map((xb) => `<line x1="${xb}" y1="${H}" x2="${(200 + (xb - 200) * t).toFixed(1)}" y2="${HORIZON}" stroke="${b.line}" stroke-width="1"/>`).join("");
-  const rows = [HORIZON + 8, HORIZON + 18, HORIZON + 31, HORIZON + 48, HORIZON + 69].map((y) => px(0, y, W, 1, b.line)).join("");
+  const rays = Array.from({ length: 16 + Math.ceil(ext / 40) * 2 }, (_, i) => -220 - Math.ceil(ext / 40) * 80 + i * 80).map((xb) => `<line x1="${xb}" y1="${H}" x2="${(200 + (xb - 200) * t).toFixed(1)}" y2="${HORIZON}" stroke="${b.line}" stroke-width="1"/>`).join("");
+  const rows = [HORIZON + 8, HORIZON + 18, HORIZON + 31, HORIZON + 48, HORIZON + 69].map((y) => px(-ext, y, W + 2 * ext, 1, b.line)).join("");
   const stain = [[60, 176, 14], [310, 188, 18], [150, 210, 12]].map(([x, y, r], i) => `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${r * 0.26}" fill="#000" opacity="${(0.1 + i * 0.03).toFixed(2)}"/>`).join("");
   const cracks = `<path d="M96 170 l8 6 l-3 5 l9 7" stroke="${b.line}" stroke-width="1" fill="none"/><path d="M286 196 l-9 4 l4 6 l-8 6" stroke="${b.line}" stroke-width="1" fill="none"/>`;
   const puddle = `<ellipse cx="318" cy="208" rx="22" ry="4.5" fill="${b.glow}" opacity=".12"/><ellipse cx="318" cy="207" rx="22" ry="4.5" fill="#000" opacity=".25"/><rect x="306" y="206" width="9" height="1" fill="#fff" opacity=".28"/>`;
-  return `${px(0, HORIZON, W, H - HORIZON, `url(#fl${id})`)}${px(0, HORIZON, W, 4, "#000", ' opacity=".4"')}${rays}${rows}${stain}${cracks}${puddle}`;
+  return `${px(-ext, HORIZON, W + 2 * ext, H - HORIZON, `url(#fl${id})`)}${px(-ext, HORIZON, W + 2 * ext, 4, "#000", ' opacity=".4"')}${rays}${rows}${stain}${cracks}${puddle}`;
 }
 // Runenkreis der vier Elemente: das Wahrzeichen auf dem Boden
 function runes(b) {
@@ -4627,10 +4693,10 @@ function runes(b) {
     <ellipse cx="${cx}" cy="${cy}" rx="${rx - 14}" ry="${ry - 3.5}" fill="none" stroke="${b.glow}" stroke-width="1" opacity=".28" stroke-dasharray="3 3"/>${ticks}${pts}</g>`;
 }
 // Atmosphäre
-function atmosphere(b, id) {
+function atmosphere(b, id, ext = 0) {
   const motes = Array.from({ length: 16 }, (_, i) => `<rect class="mote" x="${(rnd(i + 11) * W).toFixed(0)}" y="${(40 + rnd(i + 31) * 170).toFixed(0)}" width="${rnd(i + 5) > 0.6 ? 2 : 1.4}" height="${rnd(i + 5) > 0.6 ? 2 : 1.4}" fill="#fff" style="--dx:${((rnd(i + 21) - 0.5) * 30).toFixed(0)}px;--dur:${(7 + rnd(i + 41) * 8).toFixed(1)}s;--d:${(-rnd(i + 51) * 10).toFixed(1)}s"/>`).join("");
   return `<polygon class="shaft" points="30,0 66,0 168,${H} 96,${H}" fill="url(#sh${id})"/>
-    <rect class="fog f1" x="-60" y="${HORIZON - 12}" width="${W + 120}" height="26" fill="url(#fg${id})"/><rect class="fog f2" x="-60" y="${HORIZON + 14}" width="${W + 120}" height="22" fill="url(#fg${id})" opacity=".6"/>${motes}`;
+    <rect class="fog f1" x="${-60 - ext}" y="${HORIZON - 12}" width="${W + 120 + 2 * ext}" height="26" fill="url(#fg${id})"/><rect class="fog f2" x="${-60 - ext}" y="${HORIZON + 14}" width="${W + 120 + 2 * ext}" height="22" fill="url(#fg${id})" opacity=".6"/>${motes}`;
 }
 
 // ---- Gesamte Kulisse
@@ -4650,12 +4716,18 @@ function backdrop(b, id = "", o = {}) {
     ${Object.keys(CONTENT.elements).map((el) => `<radialGradient id="eg_${el}"><stop offset="0" stop-color="${elementColor(el)}" stop-opacity=".6"/><stop offset=".55" stop-color="${elementColor(el)}" stop-opacity=".18"/><stop offset="1" stop-color="${elementColor(el)}" stop-opacity="0"/></radialGradient>`).join("")}
     <radialGradient id="vg${id}" cx="50%" cy="58%" r="78%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".62"/></radialGradient></defs>`;
   const arch = (x0, x1) => `<path d="M${x0} ${HORIZON} V50 Q${(x0 + x1) / 2} 12 ${x1} 50 V${HORIZON} Z" fill="#000" opacity=".22"/><path d="M${x0} ${HORIZON} V50 Q${(x0 + x1) / 2} 12 ${x1} 50 V${HORIZON}" fill="none" stroke="${b.mortar}" stroke-width="2" opacity=".7"/>`;
-  return `${defs}${px(0, 0, W, HORIZON, `url(#brk${id})`)}${px(0, 0, W, HORIZON, `url(#mos${id})`)}${px(0, 0, W, HORIZON, `url(#tp${id})`)}
+  // breitere Bühne (Querformat): Wand und Boden laufen weiter, links und rechts stehen zusätzliche Säulen mit Bannern
+  const ext = Math.round(o.ext ?? 0), X0 = -ext, WW = W + 2 * ext;
+  const extra = [];
+  for (let x = -134; x > X0 - 20; x -= 134) extra.push(x);
+  for (let x = 516; x < W + ext + 20; x += 134) extra.push(x);
+  const extraBanners = extra.map((x, i) => (i % 2 === 0 ? banner(x + (x < 0 ? 67 : -67), b) : "")).join("");
+  return `${defs}${px(X0, 0, WW, HORIZON, `url(#brk${id})`)}${px(X0, 0, WW, HORIZON, `url(#mos${id})`)}${px(X0, 0, WW, HORIZON, `url(#tp${id})`)}
     ${arch(30, 128)}${arch(272, 372)}${gate(b, id)}
-    ${[0, 134, 248, 382].map((x) => pillar(x, b, id)).join("")}
-    ${banner(80, b)}${banner(320, b)}${torch(129, 60, b)}${torch(247, 60, b)}
-    ${floor(b, id)}${runes(b)}${props(b)}${atmosphere(b, id)}
-    ${px(0, 0, W, H, `url(#vg${id})`, ' pointer-events="none"')}`;
+    ${[0, 134, 248, 382, ...extra].map((x) => pillar(x, b, id)).join("")}
+    ${banner(80, b)}${banner(320, b)}${extraBanners}${torch(129, 60, b)}${torch(247, 60, b)}
+    ${floor(b, id, ext)}${runes(b)}${o.noProps ? "" : props(b)}${atmosphere(b, id, ext)}
+    ${px(X0, 0, WW, H, `url(#vg${id})`, ' pointer-events="none"')}`;
 }
 
 __exports.W = W;
@@ -4721,7 +4793,7 @@ function timeline(fx) {
 
 // ---------------------------------------------------------------- Kampfszene
 // ctx: { run, c (Kampf), fx (Ereignisse der letzten Aktion), enter ("all" | "enemies" | null), targetable (Set von UIDs), weapon }
-function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), focus = null }) {
+function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), focus = null, ext = 0 }) {
   const b = BIOMES[biomeFor(run)];
   const tl = timeline(fx);
   const layout = layoutEnemies(c.enemies);
@@ -4829,16 +4901,16 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   }).join("");
   const floatsSvg = floats.map((f, i) => text(f.text, Math.round(f.x), Math.round(f.y), `float ${f.cls}`, `style="--d:${(f.t + i * 0.03).toFixed(2)}s"`)).join("");
 
-  return `<svg class="scene-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Kampfszene">${backdrop(b)}${ents}${hero}${heroHud}${fxLayer}${floatsSvg}</svg>`;
+  return `<svg class="scene-svg" viewBox="${-ext} 0 ${W + 2 * ext} ${H}" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Kampfszene">${backdrop(b, "", { ext })}${ents}${hero}${heroHud}${fxLayer}${floatsSvg}</svg>`;
 }
 
 // ---------------------------------------------------------------- Intro (Geschichte): Held steht links, Figur kommt von rechts herein
-function introScene({ run, speaker, first, bubble = "" }) {
+function introScene({ run, speaker, first, bubble = "", ext = 0 }) {
   const b = BIOMES[0], cls = run.classId, sz = sprSize("hero", cls), s = 2.9;
   const npc = sprSize("npc", speaker.id), ns = 2.6;
   const hx = 90, hfeet = 190, nx = 270;
   const wid = run.weapon.replace(/:s$/, ""), wsz = sprSize("weapon", wid), [hx2, hy2] = HAND[cls] ?? [15, 16];
-  return `<svg class="scene-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Geschichte">${backdrop(b, "i")}
+  return `<svg class="scene-svg" viewBox="${-ext} 0 ${W + 2 * ext} ${H}" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Geschichte">${backdrop(b, "i", { ext })}
     <g class="pos" transform="translate(${hx - (sz.w * s) / 2} ${hfeet - sz.h * s})"><g class="bob mv-none">${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * s}" height="${sz.h * s}"` })}
       <g transform="translate(${hx2 * s} ${hy2 * s})"><g class="wpn idle-wpn"><g transform="translate(${-GRIP[0] * WEAPON_SCALE} ${-GRIP[1] * WEAPON_SCALE})">${spr("weapon", wid, { shiny: CONTENT.get("weapons", run.weapon).shiny, attrs: `width="${wsz.w * WEAPON_SCALE}" height="${wsz.h * WEAPON_SCALE}"` })}</g></g></g></g></g>
     <g class="pos" transform="translate(${nx - (npc.w * ns) / 2} ${hfeet - npc.h * ns})"><g class="mover${first ? " enter-npc" : ""}"><g class="bob mv-none">${spr("npc", speaker.id, { attrs: `width="${npc.w * ns}" height="${npc.h * ns}"` })}</g></g></g>
@@ -4847,7 +4919,7 @@ function introScene({ run, speaker, first, bubble = "" }) {
 }
 
 // ---------------------------------------------------------------- Menü-/Auswahl-Hintergrund (nur Kulisse)
-const menuBackdrop = () => `<svg class="scene-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${backdrop(BIOMES[0], "m")}</svg>`;
+const menuBackdrop = (ext = 0) => `<svg class="scene-svg" viewBox="${-ext} 0 ${W + 2 * ext} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${backdrop(BIOMES[0], "m", { ext, noProps: true })}</svg>`;
 
 
 // Held mit Waffe in der Hand als Standbild (Auswahl, Vorschau)
@@ -4887,6 +4959,9 @@ const { at, ico, btn, ibtn, bar, pctOf, cardHtml, itemHtml, itemIcon, statusChip
 const { combatScene, introScene, menuBackdrop, heroPortrait } = __require("ui/scene.js");
 
 // ---------------------------------------------------------------- Kopfzeile im Run
+// Breite der Kulisse: wie viel zusätzliche Wand links und rechts nötig ist, damit die Szene den Bereich (Höhe areaH) ausfüllt
+const sceneExt = (ui, areaH) => Math.max(0, Math.round((232 * ((ui.stageW ?? 800) / areaH) - 400) / 2));
+
 function hud(ui) {
   const run = ui.run, cls = CONTENT.classes[run.classId];
   const where = run.nodeId ? `Ebene ${currentLayer(run) + 1}/${CONFIG.map.layers}` : "Start";
@@ -4898,34 +4973,34 @@ function hud(ui) {
 // ---------------------------------------------------------------- Titel
 function titleView(ui) {
   const m = ui.meta;
-  return `<div class="screen title"><div class="bgscene">${menuBackdrop()}</div>
-    <div class="title-body">${logo()}<div class="tag">Ein Deckbuilder-Roguelite</div>
-      <div class="menu-buttons">${ui.hasSave ? btn("Run fortsetzen", "continue", undefined, { cls: "good big" }) : ""}
+  return `<div class="screen title"><div class="bgscene">${menuBackdrop(sceneExt(ui, 400))}</div>
+    <div class="title-body"><div class="title-l">${logo()}<div class="tag">Ein Deckbuilder-Roguelite</div></div>
+      <div class="title-r"><div class="menu-buttons">${ui.hasSave ? btn("Run fortsetzen", "continue", undefined, { cls: "good big" }) : ""}
         ${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}</div>
-      <div class="muted center small">Siege ${m.wins} · Runs ${m.runs} · Shinys ${Object.keys(m.dex.shiny).length}</div></div></div>`;
+        <div class="muted center small">Siege ${m.wins} · Runs ${m.runs} · Shinys ${Object.keys(m.dex.shiny).length}</div></div></div></div>`;
 }
 
 // ---------------------------------------------------------------- Charakter- und Waffenwahl
 function setupView(ui) {
   const st = ui.setup, classes = Object.values(CONTENT.classes), cur = CONTENT.classes[st.classId];
+  const bg = `<div class="bgscene">${menuBackdrop(sceneExt(ui, 400))}</div>`;
   if (st.step === 0) {
-    return `<div class="screen setup"><div class="bgscene">${menuBackdrop()}</div><div class="setup-body scroll"><h2>Wähle deinen Charakter</h2>
+    return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deinen Charakter</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Weiter", "setup-next", undefined, { cls: "primary" })}</div></div>
       <div class="herogrid">${classes.map((c) => `<div class="herocard px ${st.classId === c.id ? "on" : ""}"${at("pick-class", c.id)}>
         <div class="hero-art">${heroPortrait(c.id, c.starterWeapons[0], activeSkin(ui.meta, c.id))}</div><b>${esc(c.name)}</b>
         <div class="stats"><span>${ico("heart", 14)}${c.hp}</span><span>${ico("pile", 14)}${CONFIG.player.handSize + (c.stats.handSize ?? 0)}</span><span>${ico("bolt", 14)}${CONFIG.player.startEnergy + (c.stats.energy ?? 0)}</span></div>
-        <div class="d">${esc(c.blurb ?? "")}</div></div>`).join("")}</div>
-      <div class="row center">${btn("Zurück", "setup-back")}${btn("Weiter", "setup-next", undefined, { cls: "primary" })}</div></div></div>`;
+        <div class="d">${esc(c.blurb ?? "")}</div>${c.passive ? `<div class="d passive"><b>${esc(c.passive.name)}:</b> ${esc(c.passive.text)}</div>` : ""}</div>`).join("")}</div></div></div>`;
   }
   const maxD = maxDifficulty(ui.meta);
-  return `<div class="screen setup"><div class="bgscene">${menuBackdrop()}</div><div class="setup-body scroll"><h2>Wähle deine Waffe</h2>
-    <div class="weaponrow"><div class="hero-big px">${heroPortrait(cur.id, st.weaponId, activeSkin(ui.meta, cur.id))}<b>${esc(cur.name)}</b></div>
+  return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deine Waffe</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Aufbrechen", "start-run", undefined, { cls: "primary" })}</div></div>
+    <div class="weapongrid"><div class="hero-big px">${heroPortrait(cur.id, st.weaponId, activeSkin(ui.meta, cur.id))}<b>${esc(cur.name)}</b></div>
       <div class="weaponlist">${cur.starterWeapons.map((id) => { const w = CONTENT.get("weapons", id);
-        return `<div class="wpick ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}>${itemHtml(w, "weapons")}</div>`; }).join("")}</div></div>
-    <h3>Schwierigkeit</h3><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
-      ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div>
-    ${maxD < CONFIG.difficulty.length - 1 ? `<div class="muted small">Die nächste Stufe wird nach einem Sieg freigeschaltet.</div>` : ""}
-    <h3>Seed (optional)</h3><input class="seed" inputmode="numeric" placeholder="leer = Zufall, gleiche Zahl = gleiche Karte" value="${esc(st.seed)}" data-change="set-seed">
-    <div class="row center">${btn("Zurück", "setup-back")}${btn("Aufbrechen", "start-run", undefined, { cls: "primary big" })}</div></div></div>`;
+        return `<div class="wpick ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}>${itemHtml(w, "weapons")}</div>`; }).join("")}</div>
+      <div class="setup-opts px pad"><h3>Schwierigkeit</h3><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
+        ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div>
+        ${maxD < CONFIG.difficulty.length - 1 ? `<div class="muted small">Die nächste Stufe wird nach einem Sieg freigeschaltet.</div>` : ""}
+        <h3>Seed (optional)</h3><input class="seed" inputmode="numeric" placeholder="leer = Zufall" value="${esc(st.seed)}" data-change="set-seed">
+        <div class="muted small">Gleiche Zahl = gleiche Karte.</div></div></div></div></div>`;
 }
 
 // ---------------------------------------------------------------- Geschichte
@@ -4934,20 +5009,20 @@ function storyView(ui) {
   const i = Math.min(ui.storyIdx, lines.length - 1), last = i === lines.length - 1;
   const bubble = `<div class="who">${esc(sp.name)} <small>${esc(sp.title ?? "")}</small></div><p>${esc(lines[i])}</p>
     <div class="bubble-foot"><span class="dots">${lines.map((_, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("")}</span>${btn(last ? "Los geht's" : "Weiter", "story-next", undefined, { cls: "primary small" })}</div>`;
-  return `<div class="screen story"><div class="scene">${introScene({ run, speaker: sp, first: i === 0, bubble })}</div>
+  return `<div class="screen story"><div class="scene">${introScene({ run, speaker: sp, first: i === 0, bubble, ext: sceneExt(ui, 400) })}</div>
     <div class="storybar">${btn("Überspringen", "story-skip", undefined, { cls: "small" })}</div></div>`;
 }
 
 // ---------------------------------------------------------------- Karte (Querformat: waagerecht, Hochformat: senkrecht)
 function mapView(ui) {
-  const run = ui.run, map = run.map, L = map.layers.length, land = ui.landscape;
+  const run = ui.run, map = run.map, L = map.layers.length, land = true;
   const path = run.path ?? [], avail = run.phase === "map" ? availableNodes(run) : [];
-  const SP = 66, PAD = 40, SPAN = 230;
+  const SP = 66, PAD = 40, SPAN = 270;
   const W = land ? (L + 1) * SP + PAD * 2 : 340, H = land ? SPAN : (L + 1) * SP + PAD * 2;
   const pos = (n) => {
     const count = n.id === "boss" ? 1 : map.layers[n.layer].length;
     const lane = (n.index + 1) / (count + 1);
-    return land ? { x: PAD + n.layer * SP, y: 22 + lane * (SPAN - 44) } : { x: 24 + lane * (W - 48), y: H - PAD - n.layer * SP };
+    return { x: PAD + n.layer * SP, y: 26 + lane * (SPAN - 52) };
   };
   const nodes = [...map.layers.flat(), map.boss];
   const edges = nodes.flatMap((n) => n.next.map((id) => {
@@ -4961,9 +5036,9 @@ function mapView(ui) {
   }).join("");
   const here = run.nodeId ? pos(findNode(map, run.nodeId)) : null;
   const hero = here ? `<g class="mapHero" transform="translate(${here.x - 10} ${here.y - 52})">${spr("hero", run.classId, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: 'width="20" height="29"' })}</g>` : "";
-  return `${hud(ui)}<div class="screen mapscreen"><div class="maphead"><h3>${run.nodeId ? "Wohin als Nächstes?" : "Der Weg beginnt"}</h3><span class="muted small">Leuchtende Orte sind erreichbar. Abkürzungen überspringen Ebenen.</span></div>
-    <div class="mapwrap scroll ${land ? "land" : "port"}"><svg class="mapsvg" viewBox="0 0 ${W} ${H}" ${land ? `style="width:${W}px;height:100%;min-height:${SPAN}px"` : ""} role="img" aria-label="Dungeon-Karte">${edges}${plates}${hero}</svg></div>
-    <div class="legend">${Object.entries(NODE_ICON).map(([k, v]) => `<span>${ico(v, 16)}${NODE_NAME[k]}</span>`).join("")}</div></div>`;
+  return `${hud(ui)}<div class="screen mapscreen"><div class="maphead"><h3>${run.nodeId ? "Wohin als Nächstes?" : "Der Weg beginnt"}</h3><span class="muted small">Leuchtende Orte sind erreichbar.</span>
+    <span class="grow"></span><div class="legend">${Object.entries(NODE_ICON).map(([k, v]) => `<span>${ico(v, 14)}${NODE_NAME[k]}</span>`).join("")}</div></div>
+    <div class="mapwrap"><svg class="mapsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Dungeon-Karte">${edges}${plates}${hero}</svg></div></div>`;
 }
 
 // ---------------------------------------------------------------- Kampf
@@ -4985,11 +5060,13 @@ function combatView(ui) {
     return `<button class="activebtn${a.used ? " used" : ""}"${off ? " disabled" : at("use-item", String(a.index))} title="${esc(a.item.text ?? a.item.name)}" aria-label="${esc(a.item.name)}">${itemIcon(a.item, 30)}<span class="acost">${ico("bolt", 11)}${a.def.cost}</span>${a.used ? '<span class="aused">benutzt</span>' : ""}</button>`;
   }).join("")}</div>` : "";
   const logLines = c.log.slice(ui.showLog ? -30 : -0).map((l) => `<div class="${l.includes("***") ? "hit" : ""}">${esc(l.trim())}</div>`).join("");
-  return `${hud(ui)}<div class="screen combat"><div class="scene">${combatScene({ run, c, fx: ui.fx, enter: ui.enter, targetable, focus: ui.focus })}${actives}${info}
+  const ext = sceneExt(ui, 252);
+  return `${hud(ui)}<div class="screen combat"><div class="scene">${combatScene({ run, c, fx: ui.fx, enter: ui.enter, targetable, focus: ui.focus, ext })}${actives}${info}
+      <div class="side left"><div class="piles"><span class="pile" title="Nachziehstapel">${ico("pile", 16)}<b>${c.piles.draw.length}</b></span><span class="pile" title="Ablagestapel">${ico("discard", 16)}<b>${c.piles.discard.length}</b></span></div>
+        ${btn(ui.auto ? "Auto: an" : "Auto", "toggle-auto", undefined, { cls: `small ${ui.auto ? "good" : ""}`, disabled: Boolean(c.result) })}${btn(`Tempo x${ui.speed}`, "cycle-speed", undefined, { cls: "small" })}</div>
+      <div class="side right"><div class="energy">${pips}</div>${btn("Zug beenden", "end-turn", undefined, { cls: "primary", disabled: Boolean(c.result) || ui.auto })}${btn(ui.showLog ? "Log aus" : "Log", "toggle-log", undefined, { cls: "small" })}</div>
       ${ui.showLog ? `<div class="logpanel px">${logLines}</div>` : ""}</div>
-    <div class="handrow"><div class="piles"><span class="pile">${ico("pile", 16)}<b>${c.piles.draw.length}</b></span><span class="pile">${ico("discard", 16)}<b>${c.piles.discard.length}</b></span></div>
-      <div class="hand">${hand.map((inst, i) => cardHtml(inst.def, { build, plays: c.playsThisTurn, selected: ui.selected === i, dim: inst.def.cost > P.energy, action: "select-card", arg: String(i) })).join("") || "<span class='muted pad'>Keine Karten auf der Hand</span>"}</div>
-      <div class="turnbox"><div class="energy">${pips}</div><div class="row tbtns">${btn(ui.auto ? "Auto: an" : "Auto", "toggle-auto", undefined, { cls: `small ${ui.auto ? "good" : ""}`, disabled: Boolean(c.result) })}${btn(`Tempo x${ui.speed}`, "cycle-speed", undefined, { cls: "small" })}</div>${btn("Zug beenden", "end-turn", undefined, { cls: "primary", disabled: Boolean(c.result) || ui.auto })}${btn(ui.showLog ? "Log aus" : "Log", "toggle-log", undefined, { cls: "small" })}</div></div></div>
+    <div class="handrow"><div class="hand" style="--n:${hand.length}">${hand.map((inst, i) => cardHtml(inst.def, { build, plays: c.playsThisTurn, selected: ui.selected === i, dim: inst.def.cost > P.energy, action: "select-card", arg: String(i) })).join("") || "<span class='muted pad'>Keine Karten auf der Hand</span>"}</div></div></div>
     ${c.result ? `<div class="overlay"><div class="sheet mid center stack"><h2>${c.result === "won" ? "Sieg!" : "Niederlage"}</h2>
       ${c.shinyKills.length ? `<div class="shiny sh px pad"><b>Chrom-Gegner besiegt!</b><br>Bonus: +${CONFIG.shiny.enemyGold} Gold, ein seltenes Chrom-Item und eine Chrom-Waffe zur Wahl.</div>` : ""}${btn("Weiter", "after-combat", undefined, { cls: "primary" })}</div></div>` : ""}`;
 }
@@ -4997,15 +5074,20 @@ function combatView(ui) {
 // ---------------------------------------------------------------- Belohnung
 function rewardView(ui) {
   const run = ui.run, r = run.pending.reward, t = r.taken, build = buildOf(run), cur = CONTENT.get("weapons", run.weapon);
-  const cards = r.cards.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}</div>`).join("");
-  const list = (ids, kind, key) => ids.map((id, i) => `<div class="slot wide">${itemHtml(CONTENT.get(kind, id), kind)}${btn(t[key] ? "Gewählt" : "Nehmen", "take", key, { arg2: String(i), cls: "small good", disabled: t[key] })}</div>`).join("");
-  return `${hud(ui)}<div class="screen scroll"><div class="section"><h2>Beute</h2><div class="gold row">${ico("coin", 18)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(inkl. ${r.shinyBonus} Chrom-Bonus)</span>` : ""}</div></div>
-    ${r.shinyItems.length ? `<div class="section"><h3 class="chrome">Chrom-Fund: Item (wähle 1)</h3><div class="grid2">${list(r.shinyItems, "items", "shinyItems")}</div></div>` : ""}
-    ${r.shinyWeapons?.length ? `<div class="section"><h3 class="chrome">Chrom-Fund: Waffe (aktuell: ${esc(cur.name)}, Stärke ${cur.power})</h3><div class="grid2">${list(r.shinyWeapons, "weapons", "shinyWeapons")}</div></div>` : ""}
-    <div class="section"><h3>Karte wählen (oder überspringen)</h3><div class="grid">${cards}</div></div>
-    ${r.items.length ? `<div class="section"><h3>Item wählen</h3><div class="grid2">${list(r.items, "items", "items")}</div></div>` : ""}
-    ${r.weapons.length ? `<div class="section"><h3>Waffe tauschen? (aktuell: ${esc(cur.name)}, Stärke ${cur.power})</h3><div class="grid2">${list(r.weapons, "weapons", "weapons")}</div></div>` : ""}
-    <div class="pad center">${btn("Weiter", "finish-reward", undefined, { cls: "primary big" })}</div></div>`;
+  // Eine Kategorie pro Reiter: so sieht man jede Auswahl in Ruhe, ohne zu scrollen (auch bei Chrom-Beute)
+  const cats = [];
+  if (r.shinyItems.length) cats.push({ key: "shinyItems", label: "Chrom-Item", kind: "items", ids: r.shinyItems, title: "Chrom-Fund: Item (wähle 1)", cls: "chrome" });
+  if (r.shinyWeapons?.length) cats.push({ key: "shinyWeapons", label: "Chrom-Waffe", kind: "weapons", ids: r.shinyWeapons, title: `Chrom-Fund: Waffe (aktuell: ${cur.name}, Stärke ${cur.power})`, cls: "chrome" });
+  cats.push({ key: "cards", label: "Karte", kind: "cards", ids: r.cards, title: "Karte wählen (oder überspringen)" });
+  if (r.items.length) cats.push({ key: "items", label: "Item", kind: "items", ids: r.items, title: "Item wählen" });
+  if (r.weapons.length) cats.push({ key: "weapons", label: "Waffe", kind: "weapons", ids: r.weapons, title: `Waffe tauschen? (aktuell: ${cur.name}, Stärke ${cur.power})` });
+  const sel = cats.find((c) => c.key === ui.tab.reward) ?? cats.find((c) => !t[c.key]) ?? cats[0];
+  const slots = sel.kind === "cards"
+    ? `<div class="cards3">${sel.ids.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}</div>`).join("")}</div>`
+    : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind)}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
+  const tabs = cats.length > 1 ? `<div class="tabs">${cats.map((c) => `<span class="tab ${c.key === sel.key ? "on" : ""}"${at("set-tab", "reward", c.key)}>${t[c.key] ? "✓ " : ""}${c.label}</span>`).join("")}</div>` : "";
+  return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}</div>${tabs}<span class="grow"></span>${btn("Weiter", "finish-reward", undefined, { cls: "primary" })}</div>
+    <div class="rw-body"><h3 class="${sel.cls ?? ""}">${esc(sel.title)}</h3>${slots}</div></div>`;
 }
 
 // ---------------------------------------------------------------- Shop, Rast, Ereignis
@@ -5013,38 +5095,43 @@ function shopView(ui) {
   const run = ui.run, shop = run.pending.shop, build = buildOf(run);
   const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""}">${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
     ${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
-  const items = shop.items.map((s, i) => `<div class="slot wide ${s.sold ? "sold" : ""}">${itemHtml(CONTENT.get("items", s.id))}
+  const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""}">${itemHtml(CONTENT.get("items", s.id))}
     ${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
-  return `${hud(ui)}<div class="screen scroll">${brumm ? `<div class="section"><div class="outro"><div class="npc">${spr("npc", "brumm", { attrs: 'width="64" height="92"' })}</div><div class="bubble static"><div class="who">${esc(CONTENT.speakers.brumm.name)} <small>${esc(CONTENT.speakers.brumm.title)}</small></div><p>${esc(brumm)}</p></div></div></div>` : ""}<div class="section shophead"><div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="56" height="56"' })}</div><div><h2>${shop.start ? "Startladen" : "Händler"}</h2><div class="muted">Dein Gold: <b class="gold">${run.gold}</b></div></div></div>
-    <div class="section"><h3>Karten</h3><div class="grid">${cards}</div></div><div class="section"><h3>Items</h3><div class="grid2">${items}</div></div>
-    <div class="section row wrap">${btn(`${ico("star", 14)} Neu würfeln (${shop.rerollCost})`, "reroll", undefined, { disabled: run.gold < shop.rerollCost })}
-      ${btn(`${ico("discard", 14)} Karte entfernen (${shop.removeCost})`, "remove-start", undefined, { disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}</div>
-    <div class="pad center">${btn("Weiter", "leave-shop", undefined, { cls: "primary big" })}</div></div>`;
+  const npc = brumm
+    ? `<div class="shop-npc"><div class="npc">${spr("npc", "brumm", { attrs: 'width="46" height="62"' })}</div><div class="bubble static"><div class="who">${esc(CONTENT.speakers.brumm.name)}</div><p>${esc(brumm)}</p></div></div>`
+    : `<div class="shop-npc plain"><div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="44" height="44"' })}</div></div>`;
+  return `${hud(ui)}<div class="screen shop"><div class="shop-side">${npc}<h2>${shop.start ? "Startladen" : "Händler"}</h2><div class="muted">Dein Gold: <b class="gold">${run.gold}</b></div>
+      ${btn(`${ico("star", 14)} Neu würfeln (${shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: run.gold < shop.rerollCost })}
+      ${btn(`${ico("discard", 14)} Entfernen (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
+      <span class="grow"></span>${btn("Weiter", "leave-shop", undefined, { cls: "primary" })}</div>
+    <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items3">${items}</div></div></div>`;
 }
 function restView(ui) {
   const run = ui.run, heal = Math.min(run.maxHp - run.hp, Math.ceil(run.maxHp * CONFIG.run.restHealPct));
-  return `${hud(ui)}<div class="screen scroll"><div class="section center stack"><div class="bigicon">${spr("icon", "n_rast", { attrs: 'width="96" height="96"', cls: "flick" })}</div><h2>Rastplatz</h2><div class="muted">Ein Feuer knistert. Du hast Zeit für genau eine Sache.</div>
-    ${btn(`Ausruhen (+${heal} HP)`, "rest-heal", undefined, { cls: "good" })}${btn("Eine Karte aus dem Deck entfernen", "rest-remove-start", undefined, { disabled: run.deck.length <= CONFIG.run.minDeck })}</div></div>`;
+  return `${hud(ui)}<div class="screen rest"><div class="bigicon">${spr("icon", "n_rast", { attrs: 'width="110" height="110"', cls: "flick" })}</div>
+    <div class="rest-r stack"><h2>Rastplatz</h2><div class="muted">Ein Feuer knistert. Du hast Zeit für genau eine Sache.</div>
+    <div class="stack">${btn(`Ausruhen (+${heal} HP)`, "rest-heal", undefined, { cls: "good" })}${btn("Eine Karte aus dem Deck entfernen", "rest-remove-start", undefined, { disabled: run.deck.length <= CONFIG.run.minDeck })}</div></div></div>`;
 }
 function eventView(ui) {
   const run = ui.run, ev = CONTENT.events[run.pending.eventId];
-  return `${hud(ui)}<div class="screen scroll"><div class="section center stack"><div class="bigicon">${spr("icon", "n_ereignis", { attrs: 'width="96" height="96"' })}</div><h2>${esc(ev.name)}</h2><div>${esc(ev.text)}</div></div>
-    <div class="section stack">${ev.choices.map((ch, i) => { const lack = ch.requires?.gold > run.gold;
+  return `${hud(ui)}<div class="screen event"><div class="ev-l stack"><div class="bigicon">${spr("icon", "n_ereignis", { attrs: 'width="84" height="84"' })}</div><h2>${esc(ev.name)}</h2><div>${esc(ev.text)}</div></div>
+    <div class="ev-r stack">${ev.choices.map((ch, i) => { const lack = ch.requires?.gold > run.gold;
       return btn(esc(ch.label) + (lack ? " (zu wenig Gold)" : ""), "event-choice", String(i), { disabled: lack }); }).join("")}</div></div>`;
 }
 
 // ---------------------------------------------------------------- Ende
 function endView(ui) {
   const run = ui.run, s = run.summary, won = s.won, m = s.meta, outro = CONTENT.stories.outro, sp = CONTENT.speakers[outro?.speaker];
-  const mira = won && outro ? `<div class="outro"><div class="npc">${spr("npc", outro.speaker, { attrs: 'width="72" height="104"' })}</div><div class="bubble static"><div class="who">${esc(sp.name)}</div>${storyLines("outro", run.classId).map((l) => `<p>${esc(l)}</p>`).join("")}</div></div>` : "";
-  return `<div class="screen scroll"><div class="pad stack center"><h1>${won ? "Sieg! Der Wandler ist gefallen." : "Der Run ist zu Ende."}</h1>${mira}
-    <div class="px pad left"><div>Klasse: <b>${esc(CONTENT.classes[run.classId].name)}</b> · ${esc(CONFIG.difficulty[run.difficulty].name)}</div>
+  const mira = won && outro ? `<div class="outro"><div class="npc">${spr("npc", outro.speaker, { attrs: 'width="58" height="82"' })}</div><div class="bubble static"><div class="who">${esc(sp.name)}</div>${storyLines("outro", run.classId).map((l) => `<p>${esc(l)}</p>`).join("")}</div></div>` : "";
+  const ach = (s.achievements ?? []).map((id) => CONTENT.achievements[id].name);
+  return `<div class="screen end"><div class="end-l stack"><h1>${won ? "Sieg! Der Wandler ist gefallen." : "Der Run ist zu Ende."}</h1>${mira}</div>
+    <div class="end-r stack"><div class="px pad left"><div>Klasse: <b>${esc(CONTENT.classes[run.classId].name)}</b> · ${esc(CONFIG.difficulty[run.difficulty].name)}</div>
       <div>Kämpfe: <b>${s.stats.fights}</b> · Orte: <b>${s.stats.nodes}</b> · Gold verdient: <b>${s.stats.goldEarned}</b></div>
       <div>Items: <b>${s.items}</b> · Deckgröße: <b>${s.deck}</b></div><div>Shinys gesehen: <b>${s.stats.shinyEnemies + s.stats.shinyLoot}</b> · Seed: <b>${run.seed}</b></div></div>
     ${m?.newDifficulty ? `<div class="px pad good"><b>Neue Schwierigkeit freigeschaltet: ${esc(m.newDifficulty)}</b></div>` : ""}
-    ${m?.unlocks?.length ? `<div class="px pad"><b>Neu freigeschaltet:</b><br>${m.unlocks.map((u) => esc(u.name)).join(", ")}</div>` : ""}
-    ${s.achievements?.length ? `<div class="px pad left"><b>Neue Erfolge:</b>${s.achievements.map((id) => `<div>${esc(CONTENT.achievements[id].name)}</div>`).join("")}</div>` : ""}
+    ${m?.unlocks?.length ? `<div class="px pad"><b>Neu freigeschaltet:</b> ${m.unlocks.slice(0, 6).map((u) => esc(u.name)).join(", ")}${m.unlocks.length > 6 ? ` und ${m.unlocks.length - 6} weitere` : ""}</div>` : ""}
+    ${ach.length ? `<div class="px pad left"><b>Neue Erfolge:</b> ${ach.slice(0, 4).map(esc).join(", ")}${ach.length > 4 ? ` und ${ach.length - 4} weitere` : ""}</div>` : ""}
     ${btn("Zurück zum Titel", "to-title", undefined, { cls: "primary" })}</div></div>`;
 }
 
@@ -5056,18 +5143,25 @@ function collectionView(ui) {
     const f = found(kind, id);
     return `<div class="dextile ${f ? "found sh" : "unknown"}" title="${f ? esc((kind === "heroes" ? CONTENT.classes : CONTENT[kind])[id].name) : "???"}">${spr(svgKind, id, { shiny: f, attrs: 'width="100%" height="100%"' })}</div>`;
   };
+  const grid = (kind, svgKind, cls) => `<div class="dexgrid ${cls}">${Object.keys(kind === "heroes" ? CONTENT.classes : CONTENT[kind]).map((id) => tile(kind, id, svgKind)).join("")}</div>`;
   const unlockables = ["cards", "weapons", "items"].flatMap((kind) => Object.values(CONTENT[kind])
     .filter((d) => d.unlock && !(d.unlock.type === "achievement" && CONTENT.achievements[d.unlock.id]?.secret && !meta.unlocked[`${kind}/${d.id}`]))   // Belohnungen geheimer Erfolge bleiben verborgen
     .map((d) => ({ kind, d })));
-  return `<div class="screen scroll"><div class="pad stack"><h2>Shiny-Sammlung</h2>
-    <div class="px pad">${Object.entries(prog).map(([k, v]) => `<div class="dexrow"><span>${labels[k]}</span><b>${v.found}/${v.total}</b></div>`).join("")}</div>
-    ${[["heroes", "heroes", "hero"], ["items", "items", "item"], ["weapons", "weapons", "weapon"], ["enemies", "enemies", "enemy"]].map(([k, kind, sk]) => `<h3>${labels[k]}</h3><div class="dexgrid ${k}">${Object.keys(kind === "heroes" ? CONTENT.classes : CONTENT[kind]).map((id) => tile(kind, id, sk)).join("")}</div>`).join("")}
-    <div class="muted small">Ein Shiny taucht mit 1 zu ${Math.round(1 / CONFIG.shiny.enemyChance)} pro Gegner auf. Ein Chrom-Held erscheint mit 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)} beim Run-Start. Gefundene Shinys erscheinen hier als Chrom-Variante.</div>
-    <h2>Freischaltungen</h2><div class="px pad">${unlockables.map(({ kind, d }) => { const open = Boolean(meta.unlocked[`${kind}/${d.id}`]);
-      return `<div class="dexrow"><span>${open ? ico("plus", 12) : ico("lock", 12)} ${esc(d.name)}</span><span class="muted right">${open ? "frei" : esc(describeUnlock(d.unlock))}</span></div>`; }).join("")}</div>
-    ${btn("Chrom-Vorschau starten", "start-preview", undefined, { cls: "small" })}<div class="muted small">Ein Run, in dem alles Shiny ist, damit du den Chrom-Look siehst. Nichts wird gespeichert.</div>
-    ${ui.confirmReset ? `<div class="px pad stack"><b class="bad">Wirklich alles löschen?</b><div class="row">${btn("Ja, löschen", "reset-yes", undefined, { cls: "danger" })}${btn("Abbrechen", "reset-no")}</div></div>` : btn("Spielstand löschen", "reset-ask", undefined, { cls: "small" })}
-    ${btn("Zurück", "to-title", undefined, { cls: "primary" })}</div></div>`;
+  const tabs = [["heroes", "Helden"], ["items", "Items"], ["weapons", "Waffen"], ["enemies", "Gegner"], ["frei", "Freischaltungen"], ["mehr", "Mehr"]];
+  const tab = tabs.some(([k]) => k === ui.tab.collection) ? ui.tab.collection : "items";
+  let body;
+  if (tab === "frei") {
+    body = `<div class="unlocklist">${unlockables.map(({ kind, d }) => { const open = Boolean(meta.unlocked[`${kind}/${d.id}`]);
+      return `<div class="dexrow"><span>${open ? ico("plus", 12) : ico("lock", 12)} ${esc(d.name)}</span><span class="muted right">${open ? "frei" : esc(describeUnlock(d.unlock))}</span></div>`; }).join("")}</div>`;
+  } else if (tab === "mehr") {
+    body = `<div class="stack"><div class="muted small">Ein Shiny taucht mit 1 zu ${Math.round(1 / CONFIG.shiny.enemyChance)} pro Gegner auf. Ein Chrom-Held erscheint mit 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)} beim Run-Start. Gefundene Shinys erscheinen hier als Chrom-Variante.</div>
+      <div class="row wrap">${btn("Chrom-Vorschau starten", "start-preview", undefined, { cls: "small" })}<span class="muted small">Ein Run, in dem alles Shiny ist. Nichts wird gespeichert.</span></div>
+      ${ui.confirmReset ? `<div class="px pad stack"><b class="bad">Wirklich alles löschen?</b><div class="row">${btn("Ja, löschen", "reset-yes", undefined, { cls: "danger" })}${btn("Abbrechen", "reset-no")}</div></div>` : btn("Spielstand löschen", "reset-ask", undefined, { cls: "small" })}</div>`;
+  } else {
+    body = `<div class="muted small dexcount">${labels[tab]}: ${prog[tab].found} von ${prog[tab].total} als Shiny gefunden</div>${grid(tab, { heroes: "hero", items: "item", weapons: "weapon", enemies: "enemy" }[tab], tab)}`;
+  }
+  return `<div class="screen collection"><div class="pg-head"><h2>Shiny-Sammlung</h2><div class="tabs">${tabs.map(([k, label]) => `<span class="tab ${tab === k ? "on" : ""}"${at("set-tab", "collection", k)}>${label}</span>`).join("")}</div><span class="grow"></span>${btn("Zurück", "to-title", undefined, { cls: "primary small" })}</div>
+    <div class="pg-body">${body}</div></div>`;
 }
 
 // ---------------------------------------------------------------- Overlays
@@ -5136,7 +5230,7 @@ const { nameAny } = __require("ui/util.js");
 const KEY_META = "rd_meta_v1", KEY_RUN = "rd_run_v1";
 const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
 
-function createController({ storage = null, seedFn = () => Math.floor(Math.random() * 2147483647), shinyRollFn = Math.random, landscape = false } = {}) {
+function createController({ storage = null, seedFn = () => Math.floor(Math.random() * 2147483647), shinyRollFn = Math.random, landscape = false, dev = false } = {}) {
   const read = (k) => { try { return storage ? JSON.parse(storage.getItem(k)) : null; } catch { return null; } };
   const write = (k, v) => { try { storage?.setItem(k, JSON.stringify(v)); } catch { /* Speicher voll/gesperrt: Spiel läuft trotzdem */ } };
   const remove = (k) => { try { storage?.removeItem(k); } catch { /* ignorieren */ } };
@@ -5154,11 +5248,12 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
   const achEvents = [...evaluateAchievements(meta).achievements];
 
   const ui = {
-    screen: "title", run: null, meta, landscape,
+    screen: "title", run: null, meta, landscape, dev,
     setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.starterWeapons[0], difficulty: 0, seed: "" },
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
+    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null },
     auto: false, speed: meta.settings.speed, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
   };
   let lastWave = -1;
@@ -5314,6 +5409,16 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         break;
       }
       case "focus": if (inPhase("combat")) ui.focus = ui.focus === arg ? null : arg; break;       // Hauptziel merken: einzelne Angriffe gehen darauf
+      case "dev-force": {                                  // nur für Screenshots/Tests (Adresse mit #dev): direkt zu einem Ortstyp springen
+        if (!ui.dev || !run) break;
+        const nodes = [...run.map.layers.flat(), run.map.boss], node = nodes.find((n) => n.type === arg);
+        if (!node) { toast(`Kein Ort vom Typ ${arg} auf dieser Karte`); break; }
+        const parent = run.map.layers.flat().find((n) => n.next.includes(node.id));
+        run.phase = "map"; run.pending = null; run.nodeId = parent ? parent.id : null;
+        enterNode(run, node.id);
+        break;
+      }
+      case "set-tab": ui.tab[arg] = arg2; break;                                  // Reiter in Sammlung, Erfolge und Aussehen
       case "toggle-auto": ui.auto = !ui.auto; break;
       case "cycle-speed": ui.speed = ui.speed >= 3 ? 1 : ui.speed + 1; saveSettings(); break;
       case "toggle-manual": ui.manual = !ui.manual; ui.selected = null; saveSettings(); break;
@@ -5327,13 +5432,14 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         break;
       }
       case "end-turn": if (inPhase("combat") && !run.pending.combat.result) { endPlayerTurn(run.pending.combat); ui.selected = null; } break;
-      case "after-combat": if (inPhase("combat")) { const r = completeCombat(run); if (!r.ok) toast(r.reason); ui.selected = null; } break;
+      case "after-combat": if (inPhase("combat")) { const r = completeCombat(run); if (!r.ok) toast(r.reason); ui.selected = null; ui.tab.reward = null; } break;
 
       // ---- Belohnung
       case "take": {
         const fn = { cards: takeCard, items: takeItem, weapons: takeWeapon, shinyItems: takeShinyItem, shinyWeapons: takeShinyWeapon }[arg];
         const r = fn ? fn(run, Number(arg2)) : { ok: false, reason: "Unbekannte Liste" };
         toast(r.ok ? `Genommen: ${nameAny(r.id)}` : r.reason);
+        if (r.ok) ui.tab.reward = null;                                        // nach einer Wahl zum nächsten offenen Reiter
         break;
       }
       case "finish-reward": { const r = finishReward(run); if (!r.ok) toast(r.reason); break; }
@@ -5411,8 +5517,27 @@ const root = document.getElementById("app");
 const storage = (() => {
   try { const s = window.localStorage; s.setItem("rd_probe", "1"); s.removeItem("rd_probe"); return s; } catch { return null; }
 })();
-const isLandscape = () => window.innerWidth > window.innerHeight;
-const ctrl = createController({ storage, landscape: isLandscape() });
+const dev = window.location.hash.includes("dev");                       // Entwickler-Zugang für Screenshots und Tests
+const ctrl = createController({ storage, landscape: true, dev });  // das Spiel ist für das Querformat gebaut
+
+// ---- Bühne: das Spiel ist immer 400 Einheiten hoch und 720 bis 960 breit und wird auf den Bildschirm skaliert (Handy, Tablet, Monitor).
+// So passt jeder Bildschirm ohne Scrollen, und alle Maße im Stylesheet gelten überall gleich.
+const stage = document.getElementById("stage"), probe = document.getElementById("probe");
+const STAGE_H = 400, STAGE_MIN_W = 720, STAGE_MAX_W = 960;
+function fit() {
+  const cs = window.getComputedStyle(probe);                                    // Sicherheitsabstände (Notch) aus CSS lesen
+  const L = parseFloat(cs.paddingLeft) || 0, R = parseFloat(cs.paddingRight) || 0, T = parseFloat(cs.paddingTop) || 0, B = parseFloat(cs.paddingBottom) || 0;
+  const vw = window.innerWidth - L - R, vh = window.innerHeight - T - B;
+  const s = Math.min(vh / STAGE_H, vw / STAGE_MIN_W);
+  const W = Math.min(STAGE_MAX_W, Math.floor(vw / s));
+  stage.style.width = `${W}px`; stage.style.height = `${STAGE_H}px`;
+  stage.style.transform = `translate(${L + (vw - W * s) / 2}px, ${T + (vh - STAGE_H * s) / 2}px) scale(${s})`;
+  document.body.classList.toggle("portrait", window.innerHeight > window.innerWidth * 1.08);
+  const changed = ctrl.ui.stageW !== W;
+  ctrl.ui.stageW = W;
+  return changed;
+}
+fit();
 
 // Erfolgs-Meldungen: liegen außerhalb der Spielansicht, damit sie ein Neuzeichnen überdauern
 const banners = document.getElementById("banners");
@@ -5440,9 +5565,6 @@ function render() {
   root.innerHTML = ctrl.render();
   showBanners();
   scheduleAuto();
-  // Auf der Karte zum nächsten wählbaren Ort scrollen
-  const next = root.querySelector(".node.avail");
-  if (next && next.scrollIntoView) next.scrollIntoView({ block: "center", inline: "center" });
 }
 
 root.addEventListener("click", (ev) => {
@@ -5454,18 +5576,12 @@ root.addEventListener("change", (ev) => {
   const el = ev.target.closest("[data-change]");
   if (el) ctrl.dispatch(el.dataset.change, el.value);
 });
-// Quer-/Hochformat: nur neu zeichnen, wenn sich die Ausrichtung wirklich ändert
-let last = isLandscape();
-function onResize() {
-  const now = isLandscape();
-  if (now === last) return;
-  last = now;
-  ctrl.dispatch("orientation", now ? "landscape" : "portrait");
-  render();
-}
+// Größe oder Ausrichtung geändert: Bühne neu anpassen und bei anderer Breite neu zeichnen (die Kulisse passt sich der Breite an)
+function onResize() { if (fit()) render(); }
 window.addEventListener("resize", onResize);
 window.addEventListener("orientationchange", () => setTimeout(onResize, 120));
 render();
+if (dev) window.__rd = { ctrl, render };
 
 
 
