@@ -22,7 +22,8 @@ const CONFIG = {
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
     enemyDmgScale: 0.57,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
-    tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,          // Max. Bonus durch "pro zuvor gespielter Karte"  // Globaler Regler für ALLEN Gegnerschaden (vor der Schwierigkeitsstufe)
+    tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
+    maxXMult: 3,          // Obergrenze für den Endmultiplikator (xMult), damit High-Risk-Builds nicht ins Unendliche laufen,          // Max. Bonus durch "pro zuvor gespielter Karte"  // Globaler Regler für ALLEN Gegnerschaden (vor der Schwierigkeitsstufe)
   },
 
   // Element-System: Multiplikatoren pro Gegner-Element (bei Doppel-Elementen werden sie multipliziert)
@@ -47,13 +48,14 @@ const CONFIG = {
   rewards: { cardChoices: 3, wildcardSlots: 1 },   // Wildcard-Slots ignorieren die Lenkung (Vielfalt!)
 
   shop: {
-    cardSlots: 5, itemSlots: 3, wildcardCards: 2, wildcardItems: 1,
+    cardSlots: 5, itemSlots: 4, wildcardCards: 2, wildcardItems: 1,
     basePrice: { gewoehnlich: 40, ungewoehnlich: 70, selten: 120, legendaer: 220 },
     itemFactor: 1.5,       // Items kosten mehr als Karten
     priceVariance: 0.15,   // +-15 % Zufallsschwankung
-    startDiscount: 0.5,    // Startladen (nach dem ersten Kampf): halbe Preise
+    startDiscount: 0.5,
+    inflationPerFight: 0.04,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
     removeBase: 50, removeIncrement: 25,
-    rerollBase: 25, rerollIncrement: 15,
+    rerollBase: 10, rerollMult: 2,
   },
 
   // Items dürfen gestapelt werden (wie bei Brotato). Einzelne Items überschreiben das mit "maxStack".
@@ -89,6 +91,7 @@ const CONFIG = {
   ],
 
   // Typ-Tags, die für Vielfalts-Effekte und Lenkung zählen (Element-IDs kommen automatisch dazu)
+  economy: { overkillPerGold: 5 },   // Überschuss-Schaden beim Töten wird zu Gold (5 Überschuss = 1 Gold)
   typeTags: ["feuer", "gift", "blut", "block", "dornen", "pakt", "heilung", "ruestung"],   // diese Tags zählen für Synergien und die Beute-Lenkung
 };
 
@@ -674,6 +677,7 @@ __exports.default = {
   enemies: {
     funke: { name: "Funke", hp: 16, elements: ["feuer"], pattern: [{ type: "attack", value: 5 }] },
     elementarwandler: {
+      immune: ["aussetzen"],   // Bestechung wirkt nicht auf den Endboss
       name: "Elementarwandler", hp: 230, elements: ["feuer"],
       mechanics: {
         rotateElement: { cycle: ["feuer", "wasser", "pflanze", "eis"], every: 2 },
@@ -775,7 +779,7 @@ __exports.default = {
 
   classes: {
     fernkaempfer: {
-      name: "Fernkämpfer", hp: 65, stats: { handSize: 1 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
+      name: "Fernkämpfer", hp: 68, stats: { handSize: 1 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
       deck: ["schnellschuss", "schnellschuss", "schnellschuss", "schnellschuss", "zielen", "praezisionsschuss", "praezisionsschuss"], shopBasics: ["rolle", "rolle"],
       weapon: "kurzbogen", starterWeapons: ["kurzbogen", "armbrust", "giftbogen"], items: [],
     },
@@ -1096,7 +1100,7 @@ __exports.default = {
       text: "12 Block. Ziehe 1 Karte.", play: [{ action: "block", value: 12 }, { action: "draw", value: 1 }] },
     festungsbau:    { name: "Festungsbau", cost: 3, rarity: "selten", pools: ["nahkaempfer"], tags: ["block", "dornen", "ruestung"],
       text: "16 Block. Dornen 4: Angreifer erleiden bis zu deinem Zug 4 Schaden.", play: [{ action: "block", value: 16 }, { action: "playerStatus", status: "dornen", stacks: 4 }] },
-    aderlass:       { name: "Aderlass", cost: 0, rarity: "ungewoehnlich", pools: ["nahkaempfer"], tags: ["pakt", "blut"],
+    blutopfer:      { name: "Blutopfer", cost: 0, rarity: "ungewoehnlich", pools: ["nahkaempfer"], tags: ["pakt", "blut"],
       text: "Verliere 5 HP (nie unter 1). +1 Energie.", play: [{ action: "loseHp", value: 5 }, { action: "energy", value: 1 }] },
     blutdurst:      { name: "Blutdurst", cost: 1, pools: ["nahkaempfer"], tags: ["blut", "heilung", "angriff", "nahkampf"],
       text: "Schaden: 4 + Waffe. Blutet das Ziel: heile 3 HP.", play: [{ action: "damage", base: 4, weaponScale: 1 }, { action: "heal", value: 3, ifTarget: "blutung" }] },
@@ -1110,6 +1114,98 @@ __exports.default = {
       passives: [{ trigger: "on_turn_start", action: "player_status", status: "dornen", stacks: 2 }], text: "Zugbeginn: Dornen 2 (Angreifer erleiden 2 Schaden)." },
     eisenfaust:    { name: "Eisenfaust", rarity: "ungewoehnlich", tags: ["block", "ruestung", "item"],
       passives: [{ trigger: "damage_calc", cardTag: "block", op: "add", value: 3 }], text: "Block-Karten: +3 Schaden." },
+  },
+};
+
+
+
+});
+__define("content/packs/pyro.js", function (__exports, __require) {
+// PYRO-MASOCHIST: Schmerz als Währung. HP werden bewusst geopfert und in Schaden, Energie und Karten verwandelt (hohes Risiko, hohe Belohnung).
+// Dazu die Wirtschafts-Items "Ernte". Neue Bausteine: Status "verbrennung", Trigger "on_hp_lost", xMult-Passiv, Stat healLoss (Heilung gemindert),
+// Aktionen mit Bedingung (ifHpLost / unlessHpLost) und Schaden aus fehlenden HP (fromMissingHp).
+// Die Karten liegen im allgemeinen Pool: jede Klasse kann sich zum Pyro-Masochisten entwickeln.
+__exports.default = {
+  id: "pyro",
+  name: "Pyro-Masochist und Ernte",
+  cards: {
+    aderlass: { name: "Aderlass", cost: 0, rarity: "ungewoehnlich", tags: ["pakt"],
+      text: "Erleide 4 Schaden (nie unter 1 HP). Ziehe 2 Karten, erhalte 1 Energie.",
+      play: [{ action: "loseHp", value: 4 }, { action: "draw", value: 2 }, { action: "energy", value: 1 }] },
+    lodernder_schmerz: { name: "Lodernder Schmerz", cost: 1, rarity: "ungewoehnlich", element: "feuer", tags: ["pakt", "angriff"],
+      text: "Feuerschaden gleich deinen fehlenden Lebenspunkten (max. 40).",
+      play: [{ action: "damage", base: 0, fromMissingHp: { max: 40 } }] },
+    feuersturm: { name: "Feuersturm", cost: 2, rarity: "selten", element: "feuer", tags: ["pakt", "angriff"],
+      text: "12 Feuerschaden auf einen Gegner. Hast du diesen Zug HP verloren: trifft ALLE Gegner und gibt jedem 2 Verbrennung.",
+      play: [{ action: "damage", base: 12, unlessHpLost: true }, { action: "damage", base: 12, target: "all", ifHpLost: true }, { action: "status", status: "verbrennung", stacks: 2, target: "all", ifHpLost: true }] },
+  },
+  items: {
+    pech_raeucherstaebchen: { name: "Pech-Räucherstäbchen", tags: ["feuer", "pakt", "item"],
+      passives: [{ trigger: "damage_calc", op: "add", value: 3, cardTag: "feuer" }, { trigger: "on_turn_end", action: "hurt", value: 1 }],
+      text: "Feuer-Karten: +3 Schaden. Zugende: du erleidest 1 Schaden." },
+    asche_lunge: { name: "Asche-Lunge", rarity: "ungewoehnlich", tags: ["feuer", "pakt", "item"],
+      stats: { healLoss: 0.5 },
+      passives: [{ trigger: "on_hp_lost", action: "status_all", status: "verbrennung", stacks: 3 }],
+      text: "Wenn du HP verlierst: alle Feinde erhalten 3 Verbrennung. Heilung auf dich ist um 50 % reduziert." },
+    krone_des_maertyrers: { name: "Krone des Märtyrers", rarity: "selten", maxStack: 1, tags: ["pakt", "item"],
+      stats: { maxHp: -10 },
+      passives: [{ trigger: "damage_calc", op: "xmult", perMissingHp: { step: 5, value: 0.1 } }],
+      text: "Schaden x0,1 je 5 HP, die dir zum Maximum fehlen (Obergrenze x3). -10 Max-HP." },
+    erntesichel: { name: "Erntesichel", tags: ["gold", "item"], stats: { ernte: 2 }, text: "Ernte 2: nach jedem Kampf +2 Gold." },
+    vorratskammer: { name: "Vorratskammer", rarity: "ungewoehnlich", tags: ["gold", "item"], stats: { ernte: 4 }, text: "Ernte 4: nach jedem Kampf +4 Gold." },
+  },
+};
+
+
+
+});
+__define("content/packs/aristokrat_gaertner.js", function (__exports, __require) {
+// ZWEI NEUE DECK-ARCHETYPEN
+//  1) Gieriger Aristokrat (Gold-Skalierung): Gold wird zu Schaden, Kopfgeld, Bestechung.
+//  2) Parasitärer Gärtner (Pflanze und Heilungs-Umwandlung): Heilung wird zu Waffe, Max-HP wächst.
+// Engine-Bausteine (engine/modifiers.js, engine/combat.js, engine/run.js):
+//   Passiv-Op "baseadd" + perGold (Grundschaden je Gold), perHandCard (je Karte auf der Hand), Stats goldDouble / healToDamage,
+//   Item-Flags (flags: ["noFreeze"] setzt run.flags dauerhaft), Aktionen onKill / lifesteal / payGoldPct / maxHpUp,
+//   Bedingungen ifHealed / unlessHealed, Status "aussetzen" (Gegner überspringt die Runde, Bosse: immune).
+__exports.default = {
+  id: "aristokrat_gaertner",
+  name: "Aristokrat und Gärtner",
+  items: {
+    // ---------------- Gieriger Aristokrat
+    boerse_des_geizkragens: { name: "Börse des Geizkragens", rarity: "selten", tags: ["gold", "item"],
+      passives: [{ trigger: "damage_calc", op: "baseadd", perGold: { step: 50, value: 1 }, cap: 15 }],    // cap 15: Sicherheitsgrenze gegen unbegrenzte Gold-Skalierung
+      text: "Alle Karten: +1 Grundschaden je 50 Gold, das du besitzt (max. +15)." },
+    midas_fluch: { name: "Midas-Fluch", rarity: "ungewoehnlich", maxStack: 1, tags: ["gold", "item"],
+      stats: { goldDouble: 1 },
+      flags: ["noFreeze"],                                                                               // Player-State: run.flags.noFreeze = true (dauerhaft)
+      text: "Verdoppelt das gesamte erhaltene Gold (Beute, Überschuss, Ernte, Kartengold). Item-Sperren im Shop sind dauerhaft deaktiviert." },
+    // ---------------- Parasitärer Gärtner
+    nekromanten_pakt: { name: "Nekromanten-Pakt", rarity: "selten", maxStack: 1, tags: ["pakt", "heilung", "item"],
+      stats: { healToDamage: 2 },                                                                        // überschreibt die Heilung: 0 HP, stattdessen 2x als Schaden auf einen zufälligen Gegner
+      text: "Jede Heilung wird zu 0. Stattdessen erleidet ein zufälliger Gegner den doppelten Wert als Schaden (außerhalb von Kämpfen verpufft sie)." },
+    wuchernde_wurzeln: { name: "Wuchernde Wurzeln", rarity: "ungewoehnlich", tags: ["pflanze", "heilung", "item"],
+      stats: { handSize: -2 },
+      passives: [{ trigger: "on_turn_end", action: "heal", value: 1, perHandCard: true }],
+      text: "Zugende: heile 1 HP je Karte auf der Hand. Handgröße -2." },
+  },
+  cards: {
+    // ---------------- Gieriger Aristokrat
+    taschendiebstahl: { name: "Taschendiebstahl", cost: 1, rarity: "ungewoehnlich", tags: ["gold", "angriff"],
+      text: "2 Schaden. Tötet diese Karte den Gegner: erhalte sofort 40 Gold.",
+      play: [{ action: "damage", base: 2, onKill: { gold: 40 } }] },
+    bestechung: { name: "Bestechung", cost: 2, rarity: "ungewoehnlich", tags: ["gold"],
+      text: "Ein Gegner setzt diese Runde aus. Du zahlst sofort 15 % deines Goldes. Bosse sind unbestechlich.",
+      play: [{ action: "status", status: "aussetzen", stacks: 1 }, { action: "payGoldPct", value: 0.15, ifTarget: "aussetzen" }] },
+    // ---------------- Parasitärer Gärtner
+    photosynthese: { name: "Photosynthese", cost: 1, element: "pflanze", tags: ["pflanze", "heilung"],
+      text: "Heile 8 HP. Max-HP +1 bis zum Ende des Runs.",
+      play: [{ action: "heal", value: 8 }, { action: "maxHpUp", value: 1 }] },
+    sporenwolke: { name: "Sporenwolke", cost: 1, element: "pflanze", tags: ["pflanze", "block"],
+      text: "5 Block. Wurdest du diesen Zug schon geheilt (oder wolltest heilen): stattdessen 15 Block.",
+      play: [{ action: "block", value: 5, unlessHealed: true }, { action: "block", value: 15, ifHealed: true }] },
+    blutsauger_ranke: { name: "Blutsauger-Ranke", cost: 2, rarity: "ungewoehnlich", element: "pflanze", tags: ["pflanze", "blut", "angriff", "heilung"],
+      text: "6 Schaden. Heile dich um den verursachten Schaden.",
+      play: [{ action: "damage", base: 6, lifesteal: true }] },
   },
 };
 
@@ -1181,10 +1277,12 @@ const magier = __require("content/packs/magier.js").default;
 const achievements = __require("content/packs/achievements.js").default;
 const aktiv = __require("content/packs/aktiv.js").default;
 const bollwerk = __require("content/packs/bollwerk.js").default;
+const pyro = __require("content/packs/pyro.js").default;
+const aristokratGaertner = __require("content/packs/aristokrat_gaertner.js").default;
 const story = __require("content/packs/story.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 const problems = CONTENT.validate();
@@ -1332,7 +1430,7 @@ const get = (kind, id) => {
 };
 
 // Alle Werte, die Items über "stats" verändern können (werden über alle Items summiert, auch gestapelt).
-const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction"];
+const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
 function resolveBuild(spec) {
@@ -1375,8 +1473,11 @@ function conditionsMet(eff, { card, build }) {
   return true;
 }
 
-function magnitude(eff, build) {
-  let v = eff.value;
+function magnitude(eff, build, ctx = {}) {
+  let v = eff.value ?? 0;
+  if (eff.perGold) v += Math.floor((ctx.gold ?? 0) / eff.perGold.step) * eff.perGold.value;                  // z. B. +1 je 50 Gold (Börse des Geizkragens)
+  if (eff.perHandCard) v *= ctx.hand ?? 0;                                                                // z. B. 1 HP je Karte auf der Hand (Wuchernde Wurzeln)
+  if (eff.perMissingHp) v += Math.floor(Math.max(0, (ctx.maxHp ?? 0) - (ctx.hp ?? 0)) / eff.perMissingHp.step) * eff.perMissingHp.value;   // z. B. +0,1 je 5 fehlende HP
   if (eff.perTag) v *= tagCount(build, eff.perTag, eff.scope);
   if (eff.perDistinct) v *= distinctTypes(build, eff.scope);
   return eff.cap !== undefined ? Math.min(v, eff.cap) : v;
@@ -1406,7 +1507,8 @@ function elementMultiplier({ element, enemy, build, card }) {
 //  3. Prozent-Boni (pct) SUMMIEREN sich (nicht multiplizieren), Max. config.maxMultBonus
 //  4. Element-Multiplikator (Stärken/Schwächen/Resistenzen)
 //  5. Verwundbar-Multiplikator des Ziels
-function computeDamage({ build, card, action, target, playsBefore = 0 }) {
+//  6. xMult (Endmultiplikator, z. B. Krone des Märtyrers), Obergrenze config.balance.maxXMult
+function computeDamage({ build, card, action, target, playsBefore = 0, hp = 0, maxHp = 0, gold = 0 }) {
   const B = CONFIG.balance;
   let base = action.base + (action.weaponScale ?? 0) * build.weapon.power;
   if (action.bonusPerStatus) {
@@ -1416,13 +1518,14 @@ function computeDamage({ build, card, action, target, playsBefore = 0 }) {
   if (action.bonusPerPlay) base += Math.min(playsBefore, B.tempoCap) * action.bonusPerPlay;   // Tempo: Karten, die vorher gespielt wurden
   if ((target?.statuses.markiert ?? 0) > 0) base += B.markBonus;                              // Markierung: +Schaden pro Treffer
 
-  let add = 0, pct = 0;
+  let add = 0, pct = 0, xm = 0, baseAdd = 0;
   for (const eff of passivesFor(build, "damage_calc")) {
-    if (eff.op !== "add" && eff.op !== "pct") continue;
+    if (eff.op !== "add" && eff.op !== "pct" && eff.op !== "xmult" && eff.op !== "baseadd") continue;
     if (!conditionsMet(eff, { card, build })) continue;
-    const m = magnitude(eff, build);
-    if (eff.op === "add") add += m; else pct += m;
+    const m = magnitude(eff, build, { hp, maxHp, gold });
+    if (eff.op === "add") add += m; else if (eff.op === "pct") pct += m; else if (eff.op === "baseadd") baseAdd += m; else xm += m;
   }
+  base += baseAdd;                                                // "baseadd": Grundschaden (vor dem weichen Deckel der flachen Boni), z. B. aus Gold
   if (add > B.softCapAdd) add = B.softCapAdd + (add - B.softCapAdd) / 2;
   pct = Math.min(pct, B.maxMultBonus);
 
@@ -1430,8 +1533,9 @@ function computeDamage({ build, card, action, target, playsBefore = 0 }) {
   const elem = target ? elementMultiplier({ element, enemy: target, build, card }) : 1;
   const vuln = (target?.statuses.verwundbar ?? 0) > 0 ? B.vulnerableMult : 1;
 
-  const amount = Math.max(0, Math.floor((base + add) * (1 + pct) * elem * vuln));
-  return { amount, detail: { base, add, pct, elem, vuln } };
+  const xMult = Math.min(1 + xm, B.maxXMult);                    // xMult: Endmultiplikator, greift NACH Prozent, Element und Verwundbar (Quellen summieren sich, Deckel maxXMult)
+  const amount = Math.max(0, Math.floor((base + add) * (1 + pct) * elem * vuln * xMult));
+  return { amount, detail: { base, add, pct, elem, vuln, xMult } };
 }
 
 __exports.STAT_KEYS = STAT_KEYS;
@@ -1477,7 +1581,8 @@ function createCombat({ spec, encounterId, seed = 1, playerHp, verbose = false, 
     diff: CONFIG.difficulty[difficulty] ?? CONFIG.difficulty[0],
     encounter: CONTENT.encounters[encounterId], waveIndex: -1, turn: 0,
     player: { hp: Math.min(playerHp ?? maxHp, maxHp), maxHp, block: 0, energy: 0, statuses: {} },
-    lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null,
+    lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null, overkill: 0, hpLostThisTurn: false, healTriedThisTurn: false,
+    gold: spec.gold ?? 0, goldStart: spec.gold ?? 0, goldGained: 0, maxHpGain: 0,    // Gold im Kampf (Börse, Taschendiebstahl, Bestechung) und dauerhafte Max-HP (Photosynthese)
     // Zähler für Erfolge: höchster Einzeltreffer, erlittener Schaden, Karten/Reaktionen pro Zug, höchster Status-Stapel
     metrics: { plays: 0, reactions: 0, reactionIds: [], maxHit: 0, damageTaken: 0, maxPlaysTurn: 0, reactionsTurn: 0, maxReactionsTurn: 0, maxStatus: {} },
     piles: {
@@ -1516,6 +1621,7 @@ function makeEnemy(s, id, uid, shiny) {
 
 // Angekündigte Aktion, Schaden mit Schwierigkeit skaliert
 function intentOf(s, e) {
+  if ((e.statuses.aussetzen ?? 0) > 0) return { type: "skip", value: 0 };       // bestochen: setzt diese Runde aus
   const i = getIntent(e);
   return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult)) } : i;
 }
@@ -1543,7 +1649,7 @@ function checkProgress(s) {
     if (s.waveIndex + 1 < s.encounter.waves.length) spawnNextWave(s);
     else {
       s.result = "won";
-      s.player.hp = Math.min(s.player.maxHp, s.player.hp + s.build.stats.regen);   // Regeneration nach dem Kampf
+      s.player.hp = Math.min(s.player.maxHp, s.player.hp + ((s.build.stats.healToDamage ?? 0) > 0 ? 0 : healAmount(s, s.build.stats.regen)));   // Regeneration nach dem Kampf (auch sie wird durch healLoss gemindert)
     }
   }
 }
@@ -1570,14 +1676,49 @@ function startPlayerTurn(s) {
   s.player.energy = CONFIG.player.startEnergy + s.build.stats.energy;
   s.player.statuses.ausweichen = 0;     // Ausweichen hält nur einen Zug
   s.player.statuses.dornen = 0;         // Dornen wirken in der Gegnerphase und enden mit dem nächsten eigenen Zug
+  s.hpLostThisTurn = false;             // "Wenn du diesen Zug HP verloren hast" zählt ab Beginn deines Zuges
+  s.healTriedThisTurn = false;          // "Wenn du diesen Zug geheilt wurdest (oder heilen wolltest)"
   s.lastElement = null;                 // Reaktionen gelten nur innerhalb eines Zuges
   log(s, `=== Zug ${s.turn} (HP ${s.player.hp}/${s.player.maxHp})`);
   fx(s, { t: "turn", n: s.turn });
   emit(s, "on_turn_start", {}, 0);
-  draw(s, CONFIG.player.handSize + s.build.stats.handSize);
+  draw(s, Math.max(1, CONFIG.player.handSize + s.build.stats.handSize));
 }
 
 // ---------------------------------------------------------------- Schaden / Status
+// Heilung wird durch den Stat healLoss gemindert (z. B. Asche-Lunge: -50 %). Gibt die tatsächlich geheilten HP zurück.
+const healAmount = (s, v) => Math.max(0, Math.floor(v * (1 - Math.min(0.9, s.build.stats.healLoss ?? 0))));
+function healPlayer(s, v) {
+  if (v > 0) s.healTriedThisTurn = true;                          // auch eine vereitelte Heilung zählt als "geheilt" (Sporenwolke)
+  const want = healAmount(s, v), necro = s.build.stats.healToDamage ?? 0;
+  if (necro > 0) {                                                // Nekromanten-Pakt: Heilung wird zu 0, ein zufälliger Gegner erleidet den doppelten Wert als Schaden
+    const alive = aliveEnemies(s);
+    if (want > 0 && alive.length) {
+      const target = s.rng.pick(alive), dmg = want * necro;
+      log(s, `  Nekromanten-Pakt: Heilung ${want} wird zu ${dmg} Schaden an ${target.name}`);
+      dealDamage(s, target, dmg, "Nekromanten-Pakt", { pierce: true });
+    }
+    return 0;
+  }
+  const before = s.player.hp;
+  s.player.hp = Math.min(s.player.maxHp, before + want);
+  const got = s.player.hp - before;
+  if (got > 0) fx(s, { t: "heal", amount: got });
+  return got;
+}
+// Gold im Kampf: Midas-Fluch (Stat goldDouble) verdoppelt jeden Gewinn; Verluste (Bestechung) nie unter 0
+const goldMult = (stats) => 1 + Math.min(1, stats.goldDouble ?? 0);
+function gainGold(s, v) { const real = Math.floor(v * goldMult(s.build.stats)); s.gold += real; s.goldGained += real; log(s, `  +${real} Gold`); return real; }
+function loseGold(s, v) { const real = Math.min(s.gold, v); s.gold -= real; log(s, `  -${real} Gold`); return real; }
+// Eigener HP-Verlust (Karten, Items): nie tödlich, zählt nicht als erlittener Schaden, löst aber "on_hp_lost" aus
+function loseHp(s, v) {
+  const before = s.player.hp;
+  s.player.hp = Math.max(1, before - v);
+  const lost = before - s.player.hp;
+  if (lost > 0) { s.hpLostThisTurn = true; log(s, `  Du verlierst ${lost} HP`); fx(s, { t: "phit", amount: lost, blocked: 0 }); emit(s, "on_hp_lost", {}, 0); }
+  return lost;
+}
+
 function dealDamage(s, enemy, amount, source, { pierce = false, note = "", depth = 0 } = {}) {
   const wasAlive = enemy.hp > 0;
   // Panzerplatten: Jeder Karten-Treffer (nicht Gift/Blutung/Item-Effekte) zerbricht nur eine Platte
@@ -1590,7 +1731,7 @@ function dealDamage(s, enemy, amount, source, { pierce = false, note = "", depth
       log(s, `  ${enemy.name}: Panzer gebrochen, 2 Züge verwundbar!`);
       applyStatus(s, enemy, "verwundbar", 2, depth);
     }
-    return;
+    return 0;
   }
   let rest = amount, blocked = 0;
   if (!pierce) {
@@ -1598,7 +1739,9 @@ function dealDamage(s, enemy, amount, source, { pierce = false, note = "", depth
     enemy.block -= blocked;
     rest -= blocked;
   }
+  const hpBefore = enemy.hp;
   enemy.hp = Math.max(0, enemy.hp - rest);
+  if (wasAlive && enemy.hp === 0 && rest > hpBefore) s.overkill += rest - hpBefore;      // Überschuss-Schaden beim Töten wird nach dem Kampf zu Gold
   log(s, `  ${source}: ${enemy.name} -${rest}${note}${enemy.hp === 0 ? " (besiegt)" : ` (HP ${enemy.hp})`}`);
   fx(s, { t: "hit", uid: enemy.uid, amount: rest, blocked, pierce, strong: note.includes("sehr"), weak: note.includes("resistent") });
   if (enemy.hp > 0) checkPhases(s, enemy);
@@ -1608,6 +1751,7 @@ function dealDamage(s, enemy, amount, source, { pierce = false, note = "", depth
     if (enemy.shiny) { s.shinyKills.push(enemy.id); log(s, `  *** ${enemy.name} war SHINY! ***`); }
     emit(s, "on_kill", { target: enemy }, depth);
   }
+  return rest;                                                  // tatsächlich verlorene HP (für Lebensraub)
 }
 
 function damagePlayer(s, amount, source, attacker) {
@@ -1622,15 +1766,18 @@ function damagePlayer(s, amount, source, attacker) {
   const lost = amount - absorbed;
   s.player.hp -= lost;
   s.metrics.damageTaken += lost;
+  if (lost > 0) s.hpLostThisTurn = true;
   log(s, `  ${source} trifft dich für ${lost} (Block ${absorbed})`);
   fx(s, { t: "phit", uid: attacker?.uid, amount: lost, blocked: absorbed });
   const thorns = s.player.statuses.dornen ?? 0;
   if (thorns > 0 && attacker && attacker.hp > 0) { log(s, `  Dornen treffen ${attacker.name} für ${thorns}`); dealDamage(s, attacker, thorns, "Dornen", { pierce: true }); }
   if (s.player.hp <= 0) { s.result = "lost"; return; }
-  if (lost > 0) emit(s, "on_player_hit", { target: attacker }, 0);
+  if (lost > 0) { emit(s, "on_hp_lost", {}, 0); emit(s, "on_player_hit", { target: attacker }, 0); }
 }
 
 function applyStatus(s, enemy, status, stacks, depth) {
+  if (status === "aussetzen" && CONTENT.enemies[enemy.id].immune?.includes("aussetzen")) { log(s, `  ${enemy.name} ist unbestechlich`); return; }
+  if (status === "aussetzen") { enemy.statuses.aussetzen = 1; log(s, `  ${enemy.name} setzt diese Runde aus`); fx(s, { t: "status", uid: enemy.uid, status, stacks: 1 }); return; }
   enemy.statuses[status] = (enemy.statuses[status] ?? 0) + stacks;
   s.metrics.maxStatus[status] = Math.max(s.metrics.maxStatus[status] ?? 0, enemy.statuses[status]);
   log(s, `  ${enemy.name} +${stacks} ${status}`);
@@ -1639,7 +1786,7 @@ function applyStatus(s, enemy, status, stacks, depth) {
 }
 
 // ---------------------------------------------------------------- Trigger-Ketten
-// Trigger: on_combat_start | on_turn_start | on_turn_end | on_card_played | on_status_applied | on_kill | on_player_hit | on_reaction
+// Trigger: on_combat_start | on_turn_start | on_turn_end | on_card_played | on_status_applied | on_kill | on_player_hit | on_hp_lost | on_reaction
 function emit(s, event, payload, depth) {
   if (depth > CONFIG.balance.maxChainDepth) return;
   for (const eff of passivesFor(s.build, event)) {
@@ -1668,8 +1815,8 @@ function runPassive(s, eff, payload, depth) {
   const P = s.player;
   switch (eff.action) {
     case "block": { const v = magnitude(eff, s.build); P.block += v; log(s, `  ${eff.sourceName}: +${v} Block`); fx(s, { t: "block", amount: v }); return; }
-    case "heal":  { const v = magnitude(eff, s.build); P.hp = Math.min(P.maxHp, P.hp + v); log(s, `  ${eff.sourceName}: +${v} HP`); fx(s, { t: "heal", amount: v }); return; }
-    case "hurt":  { const v = magnitude(eff, s.build); P.hp = Math.max(1, P.hp - v); log(s, `  ${eff.sourceName}: -${v} HP`); return; }
+    case "heal":  { const got = healPlayer(s, magnitude(eff, s.build, { hp: P.hp, maxHp: P.maxHp, hand: s.piles.hand.length, gold: s.gold })); if (got > 0) log(s, `  ${eff.sourceName}: +${got} HP`); return; }
+    case "hurt":  { loseHp(s, magnitude(eff, s.build, { hp: P.hp, maxHp: P.maxHp })); return; }
     case "draw":  { draw(s, magnitude(eff, s.build)); return; }
     case "energy": { P.energy += magnitude(eff, s.build); return; }
     case "player_status": { P.statuses[eff.status] = (P.statuses[eff.status] ?? 0) + eff.stacks; log(s, `  ${eff.sourceName}: +${eff.stacks} ${eff.status}`); return; }
@@ -1712,21 +1859,32 @@ function triggerReaction(s, a, b, target) {
 }
 
 // Aktion mit Laufzeitwerten: "fromBlock" macht den Schaden vom aktuellen Block abhängig (z. B. Schildstoß), ohne den Block zu verbrauchen
-const effectiveAction = (s, a) => (a.fromBlock ? { ...a, base: Math.min(a.fromBlock.max ?? 99, Math.floor(s.player.block * (a.fromBlock.factor ?? 1))) } : a);
+const effectiveAction = (s, a) => {
+  if (a.fromBlock) return { ...a, base: Math.min(a.fromBlock.max ?? 99, Math.floor(s.player.block * (a.fromBlock.factor ?? 1))) };
+  if (a.fromMissingHp) return { ...a, base: Math.min(a.fromMissingHp.max ?? 999, Math.floor((s.player.maxHp - s.player.hp) * (a.fromMissingHp.factor ?? 1))) };   // Lodernder Schmerz
+  return a;
+};
+// Bedingungen einer Aktion: ifTarget (Ziel trägt Status), ifHpLost / unlessHpLost (HP in diesem Zug verloren)
+const actionAllowed = (s, raw, target) =>
+  !(raw.ifTarget && !((target?.statuses[raw.ifTarget] ?? 0) > 0)) && !(raw.ifHpLost && !s.hpLostThisTurn) && !(raw.unlessHpLost && s.hpLostThisTurn)
+  && !(raw.ifHealed && !s.healTriedThisTurn) && !(raw.unlessHealed && s.healTriedThisTurn);
 
 // Wirkungen einer Karte (oder eines aktiven Items) ausführen. def = { play: [...], element?, tags, name }
 function runActions(s, def, chosen) {
   for (const raw of def.play) {
     const action = effectiveAction(s, raw);
-    if (raw.ifTarget && !((chosen?.statuses[raw.ifTarget] ?? 0) > 0)) continue;     // z. B. Heilung nur, wenn das Ziel blutet
+    if (!actionAllowed(s, raw, chosen)) continue;     // z. B. Heilung nur, wenn das Ziel blutet, oder Feuersturm nur nach HP-Verlust
     const targets = action.target === "all" ? aliveEnemies(s) : (chosen && chosen.hp > 0 ? [chosen] : []);
     if (action.action === "damage") {
       for (const t of targets) {
         for (let h = 0; h < (action.hits ?? 1); h++) {
-          const { amount, detail } = computeDamage({ build: s.build, card: def, action, target: t, playsBefore: s.playsThisTurn - 1 });
+          const { amount, detail } = computeDamage({ build: s.build, card: def, action, target: t, playsBefore: s.playsThisTurn - 1, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
           s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
           const note = detail.elem > 1 ? " [sehr effektiv]" : detail.elem < 1 ? " [resistent]" : "";
-          dealDamage(s, t, amount, def.name, { note });
+          const wasAlive = t.hp > 0;
+          const lost = dealDamage(s, t, amount, def.name, { note });
+          if (action.lifesteal && lost > 0) healPlayer(s, lost);                                   // Blutsauger-Ranke: Heilung in Höhe des verursachten Schadens
+          if (action.onKill && wasAlive && t.hp === 0) gainGold(s, action.onKill.gold);            // Taschendiebstahl: Kopfgeld, wenn DIESE Karte tötet
         }
       }
     } else if (action.action === "block") {
@@ -1743,14 +1901,16 @@ function runActions(s, def, chosen) {
       draw(s, action.value);
     } else if (action.action === "energy") {
       s.player.energy += action.value;
+    } else if (action.action === "payGoldPct") {                // Bestechung: Anteil des aktuellen Goldes zahlen
+      const pay = Math.floor(s.gold * action.value);
+      if (pay > 0) { log(s, `  Bestechung kostet ${pay} Gold`); loseGold(s, pay); }
+    } else if (action.action === "maxHpUp") {                   // Photosynthese: Max-HP dauerhaft (der Lauf übernimmt es nach dem Kampf), die aktuelle HP steigen mit
+      s.player.maxHp += action.value; s.player.hp += action.value; s.maxHpGain += action.value;
+      log(s, `  Max-HP +${action.value}`);
     } else if (action.action === "loseHp") {                   // Pakt-Kosten: nie tödlich, zählt nicht als erlittener Schaden
-      const before = s.player.hp;
-      s.player.hp = Math.max(1, s.player.hp - action.value);
-      if (before > s.player.hp) { log(s, `  Du verlierst ${before - s.player.hp} HP`); fx(s, { t: "phit", amount: before - s.player.hp, blocked: 0 }); }
+      loseHp(s, action.value);
     } else if (action.action === "heal") {
-      const before = s.player.hp;
-      s.player.hp = Math.min(s.player.maxHp, s.player.hp + action.value);
-      if (s.player.hp > before) fx(s, { t: "heal", amount: s.player.hp - before });
+      healPlayer(s, action.value);
     } else if (action.action === "playerStatus") {
       s.player.statuses[action.status] = (s.player.statuses[action.status] ?? 0) + action.stacks;
       log(s, `  Du: +${action.stacks} ${action.status}`);
@@ -1841,6 +2001,8 @@ function tickStatuses(s, e) {
   if (st.gift > 0) { dealDamage(s, e, st.gift, "Gift", { pierce: true }); st.gift--; }
   // Blutung: Schaden = Stapel (ignoriert Block), Stapel halbiert
   if (st.blutung > 0 && e.hp > 0) { dealDamage(s, e, st.blutung, "Blutung", { pierce: true }); st.blutung = Math.floor(st.blutung / 2); }
+  // Verbrennung: Schaden = Stapel (ignoriert Block), danach halbiert sich der Stapel
+  if (st.verbrennung > 0 && e.hp > 0) { dealDamage(s, e, st.verbrennung, "Verbrennung", { pierce: true }); st.verbrennung = Math.floor(st.verbrennung / 2); }
   if (st.verwundbar > 0) st.verwundbar--;
   if (st.markiert > 0) st.markiert--;
 }
@@ -1870,6 +2032,13 @@ function enemyPhase(s) {
     e.block = 0;
     tickStatuses(s, e);
     if (e.hp <= 0) continue;
+    if ((e.statuses.aussetzen ?? 0) > 0) {                 // Bestechung: Aktion entfällt, das Muster rückt nicht weiter
+      e.statuses.aussetzen = 0;
+      log(s, `  ${e.name} setzt aus`);
+      fx(s, { t: "eact", uid: e.uid, kind: "skip", value: 0, hits: 1 });
+      if (e.hp > 0) tickMechanics(s, e);
+      continue;
+    }
     const intent = intentOf(s, e);
     e.patternIdx++;
     fx(s, { t: "eact", uid: e.uid, kind: intent.type, value: intent.value, hits: intent.hits ?? 1 });
@@ -1891,7 +2060,10 @@ __exports.aliveEnemies = aliveEnemies;
 __exports.getIntent = getIntent;
 __exports.createCombat = createCombat;
 __exports.intentOf = intentOf;
+__exports.healAmount = healAmount;
+__exports.goldMult = goldMult;
 __exports.effectiveAction = effectiveAction;
+__exports.actionAllowed = actionAllowed;
 __exports.activeDef = activeDef;
 __exports.activeItems = activeItems;
 __exports.useItem = useItem;
@@ -2259,16 +2431,18 @@ function generateShinyWeaponChoices(ctx, n = 2) {
 const goldDrop = (ctx, base) => Math.round(base * (1 + (ctx.build.stats.goldPct ?? 0) / 100));
 
 // ---------------------------------------------------------------- Shop
-function priceFor(rng, kind, def) {
+function priceFor(rng, kind, def, inflation = 1) {
   const S = CONFIG.shop;
-  const base = S.basePrice[def.rarity] * (kind === "items" ? S.itemFactor : 1) * (def.shiny ? CONFIG.shiny.priceMult : 1);
+  const base = S.basePrice[def.rarity] * (kind === "items" ? S.itemFactor : 1) * (def.shiny ? CONFIG.shiny.priceMult : 1) * inflation;      // Inflation: Preise steigen mit jedem abgeschlossenen Kampf
   const jitter = 1 + (rng.next() * 2 - 1) * S.priceVariance;
   return Math.round((base * jitter) / 5) * 5;
 }
-const slot = (rng, kind, def) => ({
+const slot = (rng, kind, def, inflation = 1) => ({
   kind, id: def.id, name: def.name, rarity: def.rarity, shiny: Boolean(def.shiny),
-  price: priceFor(rng, kind, def), sold: false,
+  price: priceFor(rng, kind, def, inflation), sold: false,
 });
+// Karten-Schredder: 50 Gold, pauschal +25 Gold für jede bereits entfernte Karte in diesem Run (Shop und Rast zusammen)
+const removalCost = (removed) => CONFIG.shop.removeBase + CONFIG.shop.removeIncrement * removed;
 
 // Startladen nach dem ersten Kampf: halbe Preise, die Grundkarten der Klasse (z. B. Schild) fest dabei, sonst nur einfache Ware
 function generateStartShop(ctx) {
@@ -2290,33 +2464,47 @@ function generateStartShop(ctx) {
 }
 
 function generateShop(ctx) {
-  const S = CONFIG.shop;
+  const S = CONFIG.shop, infl = ctx.inflation ?? 1;
+  // Gesperrte Items der letzten Händlerrunde ("Freeze") kommen zuerst wieder, zu den aktuellen Preisen
+  const frozen = (ctx.frozen ?? []).slice(0, S.itemSlots).map((f) => ({ ...slot(ctx.rng, "items", CONTENT.get("items", f.id), infl), frozen: true }));
+  const need = S.itemSlots - frozen.length;
+  const exclude = new Set([...maxedItems(ctx.build), ...frozen.map((f) => baseOf(f.id))]);
+  const fresh = need > 0 ? pickMany(ctx, "items", need, Math.min(S.wildcardItems, need), exclude).map((d) => slot(ctx.rng, "items", d, infl)) : [];
   return {
-    cards: pickMany(ctx, "cards", S.cardSlots, S.wildcardCards).map((d) => slot(ctx.rng, "cards", d)),
-    items: pickMany(ctx, "items", S.itemSlots, S.wildcardItems, maxedItems(ctx.build)).map((d) => slot(ctx.rng, "items", d)),
-    removeCost: S.removeBase, removals: 0,
+    cards: pickMany(ctx, "cards", S.cardSlots, S.wildcardCards).map((d) => slot(ctx.rng, "cards", d, infl)),
+    items: [...frozen, ...fresh],
+    removeCost: removalCost(ctx.removedCards ?? 0), removals: 0,
     rerollCost: S.rerollBase, rerolls: 0,
   };
 }
 
-// Würfelt alle noch NICHT gekauften Slots neu. Kostet Gold, jeder Reroll wird teurer.
+// Würfelt alle noch NICHT gekauften und NICHT gesperrten Slots neu. Reroll-Falle: Die Kosten verdoppeln sich bei jeder Nutzung (10, 20, 40, 80 ...).
 function rerollShop(shop, ctx, run) {
   if (run.gold < shop.rerollCost) return { ok: false, reason: "Zu wenig Gold" };
   run.gold -= shop.rerollCost;
-  shop.rerollCost += CONFIG.shop.rerollIncrement;
+  shop.rerollCost *= CONFIG.shop.rerollMult;
   shop.rerolls++;
+  const infl = ctx.inflation ?? 1;
   const shown = new Set([...shop.cards, ...shop.items].map((s) => baseOf(s.id)));
   for (const [list, kind, wild] of [[shop.cards, "cards", CONFIG.shop.wildcardCards], [shop.items, "items", CONFIG.shop.wildcardItems]]) {
     list.forEach((s, i) => {
-      if (s.sold || s.fixed) return;                          // verkaufte und feste Grundkarten bleiben
+      if (s.sold || s.fixed || s.frozen) return;              // verkaufte, feste und gesperrte Slots bleiben
       const exclude = new Set([...shown, ...(kind === "items" ? maxedItems(ctx.build) : [])]);
       const def = pickOne(ctx, kind, exclude, i < list.length - wild);
       if (!def) return;
       shown.add(def.id);
-      list[i] = slot(ctx.rng, kind, maybeShiny(ctx, kind, def));
+      list[i] = slot(ctx.rng, kind, maybeShiny(ctx, kind, def), infl);
     });
   }
   return { ok: true };
+}
+
+// Freeze: sperrt ein Item für die nächste Händlerrunde (und vor Rerolls). Nochmal antippen hebt die Sperre auf.
+function toggleFreeze(shop, index) {
+  const s = shop.items[index];
+  if (!s || s.sold) return { ok: false, reason: "Nicht verfügbar" };
+  s.frozen = !s.frozen;
+  return { ok: true, frozen: s.frozen };
 }
 
 function buy(shop, kind, index, run) {
@@ -2330,9 +2518,11 @@ function buy(shop, kind, index, run) {
 
 // Karte aus dem Deck entfernen (Preis steigt mit jeder Nutzung).
 function payRemoval(shop, run) {
-  if (run.gold < shop.removeCost) return { ok: false, reason: "Zu wenig Gold" };
-  run.gold -= shop.removeCost;
-  shop.removeCost += CONFIG.shop.removeIncrement;
+  const cost = removalCost(run.removedCards ?? 0);
+  if (run.gold < cost) return { ok: false, reason: "Zu wenig Gold" };
+  run.gold -= cost;
+  run.removedCards = (run.removedCards ?? 0) + 1;                 // der Preis hängt an der Anzahl entfernter Karten im ganzen Run
+  shop.removeCost = removalCost(run.removedCards);
   shop.removals++;
   return { ok: true };
 }
@@ -2347,9 +2537,11 @@ __exports.generateItemChoices = generateItemChoices;
 __exports.generateShinyItemChoices = generateShinyItemChoices;
 __exports.generateShinyWeaponChoices = generateShinyWeaponChoices;
 __exports.goldDrop = goldDrop;
+__exports.removalCost = removalCost;
 __exports.generateStartShop = generateStartShop;
 __exports.generateShop = generateShop;
 __exports.rerollShop = rerollShop;
+__exports.toggleFreeze = toggleFreeze;
 __exports.buy = buy;
 __exports.payRemoval = payRemoval;
 
@@ -2365,11 +2557,11 @@ const { CONTENT } = __require("content/index.js");
 const { createRng } = __require("engine/rng.js");
 const { generateMap, findNode } = __require("engine/map.js");
 const { resolveBuild } = __require("engine/modifiers.js");
-const { createCombat } = __require("engine/combat.js");
+const { createCombat, goldMult } = __require("engine/combat.js");
 const { recordShiny } = __require("engine/dex.js");
 const { recordRun, discover, recordCombat, isUnlocked } = __require("engine/meta.js");
 const { evaluateAchievements } = __require("engine/achievements.js");
-const { generateCardReward, generateItemChoices, generateWeaponChoices, generateShinyItemChoices, generateShop, generateStartShop, rerollShop, buy, payRemoval, goldDrop, generateShinyWeaponChoices } = __require("engine/loot.js");
+const { generateCardReward, generateItemChoices, generateWeaponChoices, generateShinyItemChoices, generateShop, generateStartShop, rerollShop, toggleFreeze, buy, payRemoval, goldDrop, generateShinyWeaponChoices } = __require("engine/loot.js");
 
 const RARITY_RANK = { gewoehnlich: 0, ungewoehnlich: 1, selten: 2, legendaer: 3 };
 const fail = (reason) => ({ ok: false, reason });
@@ -2386,7 +2578,7 @@ function createRun({ classId = "nahkaempfer", seed = (Date.now() >>> 0), difficu
   const run = {
     seed, classId, difficulty, meta, rng, shinyHero: Boolean(shinyHero),
     phase: "intro", map: generateMap(rng), nodeId: null,
-    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold,
+    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold, removedCards: 0, frozenItems: [], flags: {},
     deck: [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
@@ -2428,14 +2620,15 @@ const takeNewAchievements = (run) => (run?.achQueue ?? []).splice(0);
 const specOf = (run) => {
   const cls = CONTENT.classes[run.classId];
   const stats = { ...cls.stats, luck: (cls.stats.luck ?? 0) + (run.shinyHero ? CONFIG.shiny.heroLuck : 0) };   // Chrom-Held: +1 Glück
-  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp, stats, classId: run.classId };
+  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
 };
 const buildOf = (run) => resolveBuild(specOf(run));
 const computeMaxHp = (run) => Math.max(1, CONTENT.classes[run.classId].hp + run.bonusMaxHp + buildOf(run).stats.maxHp);
 const currentLayer = (run) => (run.nodeId ? findNode(run.map, run.nodeId).layer : 0);
 const ctxOf = (run) => {
   const build = buildOf(run);
-  return { rng: run.rng, build, classId: run.classId, depth: currentLayer(run), luck: build.stats.luck, meta: run.meta };
+  return { rng: run.rng, build, classId: run.classId, depth: currentLayer(run), luck: build.stats.luck, meta: run.meta,
+    inflation: 1 + CONFIG.shop.inflationPerFight * run.stats.fights, removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [] };
 };
 
 // Neue Max-HP-Boni heilen um den Zuwachs (wie bei Slay the Spire)
@@ -2445,7 +2638,12 @@ function refreshMaxHp(run) {
   run.maxHp = next;
   run.hp = Math.min(run.hp, run.maxHp);
 }
-const addItem = (run, id) => { run.items.push(id); refreshMaxHp(run); found(run, "items", id); };
+const addItem = (run, id) => {
+  run.items.push(id); refreshMaxHp(run); found(run, "items", id);
+  run.flags ??= {};
+  for (const f of CONTENT.get("items", id).flags ?? []) run.flags[f] = true;                    // Items können dauerhafte Run-Flags setzen (Midas-Fluch: noFreeze)
+  if (run.flags.noFreeze) { run.frozenItems = []; run.pending?.shop?.items?.forEach((s) => { s.frozen = false; }); }
+};
 const addCard = (run, id) => { run.deck.push(id); found(run, "cards", id); };
 const setWeapon = (run, id) => { run.weapon = id; found(run, "weapons", id); };
 const backToMap = (run) => { run.phase = "map"; run.pending = null; };
@@ -2515,6 +2713,9 @@ function completeCombat(run) {
   const { combat, kind } = run.pending;
   if (!combat.result) return fail("Kampf läuft noch");
   run.hp = Math.max(0, combat.player.hp);
+  run.gold = Math.max(0, run.gold + (combat.gold - combat.goldStart));                       // Gold aus dem Kampf (Taschendiebstahl, Bestechung)
+  run.stats.goldEarned += combat.goldGained;
+  if (combat.maxHpGain) { run.bonusMaxHp += combat.maxHpGain; run.maxHp = computeMaxHp(run); }  // Photosynthese: dauerhaft (die HP wurden im Kampf schon erhöht)
   run.stats.fights++;
   if (kind === "elite") run.stats.elites++;
   if (kind === "miniboss") run.stats.minibosses++;
@@ -2534,12 +2735,15 @@ function completeCombat(run) {
   const ctx = ctxOf(run);
   const [lo, hi] = CONFIG.gold[kind];
   const bonus = combat.shinyKills.length ? CONFIG.shiny.enemyGold : 0;                 // Chrom-Gegner besiegt: Extra-Gold
-  const gold = goldDrop(ctx, lo + Math.floor(run.rng.next() * (hi - lo + 1))) + bonus;
+  const overkillGold = Math.floor(combat.overkill / CONFIG.economy.overkillPerGold);       // Überschuss-Schaden beim Töten
+  const harvest = Math.max(0, Math.floor(combat.build.stats.ernte ?? 0));                  // Ernte: festes Einkommen nach jedem Kampf
+  const midas = goldMult(combat.build.stats);                                                // Midas-Fluch: verdoppelt das gesamte erhaltene Gold
+  const gold = Math.round((goldDrop(ctx, lo + Math.floor(run.rng.next() * (hi - lo + 1))) + bonus + overkillGold + harvest) * midas);
   run.gold += gold;
   run.stats.goldEarned += gold;
   queueAch(run, { type: "state" });                       // z. B. 500 Gold gleichzeitig
 
-  const reward = { gold, shinyBonus: bonus, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
+  const reward = { gold, shinyBonus: bonus, overkillGold, harvest, midas: midas > 1, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
   if (kind === "elite" || kind === "miniboss" || run.rng.next() < CONFIG.run.normalItemChance) {
     reward.items = generateItemChoices(ctx).map((d) => d.id);
   }
@@ -2599,9 +2803,13 @@ function finishReward(run) {
 }
 
 // ---------------------------------------------------------------- Rast
+// Heilung außerhalb des Kampfes, gemindert durch den Stat healLoss (z. B. Asche-Lunge)
+const healRun = (run, amount) => { run.hp = Math.min(run.maxHp, run.hp + restHealAmount(run, amount)); };
+// Wie viel eine Heilung außerhalb des Kampfes wirklich bringt: gemindert durch healLoss, mit Nekromanten-Pakt immer 0
+const restHealAmount = (run, amount) => { const st = buildOf(run).stats; return (st.healToDamage ?? 0) > 0 ? 0 : Math.floor(amount * (1 - Math.min(0.9, st.healLoss ?? 0))); };
 function restHeal(run) {
   if (run.phase !== "rest") return fail("Nicht an einer Rast");
-  run.hp = Math.min(run.maxHp, run.hp + Math.ceil(run.maxHp * CONFIG.run.restHealPct));
+  healRun(run, Math.ceil(run.maxHp * CONFIG.run.restHealPct));
   backToMap(run);
   return ok();
 }
@@ -2609,6 +2817,7 @@ function restRemove(run, deckIndex) {
   if (run.phase !== "rest") return fail("Nicht an einer Rast");
   if (run.deck.length <= CONFIG.run.minDeck || !run.deck[deckIndex]) return fail("Karte kann nicht entfernt werden");
   run.deck.splice(deckIndex, 1);
+  run.removedCards = (run.removedCards ?? 0) + 1;                // zählt für den Preis des Karten-Schredders mit
   backToMap(run);
   return ok();
 }
@@ -2635,8 +2844,14 @@ function shopRemove(run, deckIndex) {
   if (res.ok) run.deck.splice(deckIndex, 1);
   return res;
 }
+function shopFreeze(run, idx) {
+  if (run.phase !== "shop") return fail("Nicht im Shop");
+  if (run.flags?.noFreeze) return fail("Midas-Fluch: Sperren ist dauerhaft deaktiviert");
+  return toggleFreeze(run.pending.shop, idx);
+}
 function leaveShop(run) {
   if (run.phase !== "shop") return fail("Nicht im Shop");
+  run.frozenItems = run.pending.shop.items.filter((s) => s.frozen && !s.sold).map((s) => ({ id: s.id }));     // gesperrte Items warten auf die nächste Händlerrunde
   backToMap(run);
   return ok();
 }
@@ -2673,8 +2888,8 @@ function applyEffects(run, effects, out) {
   for (const e of effects ?? []) {
     switch (e.type) {
       case "gold": run.gold = Math.max(0, run.gold + e.value); break;
-      case "heal": run.hp = Math.min(run.maxHp, run.hp + e.value); break;
-      case "healPct": run.hp = Math.min(run.maxHp, run.hp + Math.ceil(run.maxHp * e.value)); break;
+      case "heal": healRun(run, e.value); break;
+      case "healPct": healRun(run, Math.ceil(run.maxHp * e.value)); break;
       case "hurt": run.hp = Math.max(1, run.hp - e.value); break;          // Ereignisse töten nie
       case "maxHp": run.bonusMaxHp += e.value; refreshMaxHp(run); break;
       case "gainItem": { const id = itemOfRarity(run, e.minRarity); if (id) { addItem(run, id); out.gained.push(id); } break; }
@@ -2777,11 +2992,13 @@ __exports.takeWeapon = takeWeapon;
 __exports.takeShinyItem = takeShinyItem;
 __exports.takeShinyWeapon = takeShinyWeapon;
 __exports.finishReward = finishReward;
+__exports.restHealAmount = restHealAmount;
 __exports.restHeal = restHeal;
 __exports.restRemove = restRemove;
 __exports.shopBuy = shopBuy;
 __exports.shopReroll = shopReroll;
 __exports.shopRemove = shopRemove;
+__exports.shopFreeze = shopFreeze;
 __exports.leaveShop = leaveShop;
 __exports.eventChoose = eventChoose;
 __exports.SAVE_FORMAT = SAVE_FORMAT;
@@ -2796,7 +3013,7 @@ __define("engine/autoplay.js", function (__exports, __require) {
 // Keine feste Reihenfolge, sondern eine Bewertung: erwarteter Schaden (inkl. Kill-Bonus), nötiger Block, Debuffs, Reaktionen, Kartenzug.
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
-const { aliveEnemies, intentOf, activeItems, effectiveAction } = __require("engine/combat.js");
+const { aliveEnemies, intentOf, activeItems, effectiveAction, actionAllowed } = __require("engine/combat.js");
 const { computeDamage } = __require("engine/modifiers.js");
 
 // Braucht die Karte ein einzelnes Ziel? (Flächen-, Block- und Zieh-Karten nicht)
@@ -2816,13 +3033,15 @@ function threat(s) {
   return { needBlock: Math.max(0, dmg - s.player.block), hits: Math.max(0, hits - (s.player.statuses.ausweichen ?? 0)) };
 }
 
-function statusValue(status, stacks, t) {
+function statusValue(status, stacks, t, s) {
   const have = t.statuses[status] ?? 0;
   switch (status) {
     case "gift": return (stacks * (stacks + 1) / 2) * 0.75 + (have > 0 ? stacks * 0.5 : 0);   // Gift tickt mit abnehmender Stärke
     case "blutung": return stacks * 1.6;
     case "verwundbar": return have > 1 ? 1 : 4 + stacks;
     case "markiert": return have > 1 ? 0.5 : 3.5;
+    case "verbrennung": return stacks * 1.6;
+    case "aussetzen": { const i = s ? intentOf(s, t) : null; return i && i.type === "attack" ? i.value * (i.hits ?? 1) : 0.5; }     // Bestechung lohnt, wenn der Gegner angreifen würde
     default: return 1;
   }
 }
@@ -2833,25 +3052,30 @@ function cardValue(s, def, target, th) {
   let v = 0;
   for (const raw of def.play) {
     const a = effectiveAction(s, raw);
-    if (raw.ifTarget && !((target.statuses[raw.ifTarget] ?? 0) > 0)) continue;
+    if (!actionAllowed(s, raw, target)) continue;
     if (a.action === "damage") {
       for (const t of a.target === "all" ? alive : [target]) {
         for (let h = 0; h < (a.hits ?? 1); h++) {
           if (t.plates > 0) { v += 2.4; continue; }                                  // Panzerplatten: jeder Treffer zählt, Schaden nicht
-          const { amount } = computeDamage({ build: s.build, card: def, action: a, target: t, playsBefore: s.playsThisTurn });
+          const { amount } = computeDamage({ build: s.build, card: def, action: a, target: t, playsBefore: s.playsThisTurn, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
           const room = t.hp + t.block;
           v += Math.min(amount, room);
           if (amount >= room) v += 4;                                                // Kill-Bonus
+          const necro = s.build.stats.healToDamage ?? 0;
+          if (a.lifesteal) v += necro > 0 ? Math.min(amount, room) * necro * 0.5 : Math.min(Math.min(amount, room), s.player.maxHp - s.player.hp) * 0.8;    // Lebensraub (mit Nekromanten-Pakt: Zusatzschaden)
+          if (a.onKill && amount >= room) v += a.onKill.gold / 8;                    // Kopfgeld
         }
       }
     } else if (a.action === "block") v += Math.min(a.value, th.needBlock) * 1.15 + (th.needBlock > 0 ? 0 : 0.2);
     else if (a.action === "playerStatus") v += a.status === "dornen" ? a.stacks * Math.max(1, th.hits) * 0.9 : th.hits > 0 ? Math.min(a.stacks, th.hits) * 4 : 0.2;
-    else if (a.action === "status") for (const t of a.target === "all" ? alive : [target]) v += statusValue(a.status, a.stacks, t);
+    else if (a.action === "status") for (const t of a.target === "all" ? alive : [target]) v += statusValue(a.status, a.stacks, t, s);
     else if (a.action === "multiplyStatus") for (const t of a.target === "all" ? alive : [target]) v += (t.statuses[a.status] ?? 0) * 0.9;
     else if (a.action === "draw") v += s.piles.hand.length < 5 ? 2.6 * a.value : a.value;
     else if (a.action === "energy") v += 3;
-    else if (a.action === "loseHp") v -= a.value * (s.player.hp < s.player.maxHp * 0.4 ? 1.5 : 0.35);      // Pakt-Kosten: teuer, wenn man wenig HP hat
-    else if (a.action === "heal") v += Math.min(a.value, s.player.maxHp - s.player.hp) * (s.player.hp < s.player.maxHp * 0.6 ? 1.3 : 0.15);
+    else if (a.action === "loseHp") v -= (s.player.hp - a.value < s.player.maxHp * 0.3 ? 50 : a.value * 0.35);      // Pakt-Kosten: der Autopilot opfert nie so viele HP, dass er unter 30 % fällt      // Pakt-Kosten: teuer, wenn man wenig HP hat
+    else if (a.action === "heal") v += (s.build.stats.healToDamage ?? 0) > 0 ? a.value * s.build.stats.healToDamage * 0.5 : Math.min(a.value, s.player.maxHp - s.player.hp) * (s.player.hp < s.player.maxHp * 0.6 ? 1.3 : 0.15);
+    else if (a.action === "payGoldPct") v -= Math.floor(s.gold * a.value) / 10;           // Bestechung kostet Gold
+    else if (a.action === "maxHpUp") v += 2;                                              // dauerhaft mehr Max-HP
   }
   if (def.element && s.lastElement && s.lastElement !== def.element && CONTENT.reactionFor(s.lastElement, def.element)) v += 6;   // Reaktion
   if (def.element && s.lastElement === def.element) v -= 0.3;
@@ -3343,6 +3567,8 @@ const MARKS = {
 
 // Zuordnung: Item-ID -> [Form, Palette, optionales Zeichen]
 const ITEM_ART = {
+  boerse_des_geizkragens: ["chest", "gold", "coin"], midas_fluch: ["ring", "gold"], nekromanten_pakt: ["skull", "pflanze"], wuchernde_wurzeln: ["worm", "pflanze", "leaf"],
+  pech_raeucherstaebchen: ["log", "feuer", "flame"], asche_lunge: ["heart", "asche", "flame"], krone_des_maertyrers: ["crown", "blut"], erntesichel: ["razor", "gold"], vorratskammer: ["backpack", "pflanze", "leaf"],
   narbenleder: ["belt", "blut"], stachelschild: ["orb", "eisen", "thorn"], eisenfaust: ["hammer", "eisen", "bolt"],
   feuerflasche: ["flask", "feuer", "flame"], heiltrank: ["flask", "blut", "drop"], rauchbombe: ["orb", "asche"], giftphiole: ["vial", "gift", "skull"],
   frostphiole: ["vial", "eis", "snow"], blutampulle: ["vial", "blut", "drop"], schlachtrufrolle: ["scroll", "gold", "bolt"],
@@ -4358,7 +4584,7 @@ const elementName = (id) => CONTENT.elements[id]?.name ?? id;
 
 // Status -> [Symbol-ID, Name]
 const STATUS = {
-  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"],
+  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"],
 };
 const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
 const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
@@ -4385,25 +4611,31 @@ const { elementColor, STATUS, RARITY } = __require("ui/theme.js");
 const at = (action, arg, arg2) => ` data-action="${action}"${arg !== undefined ? ` data-arg="${esc(arg)}"` : ""}${arg2 !== undefined ? ` data-arg2="${esc(arg2)}"` : ""}`;
 const ico = (id, px = 16, o = {}) => spr("icon", id, { attrs: `width="${px}" height="${px}"`, cls: o.cls ?? "", ...(o.pal ? { pal: o.pal } : {}) });
 const btn = (label, action, arg, o = {}) =>
-  `<button class="btn ${o.cls ?? ""}"${o.disabled ? " disabled" : at(action, arg, o.arg2)}>${label}</button>`;
+  `<button class="btn ${o.cls ?? ""}"${o.title ? ` title="${esc(o.title)}" aria-label="${esc(o.title)}"` : ""}${o.disabled ? " disabled" : at(action, arg, o.arg2)}>${label}</button>`;
 const ibtn = (iconId, action, label, extra = "") => `<button class="ibtn"${at(action)} aria-label="${esc(label)}">${ico(iconId, 22)}${extra}</button>`;
 const pctOf = (a, b) => Math.max(0, Math.min(100, Math.round((a / Math.max(1, b)) * 100)));
 const bar = (frac, cls = "") => `<div class="bar ${cls}"><i style="width:${pctOf(frac * 100, 100)}%"></i></div>`;
 
 // ---------------------------------------------------------------- Karten
 // Kennzahlen einer Karte (aktueller Schaden inkl. Waffe und Items), als kleine Symbol-Zahl-Paare
-function cardChips(def, build, playsBefore = 0) {
+function cardChips(def, build, playsBefore = 0, ctx = {}) {
   const raw = [];
   for (const a of def.play) {
-    if (a.action === "damage") {
-      const { amount } = computeDamage({ build, card: def, action: a, target: null, playsBefore });
+    if (a.action === "damage" && (a.fromBlock || a.fromMissingHp)) raw.push(["sword", "X"]);        // Schaden hängt vom Spielstand ab (Block, fehlende HP)
+    else if (a.action === "damage" && (a.ifHpLost || a.unlessHpLost) && a.ifHpLost) { /* Zusatzwirkung nach HP-Verlust: keine eigene Kennzahl */ }
+    else if (a.action === "damage") {
+      const { amount } = computeDamage({ build, card: def, action: a, target: null, playsBefore, ...ctx });
       raw.push([a.target === "all" ? "c_burst" : "sword", `${amount}${(a.hits ?? 1) > 1 ? "x" + a.hits : ""}`]);
     } else if (a.action === "block") raw.push(["shield", String(a.value)]);
+    else if (a.action === "status" && a.ifHpLost) { /* Zusatzwirkung nach HP-Verlust */ }
     else if (a.action === "status") raw.push([STATUS[a.status]?.[0] ?? "star", `${a.stacks}${a.target === "all" ? "+" : ""}`]);
     else if (a.action === "multiplyStatus") raw.push([STATUS[a.status]?.[0] ?? "star", "x2"]);
     else if (a.action === "draw") raw.push(["pile", String(a.value)]);
     else if (a.action === "playerStatus") raw.push([STATUS[a.status]?.[0] ?? "wind", String(a.stacks)]);
     else if (a.action === "energy") raw.push(["bolt", String(a.value)]);
+    else if (a.action === "heal") raw.push(["heart", String(a.value)]);
+    else if (a.action === "maxHpUp") raw.push(["heart", `+${a.value}`]);
+    else if (a.action === "payGoldPct") raw.push(["coin", `-${Math.round(a.value * 100)}%`]);
   }
   const merged = [], seen = new Map();
   for (const [ic, n] of raw) { const k = ic + n; if (seen.has(k)) seen.get(k).count++; else { const e = { ic, n, count: 1 }; seen.set(k, e); merged.push(e); } }
@@ -4414,13 +4646,14 @@ function cardChips(def, build, playsBefore = 0) {
 function cardHtml(def, o = {}) {
   const el = def.element ? elementColor(def.element) : "#6e6a80";
   const rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
-  const chips = o.build ? cardChips(def, o.build, o.plays ?? 0) : [];
+  const chips = o.build ? cardChips(def, o.build, o.plays ?? 0, o.ctx ?? {}) : [];
   const icon = cardIconId(def);
   const art = spr("icon", icon, { shiny: def.shiny, attrs: 'width="100%" height="100%"' });
   const glow = `rgba(${[1, 3, 5].map((i) => parseInt(el.slice(i, i + 2), 16)).join(",")},.38)`;
   return `<div class="card ${o.size ?? "sm"} ${def.shiny ? "shiny sh" : ""} ${o.selected ? "sel" : ""} ${o.dim ? "dim" : ""}" style="--el:${el};--rar:${rar[1]};--elg:${glow}"${o.action ? at(o.action, o.arg, o.arg2) : ""}>
     <div class="c-top"><span class="c-cost">${ico("bolt", 12)}${def.cost}</span><span class="c-name">${esc(def.name)}</span></div>
     <div class="c-art">${art}</div>
+    ${o.info === false ? "" : `<span class="c-info"${at("card-info", def.id)} title="Details" role="button" aria-label="Details zu ${esc(def.name)}">i</span>`}
     <div class="c-chips">${chips.map((c) => `<span class="chip2">${ico(c.ic, 12)}<b>${esc(c.n)}</b></span>`).join("")}</div>
     ${o.size === "lg" ? `<div class="c-text">${esc(def.text ?? "")}</div>` : ""}
     <div class="c-foot" style="background:${rar[1]}">${o.count > 1 ? `x${o.count}` : esc(rar[0])}</div></div>`;
@@ -4592,6 +4825,56 @@ const storySpeaker = (storyId) => {
 
 __exports.storyLines = storyLines;
 __exports.storySpeaker = storySpeaker;
+
+});
+__define("ui/glossary.js", function (__exports, __require) {
+// Kurze Begriffserklärungen für die Detailansicht einer Karte. Es werden höchstens drei gezeigt, damit es nicht zu viel wird.
+// Die Texte beschreiben die echten Regeln der Engine (engine/combat.js: Ende der Gegnerrunde, modifiers.js: Verwundbar, Markiert).
+const GLOSSARY = {
+  gift:       ["Gift", "Am Ende der Gegnerrunde Schaden in Höhe der Stapel (ignoriert Block), danach 1 Stapel weniger."],
+  blutung:    ["Blutung", "Am Ende der Gegnerrunde Schaden in Höhe der Stapel (ignoriert Block), danach halbieren sich die Stapel."],
+  verwundbar: ["Verwundbar", "Das Ziel erleidet 50 % mehr Schaden. Jede Runde 1 Stapel weniger."],
+  markiert:   ["Markiert", "Jeder Treffer macht 1 Schaden mehr. Jede Runde 1 Stapel weniger."],
+  ausweichen: ["Ausweichen", "Pro Stapel geht ein Angriff daneben. Endet mit deinem nächsten Zug."],
+  dornen:     ["Dornen", "Jeder Angreifer erleidet Schaden, auch wenn dein Block alles abfängt. Endet mit deinem nächsten Zug."],
+  verbrennung: ["Verbrennung", "Am Ende der Gegnerrunde Schaden in Höhe der Stapel (ignoriert Block), danach halbieren sich die Stapel."],
+  fromMissingHp: ["Fehlende HP", "Der Schaden hängt davon ab, wie viele Lebenspunkte dir zum Maximum fehlen."],
+  hpLost:     ["HP verloren", "Zählt alle HP, die seit Beginn deines Zuges verloren gingen, auch durch eigene Karten und Items."],
+  aussetzen:  ["Aussetzen", "Der Gegner überspringt diese Runde seine Aktion. Bosse sind unbestechlich."],
+  lifesteal:  ["Lebensraub", "Du heilst dich um den tatsächlich verursachten Schaden (Block des Ziels zählt nicht)."],
+  kopfgeld:   ["Kopfgeld", "Tötet genau diese Karte den Gegner, erhältst du sofort das Gold."],
+  maxHp:      ["Max-HP", "Dauerhaft bis zum Ende des Runs; die aktuellen HP steigen mit."],
+  geheilt:    ["Geheilt", "Zählt auch, wenn die Heilung durch einen Effekt (z. B. Nekromanten-Pakt) verhindert wurde."],
+  fromBlock:  ["Schaden aus Block", "Der Schaden hängt von deinem aktuellen Block ab. Der Block bleibt erhalten."],
+  loseHp:     ["HP verlieren", "Kostet HP, aber nie die letzte: mindestens 1 HP bleibt. Zählt nicht als erlittener Schaden."],
+  reaktion:   ["Reaktion", "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus."],
+  block:      ["Block", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges."],
+};
+const ORDER = ["gift", "blutung", "verbrennung", "aussetzen", "lifesteal", "kopfgeld", "geheilt", "maxHp", "verwundbar", "markiert", "ausweichen", "dornen", "fromBlock", "fromMissingHp", "hpLost", "loseHp", "reaktion", "block"];
+
+// Welche Begriffe kommen auf dieser Karte vor? (höchstens max, in fester Reihenfolge der Wichtigkeit)
+function keywordsOf(def, max = 3) {
+  const found = new Set();
+  for (const a of def.play ?? []) {
+    if ((a.action === "status" || a.action === "playerStatus") && GLOSSARY[a.status]) found.add(a.status);
+    if (a.fromBlock) found.add("fromBlock");
+    if (a.lifesteal) found.add("lifesteal");
+    if (a.onKill) found.add("kopfgeld");
+    if (a.action === "maxHpUp") found.add("maxHp");
+    if (a.ifHealed || a.unlessHealed) found.add("geheilt");
+    if (a.fromMissingHp) found.add("fromMissingHp");
+    if (a.ifHpLost || a.unlessHpLost) found.add("hpLost");
+    if (a.action === "loseHp") found.add("loseHp");
+    if (a.action === "block") found.add("block");
+  }
+  if (def.element) found.add("reaktion");
+  const list = ORDER.filter((k) => found.has(k));
+  const rest = list.filter((k) => k !== "block");                 // Block ist Grundwissen: nur zeigen, wenn sonst nichts zu erklären ist
+  return (rest.length ? rest : list).slice(0, max).map((k) => ({ key: k, name: GLOSSARY[k][0], text: GLOSSARY[k][1] }));
+}
+
+__exports.GLOSSARY = GLOSSARY;
+__exports.keywordsOf = keywordsOf;
 
 });
 __define("ui/backdrop.js", function (__exports, __require) {
@@ -4874,7 +5157,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
     const shadow = `<ellipse cx="${w / 2}" cy="${h - 1}" rx="${w * 0.42}" ry="4.5" fill="#000" opacity=".42"/>`;
     const sts = Object.entries(e.statuses).filter(([, v]) => v > 0).slice(0, 4);
     const ibox = intent ? `<g transform="translate(${p.x - 18} ${y0 - 17})"><rect width="36" height="14" rx="3" fill="#17121f" stroke="${intent.type === "attack" ? "#c73c3c" : "#4a7fd0"}" stroke-width="1.5"/>
-        ${icon(intent.type === "attack" ? "sword" : "shield", 3, 2, 1)}${text(intent.type === "attack" ? `${intent.value}${(intent.hits ?? 1) > 1 ? "x" + intent.hits : ""}` : String(intent.value), 15, 11, "int")}</g>` : "";
+        ${icon(intent.type === "attack" ? "sword" : intent.type === "skip" ? "wind" : "shield", 3, 2, 1)}${text(intent.type === "attack" ? `${intent.value}${(intent.hits ?? 1) > 1 ? "x" + intent.hits : ""}` : intent.type === "skip" ? "Aus" : String(intent.value), 15, 11, "int")}</g>` : "";
     const platesTxt = m.plates && !dead ? `<g transform="translate(${p.x - 22} ${y0 - 33})"><rect width="44" height="13" rx="3" fill="#17121f" stroke="#8fa3b8"/>${icon("shield", 2, 1, 1)}${text(e.plates > 0 ? `Platten ${e.plates}` : "gebrochen", 14, 10, "plt")}</g>` : "";
     const rot = m.rotateElement && !dead ? `<g transform="translate(${p.x + 22} ${y0 - 17})"><rect width="38" height="14" rx="3" fill="#17121f" stroke="#c9b8ff" stroke-width="1.5"/>${icon(elementIconId(e.nextElement), 3, 2, 1)}${text(`in ${Math.max(1, m.rotateElement.every - e.rotTimer)}`, 14, 11, "int")}</g>` : "";
     const elIcon = (e.elements ?? []).slice(0, 2).map((el2, i) => icon(elementIconId(el2), p.x - bw / 2 - 12 - i * 11, p.y + 1, 1)).join("");
@@ -4942,10 +5225,11 @@ __exports.heroPortrait = heroPortrait;
 });
 __define("ui/views.js", function (__exports, __require) {
 // Ansichten: reine Funktionen, die HTML-Strings aus dem UI-Zustand erzeugen (kein DOM, daher in Node testbar).
+const { keywordsOf } = __require("ui/glossary.js");
 const { CONTENT } = __require("content/index.js");
 const { CONFIG } = __require("data/config.js");
 const { aliveEnemies, activeItems } = __require("engine/combat.js");
-const { availableNodes, buildOf, currentLayer } = __require("engine/run.js");
+const { availableNodes, buildOf, currentLayer, restHealAmount } = __require("engine/run.js");
 const { findNode } = __require("engine/map.js");
 const { tagCount } = __require("engine/modifiers.js");
 const { maxDifficulty, describeUnlock } = __require("engine/meta.js");
@@ -4954,7 +5238,7 @@ const { storyLines, storySpeaker } = __require("engine/story.js");
 const { esc, needsTarget, describeWeapon, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
 const { achievementsView, cosmeticsView } = __require("ui/achview.js");
 const { spr, elementIconId } = __require("ui/art/index.js");
-const { NODE_ICON, NODE_NAME, STATUS, elementName } = __require("ui/theme.js");
+const { NODE_ICON, NODE_NAME, STATUS, RARITY, elementName } = __require("ui/theme.js");
 const { at, ico, btn, ibtn, bar, pctOf, cardHtml, itemHtml, itemIcon, statusChips, logo } = __require("ui/widgets.js");
 const { combatScene, introScene, menuBackdrop, heroPortrait } = __require("ui/scene.js");
 
@@ -5066,7 +5350,7 @@ function combatView(ui) {
         ${btn(ui.auto ? "Auto: an" : "Auto", "toggle-auto", undefined, { cls: `small ${ui.auto ? "good" : ""}`, disabled: Boolean(c.result) })}${btn(`Tempo x${ui.speed}`, "cycle-speed", undefined, { cls: "small" })}</div>
       <div class="side right"><div class="energy">${pips}</div>${btn("Zug beenden", "end-turn", undefined, { cls: "primary", disabled: Boolean(c.result) || ui.auto })}${btn(ui.showLog ? "Log aus" : "Log", "toggle-log", undefined, { cls: "small" })}</div>
       ${ui.showLog ? `<div class="logpanel px">${logLines}</div>` : ""}</div>
-    <div class="handrow"><div class="hand" style="--n:${hand.length}">${hand.map((inst, i) => cardHtml(inst.def, { build, plays: c.playsThisTurn, selected: ui.selected === i, dim: inst.def.cost > P.energy, action: "select-card", arg: String(i) })).join("") || "<span class='muted pad'>Keine Karten auf der Hand</span>"}</div></div></div>
+    <div class="handrow"><div class="hand" style="--n:${hand.length}">${hand.map((inst, i) => cardHtml(inst.def, { build, plays: c.playsThisTurn, ctx: { hp: P.hp, maxHp: P.maxHp, gold: c.gold }, selected: ui.selected === i, dim: inst.def.cost > P.energy, action: "select-card", arg: String(i) })).join("") || "<span class='muted pad'>Keine Karten auf der Hand</span>"}</div></div></div>
     ${c.result ? `<div class="overlay"><div class="sheet mid center stack"><h2>${c.result === "won" ? "Sieg!" : "Niederlage"}</h2>
       ${c.shinyKills.length ? `<div class="shiny sh px pad"><b>Chrom-Gegner besiegt!</b><br>Bonus: +${CONFIG.shiny.enemyGold} Gold, ein seltenes Chrom-Item und eine Chrom-Waffe zur Wahl.</div>` : ""}${btn("Weiter", "after-combat", undefined, { cls: "primary" })}</div></div>` : ""}`;
 }
@@ -5086,7 +5370,7 @@ function rewardView(ui) {
     ? `<div class="cards3">${sel.ids.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}</div>`).join("")}</div>`
     : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind)}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
   const tabs = cats.length > 1 ? `<div class="tabs">${cats.map((c) => `<span class="tab ${c.key === sel.key ? "on" : ""}"${at("set-tab", "reward", c.key)}>${t[c.key] ? "✓ " : ""}${c.label}</span>`).join("")}</div>` : "";
-  return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}</div>${tabs}<span class="grow"></span>${btn("Weiter", "finish-reward", undefined, { cls: "primary" })}</div>
+  return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}${r.overkillGold ? `<span class="muted small">&nbsp;Überschuss +${r.overkillGold}</span>` : ""}${r.midas ? `<span class="chrome small">&nbsp;(Midas x2)</span>` : ""}${r.harvest ? `<span class="muted small">&nbsp;Ernte +${r.harvest}</span>` : ""}</div>${tabs}<span class="grow"></span>${btn("Weiter", "finish-reward", undefined, { cls: "primary" })}</div>
     <div class="rw-body"><h3 class="${sel.cls ?? ""}">${esc(sel.title)}</h3>${slots}</div></div>`;
 }
 
@@ -5095,20 +5379,21 @@ function shopView(ui) {
   const run = ui.run, shop = run.pending.shop, build = buildOf(run);
   const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""}">${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
     ${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
-  const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""}">${itemHtml(CONTENT.get("items", s.id))}
-    ${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
+  const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}">${itemHtml(CONTENT.get("items", s.id))}
+    <div class="buyrow">${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Item für die nächste Runde sperren" })}</div></div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
   const npc = brumm
     ? `<div class="shop-npc"><div class="npc">${spr("npc", "brumm", { attrs: 'width="46" height="62"' })}</div><div class="bubble static"><div class="who">${esc(CONTENT.speakers.brumm.name)}</div><p>${esc(brumm)}</p></div></div>`
     : `<div class="shop-npc plain"><div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="44" height="44"' })}</div></div>`;
   return `${hud(ui)}<div class="screen shop"><div class="shop-side">${npc}<h2>${shop.start ? "Startladen" : "Händler"}</h2><div class="muted">Dein Gold: <b class="gold">${run.gold}</b></div>
+      <div class="muted small">Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div>
       ${btn(`${ico("star", 14)} Neu würfeln (${shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: run.gold < shop.rerollCost })}
-      ${btn(`${ico("discard", 14)} Entfernen (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
+      ${btn(`${ico("discard", 14)} Schredder (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
       <span class="grow"></span>${btn("Weiter", "leave-shop", undefined, { cls: "primary" })}</div>
-    <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items3">${items}</div></div></div>`;
+    <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items4">${items}</div></div></div>`;
 }
 function restView(ui) {
-  const run = ui.run, heal = Math.min(run.maxHp - run.hp, Math.ceil(run.maxHp * CONFIG.run.restHealPct));
+  const run = ui.run, heal = Math.min(run.maxHp - run.hp, restHealAmount(run, Math.ceil(run.maxHp * CONFIG.run.restHealPct)));
   return `${hud(ui)}<div class="screen rest"><div class="bigicon">${spr("icon", "n_rast", { attrs: 'width="110" height="110"', cls: "flick" })}</div>
     <div class="rest-r stack"><h2>Rastplatz</h2><div class="muted">Ein Feuer knistert. Du hast Zeit für genau eine Sache.</div>
     <div class="stack">${btn(`Ausruhen (+${heal} HP)`, "rest-heal", undefined, { cls: "good" })}${btn("Eine Karte aus dem Deck entfernen", "rest-remove-start", undefined, { disabled: run.deck.length <= CONFIG.run.minDeck })}</div></div></div>`;
@@ -5189,6 +5474,16 @@ function overlayView(ui) {
     ${run.phase === "combat" ? `<div class="muted small">Im Kampf wird nicht gespeichert. Beendest du jetzt, beginnt der Kampf beim nächsten Mal von vorn.</div>` : ""}${btn("Zum Titel (speichert)", "to-title")}${btn("Run aufgeben", "abandon", undefined, { cls: "danger" })}</div></div>`;
   return "";
 }
+// Detailansicht einer Karte: voller Text und höchstens drei Begriffserklärungen
+function cardDetailView(ui) {
+  const def = CONTENT.get("cards", ui.cardInfo), build = buildOf(ui.run), rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
+  const kws = keywordsOf(def);
+  return `<div class="overlay"><div class="sheet cdetail"><div class="cd-card">${cardHtml(def, { size: "lg", build, info: false, ctx: ui.run.pending?.combat ? { hp: ui.run.pending.combat.player.hp, maxHp: ui.run.pending.combat.player.maxHp, gold: ui.run.pending.combat.gold } : { hp: ui.run.hp, maxHp: ui.run.maxHp, gold: ui.run.gold } })}</div>
+    <div class="cd-body"><h2>${esc(def.name)}</h2><div class="muted small">Kosten ${def.cost} · ${esc(rar[0])}${def.element ? ` · ${esc(elementName(def.element))}` : ""}</div>
+      <p>${esc(def.text ?? "")}</p>
+      ${kws.length ? `<div class="cd-kw">${kws.map((k) => `<div><b>${esc(k.name)}</b> ${esc(k.text)}</div>`).join("")}</div>` : ""}
+      ${btn("Schließen", "close-cardinfo", undefined, { cls: "primary" })}</div></div></div>`;
+}
 const noticeView = (n) => `<div class="overlay"><div class="sheet mid stack center"><h2>${esc(n.title)}</h2>${n.lines.map((l) => `<div>${esc(l)}</div>`).join("")}${btn("OK", "ack-notice", undefined, { cls: "primary" })}</div></div>`;
 
 // ---------------------------------------------------------------- Einstieg
@@ -5204,7 +5499,7 @@ function render(ui) {
     body = p === "intro" ? storyView(ui) : p === "map" ? mapView(ui) : p === "combat" ? combatView(ui) : p === "reward" ? rewardView(ui) : p === "shop" ? shopView(ui)
       : p === "rest" ? restView(ui) : p === "event" ? eventView(ui) : endView(ui);
   }
-  const overlay = ui.screen === "game" && ui.overlay ? overlayView(ui) : "";
+  const overlay = (ui.screen === "game" && ui.overlay ? overlayView(ui) : "") + (ui.screen === "game" && ui.run && ui.cardInfo ? cardDetailView(ui) : "");
   const frame = activeFrame(ui.meta);
   return `<div class="app ${ui.landscape ? "land" : "port"}${frame !== "default" ? ` frame-${frame}` : ""}">${body}</div>${overlay}${ui.notice ? noticeView(ui.notice) : ""}${ui.toast ? `<div class="toast">${esc(ui.toast)}</div>` : ""}`;
 }
@@ -5217,7 +5512,7 @@ __define("ui/controller.js", function (__exports, __require) {
 // dispatch(action, arg, arg2) verändert den Zustand und gibt false zurück, wenn kein Neuzeichnen nötig ist.
 const { CONTENT } = __require("content/index.js");
 const { CONFIG } = __require("data/config.js");
-const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, shopBuy, shopReroll, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
+const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, shopBuy, shopReroll, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
 const { playCard, endPlayerTurn, useItem, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
 const { createMeta, normalizeMeta, maxDifficulty } = __require("engine/meta.js");
@@ -5253,7 +5548,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
-    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null },
+    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null,
     auto: false, speed: meta.settings.speed, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
   };
   let lastWave = -1;
@@ -5355,7 +5650,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         }
         break;
       }
-      case "to-title": endPreview(); ui.auto = false; ui.screen = "title"; ui.overlay = null; ui.run = null; ui.confirmReset = false; break;
+      case "to-title": endPreview(); ui.auto = false; ui.cardInfo = null; ui.screen = "title"; ui.overlay = null; ui.run = null; ui.confirmReset = false; break;
       case "show-collection": ui.screen = "collection"; break;
       case "show-achievements": ui.screen = "achievements"; break;
       case "show-cosmetics": ui.screen = "cosmetics"; break;
@@ -5418,6 +5713,8 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         enterNode(run, node.id);
         break;
       }
+      case "card-info": ui.cardInfo = arg; break;                                 // Detailansicht einer Karte (Info-Symbol)
+      case "close-cardinfo": ui.cardInfo = null; break;
       case "set-tab": ui.tab[arg] = arg2; break;                                  // Reiter in Sammlung, Erfolge und Aussehen
       case "toggle-auto": ui.auto = !ui.auto; break;
       case "cycle-speed": ui.speed = ui.speed >= 3 ? 1 : ui.speed + 1; saveSettings(); break;
@@ -5446,6 +5743,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
 
       // ---- Shop und Rast
       case "buy": { const r = shopBuy(run, arg, Number(arg2)); toast(r.ok ? `Gekauft: ${nameAny(r.id)}` : r.reason); break; }
+      case "freeze": { const r = shopFreeze(run, Number(arg)); if (!r.ok) toast(r.reason); else toast(r.frozen ? "Item gesperrt: wartet auf den nächsten Händler" : "Sperre aufgehoben"); break; }
       case "reroll": { const r = shopReroll(run); toast(r.ok ? "Angebot neu gewürfelt" : r.reason); break; }
       case "leave-shop": leaveShop(run); break;
       case "remove-start": ui.overlay = "pick-remove"; ui.removeMode = "shop"; break;
@@ -5496,7 +5794,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     // Wartezeit (ms) bis zum nächsten Autopilot-Schritt, oder null wenn gerade nichts zu tun ist
     autoWait: () => {
       const r = ui.run;
-      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice) return null;
+      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo) return null;
       const c = r.pending.combat;
       const first = c.turn === 1 && c.metrics.plays === 0;                                // Auftritt der Figuren abwarten
       return Math.round((first ? 1800 : 700) / ui.speed);

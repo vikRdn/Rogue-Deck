@@ -485,3 +485,20 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .shop .itemcard{padding:3px 5px;gap:5px}.shop .itemcard .i-art{width:26px;height:26px}
 .shop .itemcard .d{font-size:9px;line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
 .shop .slot .btn{min-height:26px}
+
+/* ---- Info-Symbol auf Karten und Detailansicht */
+.card .c-info{position:absolute;left:3px;top:19px;z-index:2;width:15px;height:15px;border-radius:50%;background:rgba(20,16,30,.82);color:#fff;border:1px solid rgba(255,255,255,.55);font:800 10px/13px ui-monospace,monospace;text-align:center;cursor:pointer}
+.card .c-info::after{content:"";position:absolute;inset:-7px}
+.cdetail{display:flex;gap:14px;align-items:flex-start;width:min(94%,560px);padding:12px}
+.cd-card{flex:none;width:120px;display:flex}.cd-card .card{width:100%;min-height:150px}
+.cd-body{flex:1;min-width:0}.cd-body p{margin:6px 0}
+.cd-kw{display:flex;flex-direction:column;gap:5px;margin:8px 0;font-size:11px}.cd-kw b{color:var(--accent)}
+.cd-body .btn{margin-top:4px}
+
+/* ---- Shop: vier Item-Plätze mit Sperre (Freeze) */
+.items4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.items4 .slot .itemcard{flex:1}
+.buyrow{display:flex;gap:4px}.buyrow .btn:first-child{flex:1;min-width:0}.buyrow .lockbtn{flex:none;min-width:30px;padding:2px 6px}
+.slot.frozen .itemcard{box-shadow:0 0 0 2px #7fd6ff,0 0 8px #7fd6ff}
+.shop .items4 .itemcard{padding:3px 4px;gap:4px}.shop .items4 .itemcard .i-art{width:22px;height:22px}
+.shop .slot .buyrow .btn{width:auto}.shop .slot .buyrow .btn:first-child{flex:1}.shop .slot .buyrow .lockbtn{width:32px;flex:none;padding:2px 0}
