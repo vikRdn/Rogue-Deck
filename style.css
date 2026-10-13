@@ -502,3 +502,34 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .slot.frozen .itemcard{box-shadow:0 0 0 2px #7fd6ff,0 0 8px #7fd6ff}
 .shop .items4 .itemcard{padding:3px 4px;gap:4px}.shop .items4 .itemcard .i-art{width:22px;height:22px}
 .shop .slot .buyrow .btn{width:auto}.shop .slot .buyrow .btn:first-child{flex:1}.shop .slot .buyrow .lockbtn{width:32px;flex:none;padding:2px 0}
+
+/* ---- Größere Anzeige (Bühne 360 oder 330 hoch): dichte Bildschirme werden kompakter */
+.compact .shop-main h3{display:none}.compact .shop{padding:5px 10px;gap:8px}.compact .shop-main{gap:4px}
+.compact .shop .card.lg .c-art{height:28px}.compact .shop .card.lg .c-chips{min-height:14px}.compact .shop .card.lg .c-text{-webkit-line-clamp:5}
+.compact .shop .slot .btn{min-height:24px}.compact .shop-side{gap:4px}.compact .shop-side h2{font-size:13px}
+.compact .shop-npc .npc svg{height:44px;width:auto}.compact .shop-npc .bubble.static{font-size:9px;padding:3px 5px}
+.compact .shop .items4 .itemcard .d{-webkit-line-clamp:3}
+.tiny .shop .card.lg .c-art{height:22px}.tiny .shop .card.lg .c-text{-webkit-line-clamp:4;font-size:9px}.tiny .shop .itemcard .i-art{width:20px;height:20px}
+.tiny .shop .items4 .itemcard .d{-webkit-line-clamp:2}.tiny .shop .card.lg .c-top{font-size:9px}.tiny .shop-npc .npc svg{height:34px}.tiny .shop-side .muted.small{display:none}
+.tiny .shop .slot .btn{min-height:22px}.tiny .shop-side .btn{min-height:24px;font-size:10px}
+
+/* ---- Intro: Sprechblase als Fenster über der Szene (wächst mit dem Text, der Weiter-Knopf ist immer erreichbar) */
+.storybubble{position:absolute;z-index:4;top:12px;right:12px;width:min(390px,52%);font-size:12px;overflow:visible}
+.storybubble .who{font-size:12px}.storybubble p{margin:0 0 8px}.storybubble.late{animation:fadein .4s 1.5s both}
+.storybar{left:8px;right:auto}
+.hintbox{font-size:10px;line-height:1.3;padding:5px 8px;background:var(--panel)}
+.compact .weaponlist,.tiny .weaponlist{gap:4px}
+
+/* ---- Waffenwahl nach dem Brotato-Prinzip: gemeinsamer Pool, jede Waffe hat einen Signatur-Helden, frei wählbar */
+.weapongrid2{flex:1;min-height:0;display:grid;grid-template-columns:118px minmax(0,1fr);gap:8px}
+.weapongrid2 .hero-big{width:auto}
+.wcol{display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0}
+.wgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.wpick{position:relative;cursor:pointer}.wpick .itemcard{height:100%;padding-top:10px}
+.wpick.on .itemcard{outline:3px solid var(--accent)}
+.sigtag{position:absolute;top:2px;right:3px;font-size:8px;line-height:1.2;background:var(--panel2);border:1px solid var(--line);padding:0 4px;color:var(--ink)}
+.sigtag.own{background:var(--accent);color:#fff}
+.optsbar{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;padding:5px 8px;background:var(--panel)}
+.optrow{display:flex;align-items:center;gap:6px}.optrow b{font-size:10px}.optsbar input.seed{width:104px;padding:3px 6px}
+.optnote{flex-basis:100%;font-size:9px;line-height:1.25}
+.compact .wpick .itemcard .d,.tiny .wpick .itemcard .d{-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}

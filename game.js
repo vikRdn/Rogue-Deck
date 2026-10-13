@@ -45,7 +45,7 @@ const CONFIG = {
   // Leichte Lenkung: Tags, von denen der Build mind. minCount Stück hat, erhöhen das Gewicht passender Angebote
   tagBias: { minCount: 2, perMatch: 0.6, cap: 1.2 },
 
-  rewards: { cardChoices: 3, wildcardSlots: 1 },   // Wildcard-Slots ignorieren die Lenkung (Vielfalt!)
+  rewards: { cardChoices: 3, wildcardSlots: 1, weaponMinRarity: "ungewoehnlich" },   // Waffen-Beute ist besser als die Startwaffen (gleiche Stufe wie der Start gäbe keinen Grund zum Tausch)   // Wildcard-Slots ignorieren die Lenkung (Vielfalt!)
 
   shop: {
     cardSlots: 5, itemSlots: 4, wildcardCards: 2, wildcardItems: 1,
@@ -111,6 +111,8 @@ function normalize(kind, id, def, packId) {
   if (kind === "cards" || kind === "weapons" || kind === "items") {
     out.tags = uniq([...(def.tags ?? []), ...(def.element ? [def.element] : [])]); // Element zählt als Tag
     out.pools = def.pools ?? ["alle"];                                             // "alle" oder Klassen-IDs
+    // Waffen sind NICHT an eine Klasse gebunden (wie bei Brotato): "pools" nennt nur die Signatur-Klasse, zu der die Waffe am besten passt. Wählbar und findbar ist sie für alle.
+    if (kind === "weapons") { out.signature = def.signature ?? (def.pools ?? []).find((p) => p !== "alle") ?? null; out.pools = ["alle"]; }
     out.rarity = def.rarity ?? "gewoehnlich";
   }
   if (kind === "weapons" || kind === "items") out.passives = def.passives ?? [];
@@ -208,6 +210,9 @@ function createContent() {
   // Verknüpft Erfolgs-Belohnungen mit den Inhalten: Was als Belohnung vergeben wird, ist vorher gesperrt.
   // Wird einmal aufgerufen, nachdem ALLE Sets geladen sind.
   c.finalize = () => {
+    // Gemeinsamer Startpool: alle Waffen mit starter: true stehen JEDER Klasse zur Wahl (Klassen-Standardwaffe bleibt cl.weapon)
+    const starters = Object.values(c.weapons).filter((w) => w.starter).map((w) => w.id);
+    for (const cl of Object.values(c.classes)) cl.starterWeapons = starters;
     const seen = new Set();
     for (const a of Object.values(c.achievements)) {
       const rw = a.reward;
@@ -242,6 +247,7 @@ function createContent() {
       for (const ph of e.mechanics?.phases ?? []) for (const id of ph.summon ?? []) if (!has("enemies", id)) p.push(`${e.id}: Phase beschwört unbekannten Gegner ${id}`);
     }
     for (const r of Object.values(c.reactions)) for (const el of r.pair) if (!c.elements[el]) p.push(`Reaktion ${r.id}: unbekanntes Element ${el}`);
+    for (const w of Object.values(c.weapons)) if (w.signature && !has("classes", w.signature)) p.push(`Waffe ${w.id}: unbekannte Signatur-Klasse ${w.signature}`);
     const REWARD_KINDS = ["items", "weapons", "cards", "skins", "frames"];
     const starters = new Set(Object.values(c.classes).flatMap((cl) => [cl.weapon, ...cl.starterWeapons]));
     const rewarded = {};
@@ -344,7 +350,7 @@ __exports.default = {
   },
 
   weapons: {
-    rostiges_schwert: { name: "Rostiges Schwert", pools: ["nahkaempfer"], power: 2, tags: ["waffe", "nahkampf"] },
+    rostiges_schwert: { name: "Rostiges Schwert", starter: true, pools: ["nahkaempfer"], power: 2, tags: ["waffe", "nahkampf"] },
   },
 
   items: {
@@ -417,7 +423,7 @@ __exports.default = {
       play: [{ action: "damage", base: 14, weaponScale: 2 }, { action: "draw", value: 1 }] },
   },
   weapons: {
-    flammenschwert: { name: "Flammenschwert", rarity: "ungewoehnlich", pools: ["nahkaempfer"], power: 1, tags: ["waffe", "nahkampf", "feuer"],
+    flammenschwert: { name: "Flammenschwert", starter: true, pools: ["nahkaempfer"], power: 1, tags: ["waffe", "nahkampf", "feuer"],
       passives: [{ trigger: "damage_calc", cardTag: "feuer", op: "add", value: 1 }] },
   },
   items: {
@@ -464,7 +470,7 @@ __exports.default = {
       play: [{ action: "multiplyStatus", status: "gift", factor: 2, target: "all" }] },
   },
   weapons: {
-    giftdolch: { name: "Giftdolch", rarity: "ungewoehnlich", pools: ["nahkaempfer"], power: 1, tags: ["waffe", "nahkampf", "gift"],
+    giftdolch: { name: "Giftdolch", starter: true, pools: ["nahkaempfer"], power: 1, tags: ["waffe", "nahkampf", "gift"],
       passives: [{ trigger: "on_card_played", cardTag: "gift", action: "status", status: "gift", stacks: 1, target: "event_target", maxPerTurn: 3 }] },
   },
   items: {
@@ -832,9 +838,11 @@ __exports.default = {
   },
 
   weapons: {
-    kurzbogen: { name: "Kurzbogen", pools: ["fernkaempfer"], power: 2, tags: ["waffe", "fernkampf"] },
-    armbrust:  { name: "Armbrust", rarity: "ungewoehnlich", pools: ["fernkaempfer"], power: 3, tags: ["waffe", "fernkampf"] },
-    giftbogen: { name: "Giftbogen", rarity: "ungewoehnlich", pools: ["fernkaempfer"], power: 1, tags: ["waffe", "fernkampf", "gift"],
+    kurzbogen: { name: "Kurzbogen", starter: true, pools: ["fernkaempfer"], power: 1, tags: ["waffe", "fernkampf"],
+      passives: [{ trigger: "damage_calc", cardTag: "fernkampf", op: "add", value: 1 }] },
+    armbrust:  { name: "Armbrust", starter: true, pools: ["fernkaempfer"], power: 1, tags: ["waffe", "fernkampf"],     // Startwaffe: markiert das Ziel (passt zu Mehrfachtreffern)
+      passives: [{ trigger: "on_card_played", cardTag: "fernkampf", action: "status", status: "markiert", stacks: 1, target: "event_target", maxPerTurn: 2 }] },
+    giftbogen: { name: "Giftbogen", starter: true, pools: ["fernkaempfer"], power: 1, tags: ["waffe", "fernkampf", "gift"],
       passives: [{ trigger: "on_card_played", cardTag: "fernkampf", action: "status", status: "gift", stacks: 1, target: "event_target", maxPerTurn: 3 }] },
     jagdbogen: { name: "Jagdbogen", rarity: "selten", pools: ["fernkaempfer"], power: 2, tags: ["waffe", "fernkampf"],
       passives: [{ trigger: "on_card_played", cardTag: "fernkampf", chance: 0.2, action: "draw", value: 1, maxPerTurn: 2 }] },
@@ -916,11 +924,11 @@ __exports.default = {
   },
 
   weapons: {
-    zauberstab: { name: "Zauberstab", pools: ["magier"], power: 1, tags: ["waffe", "zauber"],
+    zauberstab: { name: "Zauberstab", starter: true, pools: ["magier"], power: 1, tags: ["waffe", "zauber"],
       passives: [{ trigger: "damage_calc", cardTag: "zauber", op: "add", value: 1 }] },
-    flammenstab: { name: "Flammenstab", rarity: "ungewoehnlich", pools: ["magier"], power: 1, tags: ["waffe", "zauber", "feuer"],
+    flammenstab: { name: "Flammenstab", starter: true, pools: ["magier"], power: 1, tags: ["waffe", "zauber", "feuer"],
       passives: [{ trigger: "damage_calc", cardTag: "feuer", op: "add", value: 2 }] },
-    runenstab:  { name: "Runenstab", rarity: "ungewoehnlich", pools: ["magier"], power: 1, tags: ["waffe", "zauber"],
+    runenstab:  { name: "Runenstab", starter: true, pools: ["magier"], power: 1, tags: ["waffe", "zauber"],
       passives: [{ trigger: "on_reaction", action: "damage", value: 3, target: "event_target", maxPerTurn: 2 }] },
     kristallstab: { name: "Kristallstab", rarity: "selten", pools: ["magier"], power: 2, tags: ["waffe", "zauber"],
       passives: [{ trigger: "damage_calc", cardTag: "zauber", op: "add", value: 2 }] },
@@ -1212,6 +1220,38 @@ __exports.default = {
 
 
 });
+__define("content/packs/waffen_stufe2.js", function (__exports, __require) {
+// WAFFEN, STUFE 2 (ungewöhnlich): kommen erst später im Run (Beute nach dem Mini-Boss, Chrom-Funde), nie als Startwaffe.
+// Jede ist mindestens so stark wie die beste gewöhnliche Startwaffe der Klasse (Test: test/weapons-pool.js) und ergänzt eine Richtung.
+__exports.default = {
+  id: "waffen_stufe2",
+  name: "Waffen, Stufe 2",
+  weapons: {
+    // Nahkämpfer
+    stahlschwert: { name: "Stahlschwert", rarity: "ungewoehnlich", pools: ["nahkaempfer"], power: 3, tags: ["waffe", "nahkampf"] },
+    glutschwert: { name: "Glutschwert", rarity: "ungewoehnlich", pools: ["nahkaempfer"], power: 2, tags: ["waffe", "nahkampf", "feuer"],
+      passives: [{ trigger: "damage_calc", cardTag: "feuer", op: "add", value: 1 }] },
+    natterndolch: { name: "Natterndolch", rarity: "ungewoehnlich", pools: ["nahkaempfer"], power: 2, tags: ["waffe", "nahkampf", "gift"],
+      passives: [{ trigger: "on_card_played", cardTag: "gift", action: "status", status: "gift", stacks: 1, target: "event_target", maxPerTurn: 3 }] },
+    // Fernkämpfer
+    langbogen: { name: "Langbogen", rarity: "ungewoehnlich", pools: ["fernkaempfer"], power: 3, tags: ["waffe", "fernkampf"] },
+    brandbogen: { name: "Brandbogen", rarity: "ungewoehnlich", pools: ["fernkaempfer"], power: 2, tags: ["waffe", "fernkampf", "feuer"],
+      passives: [{ trigger: "damage_calc", cardTag: "feuer", op: "add", value: 1 }] },
+    wundbogen: { name: "Wundbogen", rarity: "ungewoehnlich", pools: ["fernkaempfer"], power: 2, tags: ["waffe", "fernkampf", "blut"],
+      passives: [{ trigger: "on_card_played", cardTag: "fernkampf", action: "status", status: "blutung", stacks: 1, target: "event_target", maxPerTurn: 2 }] },
+    // Magier
+    arkanstab: { name: "Arkanstab", rarity: "ungewoehnlich", pools: ["magier"], power: 2, tags: ["waffe", "zauber"],
+      passives: [{ trigger: "damage_calc", cardTag: "zauber", op: "add", value: 1 }] },
+    glutzepter: { name: "Glutzepter", rarity: "ungewoehnlich", pools: ["magier"], power: 2, tags: ["waffe", "zauber", "feuer"],
+      passives: [{ trigger: "damage_calc", cardTag: "feuer", op: "add", value: 2 }] },
+    frostzepter: { name: "Frostzepter", rarity: "ungewoehnlich", pools: ["magier"], power: 2, tags: ["waffe", "zauber", "eis"],
+      passives: [{ trigger: "damage_calc", cardTag: "eis", op: "add", value: 2 }] },
+  },
+};
+
+
+
+});
 __define("content/packs/story.js", function (__exports, __require) {
 // GESCHICHTE: Sprecher und Dialoge als Daten. Neue Geschichten (z. B. je Klasse, je Boss, je Schwierigkeit) = nur Einträge ergänzen.
 // lines: Text oder { perClass: { <klassen-id>: "...", default: "..." } }
@@ -1279,10 +1319,11 @@ const aktiv = __require("content/packs/aktiv.js").default;
 const bollwerk = __require("content/packs/bollwerk.js").default;
 const pyro = __require("content/packs/pyro.js").default;
 const aristokratGaertner = __require("content/packs/aristokrat_gaertner.js").default;
+const waffenStufe2 = __require("content/packs/waffen_stufe2.js").default;
 const story = __require("content/packs/story.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 const problems = CONTENT.validate();
@@ -2115,7 +2156,7 @@ const createMeta = () => ({
   discovered: { items: {}, cards: {}, weapons: {}, enemies: {}, reactions: {} },
   achievements: {},                                   // id -> { at }
   cosmetics: { skin: {}, frame: "default" },          // gewählte Farbvariante je Held und Kartenrahmen
-  settings: { speed: 1, manual: false, autoEnd: true }, // Kampf-Bedienung: Tempo, manuelles Zielen, Zug automatisch beenden
+  settings: { speed: 1, manual: false, autoEnd: true, size: "gross" }, // Kampf-Bedienung: Tempo, manuelles Zielen, Zug automatisch beenden
 });
 
 // Ergänzt bei älteren Spielständen fehlende Felder (neue Funktionen, alter Fortschritt bleibt erhalten)
@@ -2398,7 +2439,15 @@ function pickMany(ctx, kind, n, wildcards, exclude = new Set()) {
 const generateCardReward = (ctx, n = CONFIG.rewards.cardChoices) =>
   pickMany(ctx, "cards", n, CONFIG.rewards.wildcardSlots);
 
-const generateWeaponChoices = (ctx, n = 2) => pickMany(ctx, "weapons", n, 1);
+function generateWeaponChoices(ctx, n = 2) {
+  const minIdx = RARITY_ORDER.indexOf(CONFIG.rewards.weaponMinRarity), out = [], taken = new Set([baseOf(ctx.build.weapon.id)]);
+  for (let i = 0; i < n; i++) {
+    const def = pickOne(ctx, "weapons", taken, i < n - 1, minIdx);   // nie unter der Mindeststufe, nie die getragene Waffe; das erste Angebot passt zum Build, das letzte ist frei (Vielfalt)
+    if (!def) break;
+    taken.add(def.id); out.push(def);
+  }
+  return out;
+}
 
 const generateItemChoices = (ctx, n = 3) =>
   pickMany(ctx, "items", n, 1, maxedItems(ctx.build));
@@ -2573,7 +2622,7 @@ const rollShinyHero = (rand = Math.random) => rand() < CONFIG.shiny.heroChance;
 
 function createRun({ classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
   const cls = CONTENT.classes[classId];
-  const startWeapon = cls.starterWeapons.includes(weapon) ? weapon : cls.starterWeapons[0];
+  const startWeapon = cls.starterWeapons.includes(weapon) ? weapon : cls.weapon;      // jede Klasse darf jede Startwaffe wählen
   const rng = createRng(seed);
   const run = {
     seed, classId, difficulty, meta, rng, shinyHero: Boolean(shinyHero),
@@ -3630,6 +3679,9 @@ const WEAPON_ART = {
   runenstab: { shape: "wand", pal: "wasser" },
   kristallstab: { shape: "crystalstaff", pal: "prisma" },
   flammenstab: { shape: "staff", pal: "feuer" },
+  stahlschwert: { shape: "sword", pal: "eisen" }, glutschwert: { shape: "sword", pal: "blut" }, natterndolch: { shape: "dagger", pal: "pflanze" },
+  langbogen: { asym: "bow", pal: "eisen" }, brandbogen: { asym: "bow", pal: "feuer" }, wundbogen: { asym: "bow", pal: "blut" },
+  arkanstab: { shape: "wand", pal: "arkan" }, glutzepter: { shape: "wand", pal: "feuer" }, frostzepter: { shape: "wand", pal: "eis" },
 };
 
 __exports.WEAPON_SHAPES = WEAPON_SHAPES;
@@ -5033,6 +5085,8 @@ const HERO = { x: 78, feet: 192, scale: 2.45 };
 // Handposition (in Sprite-Pixeln) und Griffpunkt der Waffe (Sprite 10x18 mit Rand)
 const HAND = { nahkaempfer: [22, 27], fernkaempfer: [22, 22], magier: [22, 25] };
 const GRIP = [5, 16], WEAPON_SCALE = 2.9;
+// Haltung der Waffe nach ihrer Art (nicht nach der Klasse des Trägers): Bogen fast senkrecht, Stab leicht schräg, Klinge schräg
+const wkind = (id) => { const t = CONTENT.get("weapons", id).tags; return t.includes("fernkampf") ? "fernkaempfer" : t.includes("zauber") ? "magier" : "nahkaempfer"; };
 // Jede Gegnerart bewegt sich anders im Leerlauf: Geister schweben, Golems stampfen, Ratten hüpfen ...
 const ENEMY_MOTION = {
   ratte: "hop", glutgeist: "float", flussgeist: "float", funke: "pulse",     // alle anderen bewegen sich über ihre Körperteile (ui/art/rigs.js)
@@ -5131,7 +5185,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const hero = `<g class="pos" transform="translate(${hx0} ${hy0})"><g class="mover${enter ? " enter-l" : ""}${anim("hero", "strike", ` strike-${play?.style ?? "slash"}`)}" ${del("hero", "strike")}>
       <ellipse cx="${(sz.w * hs) / 2}" cy="${sz.h * hs - 1}" rx="${sz.w * hs * 0.4}" ry="5" fill="#000" opacity=".42"/><g class="flash${anim("hero", "hurt", " hurtflash")}" ${del("hero", "hurt")}><g class="shake${anim("hero", "hurt", " hurtshake")}" ${del("hero", "hurt")}><g class="bob ${cls === "magier" ? "mv-hover" : "mv-none"}">
       ${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * hs}" height="${sz.h * hs}"` })}
-      <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${cls}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
+      <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${wkind(run.weapon)}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
         <g transform="translate(${-GRIP[0] * WEAPON_SCALE} ${-GRIP[1] * WEAPON_SCALE})">${spr("weapon", wid, { shiny: wpn.shiny, attrs: `width="${wsz.w * WEAPON_SCALE}" height="${wsz.h * WEAPON_SCALE}"` })}</g></g></g>
       </g></g></g></g></g>`;
   // Heldenwerte unter den Füßen
@@ -5188,7 +5242,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
 }
 
 // ---------------------------------------------------------------- Intro (Geschichte): Held steht links, Figur kommt von rechts herein
-function introScene({ run, speaker, first, bubble = "", ext = 0 }) {
+function introScene({ run, speaker, first, ext = 0 }) {   // die Sprechblase zeichnet storyView als Fenster darüber
   const b = BIOMES[0], cls = run.classId, sz = sprSize("hero", cls), s = 2.9;
   const npc = sprSize("npc", speaker.id), ns = 2.6;
   const hx = 90, hfeet = 190, nx = 270;
@@ -5197,8 +5251,7 @@ function introScene({ run, speaker, first, bubble = "", ext = 0 }) {
     <g class="pos" transform="translate(${hx - (sz.w * s) / 2} ${hfeet - sz.h * s})"><g class="bob mv-none">${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * s}" height="${sz.h * s}"` })}
       <g transform="translate(${hx2 * s} ${hy2 * s})"><g class="wpn idle-wpn"><g transform="translate(${-GRIP[0] * WEAPON_SCALE} ${-GRIP[1] * WEAPON_SCALE})">${spr("weapon", wid, { shiny: CONTENT.get("weapons", run.weapon).shiny, attrs: `width="${wsz.w * WEAPON_SCALE}" height="${wsz.h * WEAPON_SCALE}"` })}</g></g></g></g></g>
     <g class="pos" transform="translate(${nx - (npc.w * ns) / 2} ${hfeet - npc.h * ns})"><g class="mover${first ? " enter-npc" : ""}"><g class="bob mv-none">${spr("npc", speaker.id, { attrs: `width="${npc.w * ns}" height="${npc.h * ns}"` })}</g></g></g>
-    <g class="bubblewrap${first ? " late" : ""}"><foreignObject x="132" y="0" width="262" height="98"><div class="bubble">${bubble}</div></foreignObject>
-      <polygon class="tail" points="${nx - 14},96 ${nx + 6},96 ${nx - 4},101"/></g></svg>`;
+  </svg>`;
 }
 
 // ---------------------------------------------------------------- Menü-/Auswahl-Hintergrund (nur Kulisse)
@@ -5255,36 +5308,38 @@ function hud(ui) {
 }
 
 // ---------------------------------------------------------------- Titel
+const SIZE_NAMES = { normal: "Normal", gross: "Groß", riesig: "Sehr groß" };
 function titleView(ui) {
   const m = ui.meta;
-  return `<div class="screen title"><div class="bgscene">${menuBackdrop(sceneExt(ui, 400))}</div>
+  return `<div class="screen title"><div class="bgscene">${menuBackdrop(sceneExt(ui, ui.stageH ?? 400))}</div>
     <div class="title-body"><div class="title-l">${logo()}<div class="tag">Ein Deckbuilder-Roguelite</div></div>
       <div class="title-r"><div class="menu-buttons">${ui.hasSave ? btn("Run fortsetzen", "continue", undefined, { cls: "good big" }) : ""}
         ${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}</div>
+        <div class="row wrap center">${btn("Vollbild", "fullscreen", undefined, { cls: "small" })}${btn(`Anzeige: ${SIZE_NAMES[m.settings.size ?? "gross"]}`, "cycle-size", undefined, { cls: "small" })}</div>
         <div class="muted center small">Siege ${m.wins} · Runs ${m.runs} · Shinys ${Object.keys(m.dex.shiny).length}</div></div></div></div>`;
 }
 
 // ---------------------------------------------------------------- Charakter- und Waffenwahl
 function setupView(ui) {
   const st = ui.setup, classes = Object.values(CONTENT.classes), cur = CONTENT.classes[st.classId];
-  const bg = `<div class="bgscene">${menuBackdrop(sceneExt(ui, 400))}</div>`;
+  const bg = `<div class="bgscene">${menuBackdrop(sceneExt(ui, ui.stageH ?? 400))}</div>`;
   if (st.step === 0) {
     return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deinen Charakter</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Weiter", "setup-next", undefined, { cls: "primary" })}</div></div>
       <div class="herogrid">${classes.map((c) => `<div class="herocard px ${st.classId === c.id ? "on" : ""}"${at("pick-class", c.id)}>
-        <div class="hero-art">${heroPortrait(c.id, c.starterWeapons[0], activeSkin(ui.meta, c.id))}</div><b>${esc(c.name)}</b>
+        <div class="hero-art">${heroPortrait(c.id, c.weapon, activeSkin(ui.meta, c.id))}</div><b>${esc(c.name)}</b>
         <div class="stats"><span>${ico("heart", 14)}${c.hp}</span><span>${ico("pile", 14)}${CONFIG.player.handSize + (c.stats.handSize ?? 0)}</span><span>${ico("bolt", 14)}${CONFIG.player.startEnergy + (c.stats.energy ?? 0)}</span></div>
         <div class="d">${esc(c.blurb ?? "")}</div>${c.passive ? `<div class="d passive"><b>${esc(c.passive.name)}:</b> ${esc(c.passive.text)}</div>` : ""}</div>`).join("")}</div></div></div>`;
   }
   const maxD = maxDifficulty(ui.meta);
+  const sig = (w) => (w.signature === cur.id ? "Dein Held" : esc(CONTENT.classes[w.signature]?.name ?? ""));
   return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deine Waffe</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Aufbrechen", "start-run", undefined, { cls: "primary" })}</div></div>
-    <div class="weapongrid"><div class="hero-big px">${heroPortrait(cur.id, st.weaponId, activeSkin(ui.meta, cur.id))}<b>${esc(cur.name)}</b></div>
-      <div class="weaponlist">${cur.starterWeapons.map((id) => { const w = CONTENT.get("weapons", id);
-        return `<div class="wpick ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}>${itemHtml(w, "weapons")}</div>`; }).join("")}</div>
-      <div class="setup-opts px pad"><h3>Schwierigkeit</h3><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
-        ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div>
-        ${maxD < CONFIG.difficulty.length - 1 ? `<div class="muted small">Die nächste Stufe wird nach einem Sieg freigeschaltet.</div>` : ""}
-        <h3>Seed (optional)</h3><input class="seed" inputmode="numeric" placeholder="leer = Zufall" value="${esc(st.seed)}" data-change="set-seed">
-        <div class="muted small">Gleiche Zahl = gleiche Karte.</div></div></div></div></div>`;
+    <div class="weapongrid2"><div class="hero-big px">${heroPortrait(cur.id, st.weaponId, activeSkin(ui.meta, cur.id))}<b>${esc(cur.name)}</b></div>
+      <div class="wcol"><div class="wgrid">${cur.starterWeapons.map((id) => { const w = CONTENT.get("weapons", id);
+        return `<div class="wpick ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}>${itemHtml(w, "weapons")}<span class="sigtag${w.signature === cur.id ? " own" : ""}">${sig(w)}</span></div>`; }).join("")}</div>
+        <div class="optsbar px"><div class="optrow"><b>Schwierigkeit</b><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
+          ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div></div>
+          <div class="optrow"><b>Seed</b><input class="seed" inputmode="numeric" placeholder="leer = Zufall" value="${esc(st.seed)}" data-change="set-seed"></div>
+          <div class="muted small optnote">Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Bessere Waffen findest du später, zum Beispiel nach dem Mini-Boss.</div></div></div></div></div></div>`;
 }
 
 // ---------------------------------------------------------------- Geschichte
@@ -5293,7 +5348,8 @@ function storyView(ui) {
   const i = Math.min(ui.storyIdx, lines.length - 1), last = i === lines.length - 1;
   const bubble = `<div class="who">${esc(sp.name)} <small>${esc(sp.title ?? "")}</small></div><p>${esc(lines[i])}</p>
     <div class="bubble-foot"><span class="dots">${lines.map((_, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("")}</span>${btn(last ? "Los geht's" : "Weiter", "story-next", undefined, { cls: "primary small" })}</div>`;
-  return `<div class="screen story"><div class="scene">${introScene({ run, speaker: sp, first: i === 0, bubble, ext: sceneExt(ui, 400) })}</div>
+  return `<div class="screen story"><div class="scene">${introScene({ run, speaker: sp, first: i === 0, ext: sceneExt(ui, ui.stageH ?? 400) })}</div>
+    <div class="bubble storybubble${i === 0 ? " late" : ""}">${bubble}</div>
     <div class="storybar">${btn("Überspringen", "story-skip", undefined, { cls: "small" })}</div></div>`;
 }
 
@@ -5344,7 +5400,7 @@ function combatView(ui) {
     return `<button class="activebtn${a.used ? " used" : ""}"${off ? " disabled" : at("use-item", String(a.index))} title="${esc(a.item.text ?? a.item.name)}" aria-label="${esc(a.item.name)}">${itemIcon(a.item, 30)}<span class="acost">${ico("bolt", 11)}${a.def.cost}</span>${a.used ? '<span class="aused">benutzt</span>' : ""}</button>`;
   }).join("")}</div>` : "";
   const logLines = c.log.slice(ui.showLog ? -30 : -0).map((l) => `<div class="${l.includes("***") ? "hit" : ""}">${esc(l.trim())}</div>`).join("");
-  const ext = sceneExt(ui, 252);
+  const ext = sceneExt(ui, (ui.stageH ?? 400) - 148);
   return `${hud(ui)}<div class="screen combat"><div class="scene">${combatScene({ run, c, fx: ui.fx, enter: ui.enter, targetable, focus: ui.focus, ext })}${actives}${info}
       <div class="side left"><div class="piles"><span class="pile" title="Nachziehstapel">${ico("pile", 16)}<b>${c.piles.draw.length}</b></span><span class="pile" title="Ablagestapel">${ico("discard", 16)}<b>${c.piles.discard.length}</b></span></div>
         ${btn(ui.auto ? "Auto: an" : "Auto", "toggle-auto", undefined, { cls: `small ${ui.auto ? "good" : ""}`, disabled: Boolean(c.result) })}${btn(`Tempo x${ui.speed}`, "cycle-speed", undefined, { cls: "small" })}</div>
@@ -5470,7 +5526,7 @@ function overlayView(ui) {
   }
   if (o === "pick-remove") return `<div class="overlay"><div class="sheet"><h2>Welche Karte entfernen?</h2><div class="grid">${groupedDeck(run).map((g) =>
     `<div class="slot">${cardHtml(g.def, { size: "lg", build, count: g.idxs.length })}${btn("Entfernen", "pick-remove", String(g.idxs[0]), { cls: "small danger" })}</div>`).join("")}</div>${close}</div></div>`;
-  if (o === "menu") return `<div class="overlay"><div class="sheet mid stack"><h2>Menü</h2>${run.phase === "combat" ? `<div class="stack"><h3>Kampf-Bedienung</h3>${btn(ui.manual ? "Zielen: von Hand" : "Zielen: automatisch", "toggle-manual", undefined, { cls: "small" })}<div class="muted small">${ui.manual ? "Erst Karte wählen, dann Gegner antippen." : "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel."}</div>${btn(ui.autoEnd ? "Zug endet automatisch: an" : "Zug endet automatisch: aus", "toggle-autoend", undefined, { cls: "small" })}</div>` : ""}<div class="muted">Seed: <b>${run.seed}</b> (für Freunde: gleiche Karte)</div>${run.shinyHero ? `<div class="chrome">Chrom-Held: +${CONFIG.shiny.heroLuck} Glück in diesem Run</div>` : ""}${btn("Weiterspielen", "close-overlay", undefined, { cls: "primary" })}
+  if (o === "menu") return `<div class="overlay"><div class="sheet mid stack"><h2>Menü</h2><div class="row wrap">${btn("Vollbild", "fullscreen", undefined, { cls: "small" })}${btn(`Anzeige: ${SIZE_NAMES[ui.meta.settings.size ?? "gross"]}`, "cycle-size", undefined, { cls: "small" })}</div>${run.phase === "combat" ? `<div class="stack"><h3>Kampf-Bedienung</h3>${btn(ui.manual ? "Zielen: von Hand" : "Zielen: automatisch", "toggle-manual", undefined, { cls: "small" })}<div class="muted small">${ui.manual ? "Erst Karte wählen, dann Gegner antippen." : "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel."}</div>${btn(ui.autoEnd ? "Zug endet automatisch: an" : "Zug endet automatisch: aus", "toggle-autoend", undefined, { cls: "small" })}</div>` : ""}<div class="muted">Seed: <b>${run.seed}</b> (für Freunde: gleiche Karte)</div>${run.shinyHero ? `<div class="chrome">Chrom-Held: +${CONFIG.shiny.heroLuck} Glück in diesem Run</div>` : ""}${btn("Weiterspielen", "close-overlay", undefined, { cls: "primary" })}
     ${run.phase === "combat" ? `<div class="muted small">Im Kampf wird nicht gespeichert. Beendest du jetzt, beginnt der Kampf beim nächsten Mal von vorn.</div>` : ""}${btn("Zum Titel (speichert)", "to-title")}${btn("Run aufgeben", "abandon", undefined, { cls: "danger" })}</div></div>`;
   return "";
 }
@@ -5544,7 +5600,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
 
   const ui = {
     screen: "title", run: null, meta, landscape, dev,
-    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.starterWeapons[0], difficulty: 0, seed: "" },
+    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.weapon, difficulty: 0, seed: "" },
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
@@ -5592,7 +5648,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     if (!inst) return;
     if (tryPlay(idx, pickTarget(combat, inst.def, ui.focus))) maybeEndTurn();
   }
-  const saveSettings = () => { ui.meta.settings = { speed: ui.speed, manual: ui.manual, autoEnd: ui.autoEnd }; };
+  const saveSettings = () => { ui.meta.settings = { ...ui.meta.settings, speed: ui.speed, manual: ui.manual, autoEnd: ui.autoEnd }; };
   // Chrom-Vorschau: alles ist Shiny, nichts wird gespeichert und nichts zählt (kein Dex, keine Freischaltung, kein Eingriff in den echten Spielstand)
   let savedShiny = null;
   function endPreview() {
@@ -5617,7 +5673,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     switch (action) {
       // ---- Titel und Vorbereitung
       case "new-run": Object.assign(st, { step: 0, difficulty: 0 }); ui.screen = "setup"; break;
-      case "pick-class": st.classId = arg; st.weaponId = CONTENT.classes[arg].starterWeapons[0]; break;
+      case "pick-class": st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; break;
       case "setup-next": st.step = 1; break;
       case "setup-back": if (st.step === 0) ui.screen = "title"; else st.step = 0; break;
       case "pick-weapon": st.weaponId = arg; break;
@@ -5716,6 +5772,11 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "card-info": ui.cardInfo = arg; break;                                 // Detailansicht einer Karte (Info-Symbol)
       case "close-cardinfo": ui.cardInfo = null; break;
       case "set-tab": ui.tab[arg] = arg2; break;                                  // Reiter in Sammlung, Erfolge und Aussehen
+      case "cycle-size": {                                  // Anzeigegröße: Normal -> Groß -> Sehr groß (das Spiel zeigt dann weniger Platz, dafür größer)
+        const order = ["normal", "gross", "riesig"], cur = order.indexOf(ui.meta.settings.size ?? "gross");
+        ui.meta.settings = { ...ui.meta.settings, size: order[(cur + 1) % order.length] };
+        break;
+      }
       case "toggle-auto": ui.auto = !ui.auto; break;
       case "cycle-speed": ui.speed = ui.speed >= 3 ? 1 : ui.speed + 1; saveSettings(); break;
       case "toggle-manual": ui.manual = !ui.manual; ui.selected = null; saveSettings(); break;
@@ -5821,19 +5882,25 @@ const ctrl = createController({ storage, landscape: true, dev });  // das Spiel 
 // ---- Bühne: das Spiel ist immer 400 Einheiten hoch und 720 bis 960 breit und wird auf den Bildschirm skaliert (Handy, Tablet, Monitor).
 // So passt jeder Bildschirm ohne Scrollen, und alle Maße im Stylesheet gelten überall gleich.
 const stage = document.getElementById("stage"), probe = document.getElementById("probe");
-const STAGE_H = 400, STAGE_MIN_W = 720, STAGE_MAX_W = 960;
+const STAGE_SIZES = { normal: 400, gross: 360, riesig: 330 };      // Anzeigegröße: weniger Höhe = alles erscheint größer
+const STAGE_MIN_W = 720, STAGE_MAX_W = 960;
+const devHeight = Number(new URLSearchParams(window.location.search).get("h")) || 0;     // nur zum Testen (?h=360)
 function fit() {
+  const STAGE_H = devHeight || STAGE_SIZES[ctrl.ui.meta.settings.size ?? "gross"] || 400;
   const cs = window.getComputedStyle(probe);                                    // Sicherheitsabstände (Notch) aus CSS lesen
   const L = parseFloat(cs.paddingLeft) || 0, R = parseFloat(cs.paddingRight) || 0, T = parseFloat(cs.paddingTop) || 0, B = parseFloat(cs.paddingBottom) || 0;
   const vw = window.innerWidth - L - R, vh = window.innerHeight - T - B;
   const s = Math.min(vh / STAGE_H, vw / STAGE_MIN_W);
   const W = Math.min(STAGE_MAX_W, Math.floor(vw / s));
   stage.style.width = `${W}px`; stage.style.height = `${STAGE_H}px`;
+  stage.classList.toggle("compact", STAGE_H <= 360); stage.classList.toggle("tiny", STAGE_H <= 330);     // bei größerer Anzeige werden dichte Bildschirme (Shop) kompakter
   stage.style.transform = `translate(${L + (vw - W * s) / 2}px, ${T + (vh - STAGE_H * s) / 2}px) scale(${s})`;
   document.body.classList.toggle("portrait", window.innerHeight > window.innerWidth * 1.08);
   const changed = ctrl.ui.stageW !== W;
   ctrl.ui.stageW = W;
-  return changed;
+  const hChanged = ctrl.ui.stageH !== STAGE_H;
+  ctrl.ui.stageH = STAGE_H;
+  return changed || hChanged;
 }
 fit();
 
@@ -5868,7 +5935,14 @@ function render() {
 root.addEventListener("click", (ev) => {
   const el = ev.target.closest("[data-action]");
   if (!el || el.disabled) return;
-  if (ctrl.dispatch(el.dataset.action, el.dataset.arg, el.dataset.arg2) !== false) render();
+  if (el.dataset.action === "fullscreen") {                       // Vollbild blendet die Browser-Leisten aus: mehr Platz, das Spiel wird größer
+    const d = document.documentElement;
+    try { Promise.resolve((d.requestFullscreen ?? d.webkitRequestFullscreen)?.call(d)).then(() => window.screen.orientation?.lock?.("landscape")).catch(() => {}); } catch { /* nicht unterstützt */ }
+    return;
+  }
+  const res = ctrl.dispatch(el.dataset.action, el.dataset.arg, el.dataset.arg2);
+  if (el.dataset.action === "cycle-size") fit();                  // neue Höhe sofort anwenden
+  if (res !== false) render();
 });
 root.addEventListener("change", (ev) => {
   const el = ev.target.closest("[data-change]");
