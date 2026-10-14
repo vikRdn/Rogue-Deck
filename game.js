@@ -12,8 +12,8 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "6.0",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
-  player: { startEnergy: 3, handSize: 5, maxHp: 70 },
+  version: "6.3",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
     softCapAdd: 8,        // Additive Boni über diesem Wert zählen nur zur Hälfte
@@ -21,7 +21,7 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.74,
+    enemyDmgScale: 0.80,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
@@ -57,15 +57,15 @@ const CONFIG = {
 
   shop: {
     cardSlots: 5, itemSlots: 4, wildcardCards: 2, wildcardItems: 1,
-    basePrice: { gewoehnlich: 40, ungewoehnlich: 70, selten: 120, legendaer: 220 },
-    itemFactor: 1.5,       // Items kosten mehr als Karten
+    basePrice: { gewoehnlich: 30, ungewoehnlich: 55, selten: 100, legendaer: 190 },
+    itemFactor: 1.4,       // Items kosten mehr als Karten
     priceVariance: 0.15,   // +-15 % Zufallsschwankung
-    startDiscount: 0.5,
+    startDiscount: 0.45,
     inflationPerFight: 0.015,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
     afterFight: true, quick: { cards: 3, items: 3 },          // nach JEDEM Kampf ein Schnellladen (kleineres Angebot); Händler-Orte auf der Karte bleiben der große Laden
-    services: { heal: { price: 45, pct: 0.3, step: 15 }, vitality: { price: 90, maxHp: 6 } },   // Dienste beim Händler: Verband (heilt, wird teurer) und Stärkungstrank (+Max-HP, einmal je Besuch)
+    services: { heal: { price: 35, pct: 0.3, step: 10 }, vitality: { price: 75, maxHp: 6 } },   // Dienste beim Händler: Verband (heilt, wird teurer) und Stärkungstrank (+Max-HP, einmal je Besuch)
     removeBase: 50, removeIncrement: 25,
-    rerollBase: 10, rerollMult: 2,
+    rerollBase: 4, rerollMult: 1.3,                                // Reroll: 4, 5, 7, 9 ... Gold (Brotato-Stil: im ersten Laden etwa 4 Rerolls)
   },
 
   // Items dürfen gestapelt werden (wie bei Brotato). Einzelne Items überschreiben das mit "maxStack".
@@ -81,7 +81,7 @@ const CONFIG = {
   },
 
   // ---- Run-Aufbau
-  run: { startGold: 60, restHealPct: 0.3, minDeck: 5, normalItemChance: 0.12 },
+  run: { startGold: 60, restHealPct: 0.3, minDeck: 4, normalItemChance: 0.12 },
   map: {
     layers: 10,                 // Ebenen vor dem Boss
     width: [3, 4],              // Knoten pro Ebene (min, max)
@@ -93,6 +93,7 @@ const CONFIG = {
     tierSplit: 4,               // ab dieser Ebene kommen Begegnungen der Stufe 2
   },
   // Erfahrung und Wert-Aufstiege (Brotato-Richtung): Gegner geben Erfahrung nach ihren Lebenspunkten, volle Leiste = ein Aufstieg mit 4 Wert-Angeboten
+  draft: { rounds: 4, options: 3, ownWeight: 2.5 },        // Startdeck-Draft: 4 Züge, je 3 Karten zur Wahl, eigene Klassenkarten 2,5x so wahrscheinlich
   xp: { hpPerXp: 14, base: 8, step: 4 },
   // Run-Struktur: 10 Stages mit je einer Karte (Kämpfe, Elite, Mini-Boss, Rast, Händler, Ereignisse). Stage 1 bis 9 enden mit einem Wächter, Stage 10 mit dem Endboss. Gegner, Gold und Preise wachsen von Stage zu Stage.
   stages: { count: 10, heal: 0.3, guards: ["steinwaechter", "banditenbande", "eliterudel", "knochenhauptmann", "sumpfwacht", "steinwaechter", "eliterudel", "banditenbande", "knochenhauptmann"] },
@@ -143,7 +144,7 @@ function normalize(kind, id, def, packId) {
   if (kind === "enemies") out.elements = def.elements ?? [];
   if (kind === "achievements") { out.group = def.group ?? "runs"; out.secret = Boolean(def.secret); }
   if (kind === "classes") { out.stats = def.stats ?? {}; out.starterWeapons = def.starterWeapons ?? [def.weapon]; out.shopBasics = def.shopBasics ?? []; out.passive = def.passive ?? null;
-    out.passives = def.passives ?? []; out.perks = def.perks ?? []; out.cardPools = def.cardPools ?? [out.id]; out.abilities = def.abilities ?? []; }      // passives: Klassen-Passive als Daten, perks: Vor- und Nachteile für die Anzeige, cardPools: welche Kartenpools der Held findet
+    out.passives = def.passives ?? []; out.perks = def.perks ?? []; out.cardPools = def.cardPools ?? [out.id]; out.abilities = def.abilities ?? []; out.coreCards = def.coreCards ?? []; }      // passives: Klassen-Passive als Daten, perks: Vor- und Nachteile für die Anzeige, cardPools: welche Kartenpools der Held findet
   if (kind === "abilities") { out.levels = def.levels ?? []; out.cooldown = def.cooldown ?? 4; }
   if (kind === "reactions") out.key = [...def.pair].sort().join("+");   // ungeordnetes Elementpaar
   if (kind === "encounters") { out.kind = def.kind ?? "normal"; out.tier = def.tier ?? 1; }   // normal | elite | miniboss | boss
@@ -276,6 +277,7 @@ function createContent() {
     for (const cl of Object.values(c.classes)) for (const pool of cl.cardPools) if (pool !== "alle" && !has("classes", pool)) p.push(`Klasse ${cl.id}: unbekannter Kartenpool ${pool}`);
     for (const a of Object.values(c.abilities)) if (!has("classes", a.class)) p.push(`Fähigkeit ${a.id}: unbekannte Klasse ${a.class}`);
     for (const cl of Object.values(c.classes)) for (const a of cl.abilities) if (!has("abilities", a)) p.push(`Klasse ${cl.id}: unbekannte Fähigkeit ${a}`);
+    for (const cl of Object.values(c.classes)) for (const a of cl.coreCards) if (!has("cards", a)) p.push(`Klasse ${cl.id}: unbekannte Kernkarte ${a}`);
     for (const w of Object.values(c.weapons)) if (w.signature && !has("classes", w.signature)) p.push(`Waffe ${w.id}: unbekannte Signatur-Klasse ${w.signature}`);
     const REWARD_KINDS = ["items", "weapons", "cards", "skins", "frames"];
     const starters = new Set(Object.values(c.classes).flatMap((cl) => [cl.weapon, ...cl.starterWeapons]));
@@ -346,10 +348,10 @@ __exports.default = {
 
   classes: {
     nahkaempfer: {
-      abilities: ["steinschere", "donnerjojo"], name: "Nahkämpfer", hp: 90, stats: { armor: 1, meleeDmg: 2 }, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
-      perks: ["+ Viel Leben: 90 Max-HP", "+ Unbeugsam: 25 % des Blocks wird zu Schaden (max. 2)", "+ Rüstung 1, Nahkampfschaden +2", "- Kein Fern- oder Zauberbonus"],
-      passive: { id: "unbeugsam", name: "Unbeugsam", text: "Am Zugende gehen 25 % deines übrigen Blocks als Schaden an den ersten Gegner (höchstens 2)." },
-      deck: ["hieb", "hieb", "hieb", "hieb", "wuchtschlag", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung", "deckung"],
+      coreCards: ["schildstoss", "aufschlitzen", "dornenpanzer"], abilities: ["steinschere", "donnerjojo"], name: "Nahkämpfer", hp: 90, stats: { armor: 1, meleeDmg: 2 }, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
+      perks: ["+ Viel Leben: 90 Max-HP", "+ Unbeugsam: 25% des Blocks wird zu Schaden (max. 2)", "+ Rüstung 1, Nahkampfschaden +2", "- Kein Fern- oder Zauberbonus"],
+      passive: { id: "unbeugsam", name: "Unbeugsam", text: "Am Zugende gehen 25% deines übrigen Blocks als Schaden an den ersten Gegner (höchstens 2)." },
+      deck: ["hieb", "wuchtschlag", "wirbel", "deckung"], shopBasics: [],
       weapon: "rostiges_schwert", starterWeapons: ["rostiges_schwert", "flammenschwert", "giftdolch"], items: [],
     },
   },
@@ -459,7 +461,7 @@ __exports.default = {
   items: {
     funkenfeuerzeug: { name: "Funkenfeuerzeug", tags: ["feuer", "item"],
       passives: [{ trigger: "on_card_played", cardTag: "feuer", chance: 0.3, action: "damage", value: 3, target: "random_enemy", maxPerTurn: 3 }],
-      text: "Feuerkarte gespielt: 30 % Chance auf 3 Schaden an einen Gegner." },
+      text: "Feuerkarte gespielt: 30% Chance auf 3 Schaden an einen Gegner." },
     lavaruestung: { name: "Lavarüstung", rarity: "ungewoehnlich", tags: ["feuer", "item", "ruestung", "dornen"],
       passives: [{ trigger: "on_player_hit", action: "damage_all", value: 2, maxPerTurn: 2 }], text: "Du wirst getroffen: 2 Schaden an ALLE (max. 2/Zug)." },
     glutschale:   { name: "Glutschale", rarity: "ungewoehnlich", tags: ["feuer", "item", "block"],
@@ -471,7 +473,7 @@ __exports.default = {
     schmiedeherz: { name: "Schmiedeherz", text: "Feuerkarten: +1 Schaden pro Feuer-Tag (max. +4).", rarity: "selten", tags: ["feuer", "item"],
       // Tag-Zählung: +1 Schaden pro Feuer-Tag im Build, max. +4
       passives: [{ trigger: "damage_calc", cardTag: "feuer", perTag: "feuer", op: "add", value: 1, cap: 4 }] },
-    flammenkrone: { name: "Flammenkrone", text: "Ab 6 Feuer-Tags: Feuerkarten +25 % Schaden.", unlock: { type: "wins", count: 1 }, rarity: "legendaer", tags: ["feuer", "item"],
+    flammenkrone: { name: "Flammenkrone", text: "Ab 6 Feuer-Tags: Feuerkarten +25% Schaden.", unlock: { type: "wins", count: 1 }, rarity: "legendaer", tags: ["feuer", "item"],
       // Set-Bonus: ab 6 Feuer-Tags +25% Schaden für Feuer-Karten
       passives: [{ trigger: "damage_calc", cardTag: "feuer", requires: { tag: "feuer", count: 6 }, op: "pct", value: 0.25 }] },
   },
@@ -510,11 +512,11 @@ __exports.default = {
       passives: [{ trigger: "on_turn_start", action: "status", status: "gift", stacks: 2, target: "random_enemy" }], text: "Zugbeginn: 2 Gift auf einen zufälligen Gegner." },
     miasmaflasche: { name: "Miasmaflasche", rarity: "ungewoehnlich", tags: ["gift", "item"],
       passives: [{ trigger: "on_status_applied", whenStatus: "gift", chance: 0.3, action: "damage", value: 2, target: "event_target", maxPerTurn: 4 }],
-      text: "Gift aufgetragen: 30 % Chance auf 2 Schaden (max. 4/Zug)." },
+      text: "Gift aufgetragen: 30% Chance auf 2 Schaden (max. 4/Zug)." },
     leichengift:  { name: "Leichengift", rarity: "selten", tags: ["gift", "item"], maxStack: 1,
       passives: [{ trigger: "on_kill", action: "status_all", status: "gift", stacks: 2, maxPerTurn: 3 }], text: "Gegner besiegt: 2 Gift auf ALLE übrigen (max. 3/Zug)." },
     apothekerwaage: { name: "Apothekerwaage", rarity: "selten", tags: ["gift", "item"],
-      passives: [{ trigger: "damage_calc", requires: { tag: "gift", count: 4 }, op: "pct", value: 0.2 }], text: "Ab 4 Gift-Tags: ALLE Karten +20 % Schaden." },
+      passives: [{ trigger: "damage_calc", requires: { tag: "gift", count: 4 }, op: "pct", value: 0.2 }], text: "Ab 4 Gift-Tags: ALLE Karten +20% Schaden." },
     seuchenkoenig: { name: "Seuchenkönig", unlock: { type: "wins", count: 2 }, rarity: "legendaer", tags: ["gift", "item"], maxStack: 1,
       passives: [{ trigger: "on_status_applied", whenStatus: "gift", action: "status_all", status: "gift", stacks: 1, maxPerTurn: 2 }],
       text: "Gift aufgetragen: 1 Gift auf ALLE Gegner (max. 2/Zug)." },
@@ -551,7 +553,7 @@ __exports.default = {
       passives: [{ trigger: "on_player_hit", action: "status", status: "blutung", stacks: 3, target: "event_target", maxPerTurn: 3 }],
       text: "Wer dich trifft, blutet (3 Blutung, max. 3/Zug)." },
     blutmond:     { name: "Blutmond", rarity: "selten", tags: ["blut", "item"],
-      passives: [{ trigger: "damage_calc", cardTag: "blut", requires: { tag: "blut", count: 4 }, op: "pct", value: 0.25 }], text: "Ab 4 Blut-Tags: Blutkarten +25 % Schaden." },
+      passives: [{ trigger: "damage_calc", cardTag: "blut", requires: { tag: "blut", count: 4 }, op: "pct", value: 0.25 }], text: "Ab 4 Blut-Tags: Blutkarten +25% Schaden." },
     opferdolch:   { name: "Opferdolch", rarity: "selten", tags: ["blut", "item", "pakt"], maxStack: 1,
       passives: [{ trigger: "on_turn_start", action: "hurt", value: 2 }, { trigger: "damage_calc", op: "add", value: 4 }],
       text: "Zugbeginn: -2 HP. Alle Karten +4 Schaden." },
@@ -599,9 +601,9 @@ __exports.default = {
     eiszapfen:    { name: "Eiszapfen", tags: ["eis", "item"],
       passives: [{ trigger: "on_card_played", cardTag: "eis", action: "damage", value: 2, target: "event_target", maxPerTurn: 4 }], text: "Eiskarte gespielt: 2 Schaden (max. 4/Zug)." },
     schneekugel:  { name: "Schneekugel", rarity: "ungewoehnlich", tags: ["eis", "item", "debuff"],
-      passives: [{ trigger: "on_turn_end", chance: 0.5, action: "status_all", status: "frost", stacks: 1 }], text: "Zugende: 50 % Chance, allen Gegnern 1 Kälte zu geben." },
+      passives: [{ trigger: "on_turn_end", chance: 0.5, action: "status_all", status: "frost", stacks: 1 }], text: "Zugende: 50% Chance, allen Gegnern 1 Kälte zu geben." },
     kaelteamulett: { name: "Kälteamulett", rarity: "selten", tags: ["eis", "item"], maxStack: 1, stats: { freezeEase: 1 },
-      passives: [{ trigger: "damage_calc", cardTag: "eis", requires: { tag: "eis", count: 4 }, op: "pct", value: 0.25 }], text: "Gegner frieren schon bei 2 Kälte ein. Ab 4 Eis-Tags: Eiskarten +25 % Schaden." },
+      passives: [{ trigger: "damage_calc", cardTag: "eis", requires: { tag: "eis", count: 4 }, op: "pct", value: 0.25 }], text: "Gegner frieren schon bei 2 Kälte ein. Ab 4 Eis-Tags: Eiskarten +25% Schaden." },
     herz_des_winters: { name: "Herz des Winters", unlock: { type: "wins", count: 1 }, rarity: "legendaer", tags: ["eis", "item"], maxStack: 1,
       passives: [{ trigger: "on_combat_start", action: "status_all", status: "frost", stacks: 2 }, { trigger: "on_combat_start", action: "status_all", status: "verwundbar", stacks: 2 }, { trigger: "damage_calc", cardTag: "eis", op: "add", value: 3 }],
       text: "Kampfbeginn: alle Gegner 2 Kälte und 2x Verwundbar. Eiskarten +3 Schaden." },
@@ -652,9 +654,9 @@ __exports.default = {
     // --- gewöhnlich ---
     lederweste:    { name: "Lederweste", tags: ["item", "ruestung"], stats: { maxHp: 8 }, text: "+8 Max-HP." },
     eisenhelm:     { name: "Eisenhelm", tags: ["item", "ruestung", "block"], passives: [{ trigger: "on_turn_start", action: "block", value: 6, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: 6 Block." },
-    muenzbeutel:   { name: "Münzbeutel", tags: ["item", "gold"], stats: { goldPct: 15 }, text: "+15 % Gold." },
+    muenzbeutel:   { name: "Münzbeutel", tags: ["item", "gold"], stats: { goldPct: 15 }, text: "+15% Gold." },
     feldflasche:   { name: "Feldflasche", tags: ["item", "heilung"], stats: { regen: 5 }, text: "Heile 5 HP nach jedem Kampf." },
-    hasenpfote:    { name: "Hasenpfote", tags: ["item", "glueck", "gold"], stats: { luck: 1, goldPct: 10 }, text: "+1 Glück, +10 % Gold." },
+    hasenpfote:    { name: "Hasenpfote", tags: ["item", "glueck", "gold"], stats: { luck: 1, goldPct: 10 }, text: "+1 Glück, +10% Gold." },
     wetzstein:     { name: "Wetzstein", tags: ["item", "angriff"],
                      passives: [{ trigger: "damage_calc", cardTag: "nahkampf", op: "add", value: 1 }], text: "Nahkampfkarten: +1 Schaden." },
     notfallration: { name: "Notfallration", tags: ["item", "heilung"],
@@ -674,20 +676,20 @@ __exports.default = {
     beutegier:     { name: "Beutegier", rarity: "ungewoehnlich", tags: ["item", "heilung"],
                      passives: [{ trigger: "on_kill", action: "heal", value: 2, maxPerTurn: 3 }], text: "Besiegter Gegner: heile 2 HP (max. 3/Zug)." },
     kriegstrommel: { name: "Kriegstrommel", rarity: "ungewoehnlich", tags: ["item"],
-                     passives: [{ trigger: "on_turn_start", chance: 0.25, action: "energy", value: 1 }], text: "Zugbeginn: 25 % Chance auf +1 Energie." },
+                     passives: [{ trigger: "on_turn_start", chance: 0.25, action: "energy", value: 1 }], text: "Zugbeginn: 25% Chance auf +1 Energie." },
     echostein:     { name: "Echostein", rarity: "ungewoehnlich", tags: ["item"],
-                     passives: [{ trigger: "on_card_played", chance: 0.15, action: "draw", value: 1, maxPerTurn: 2 }], text: "Karte gespielt: 15 % Chance, 1 Karte zu ziehen (max. 2/Zug)." },
+                     passives: [{ trigger: "on_card_played", chance: 0.15, action: "draw", value: 1, maxPerTurn: 2 }], text: "Karte gespielt: 15% Chance, 1 Karte zu ziehen (max. 2/Zug)." },
     meisterhammer: { name: "Meisterhammer", rarity: "ungewoehnlich", tags: ["item", "angriff"],
-                     passives: [{ trigger: "damage_calc", cardTag: "nahkampf", op: "pct", value: 0.2 }], text: "Nahkampfkarten: +20 % Schaden." },
+                     passives: [{ trigger: "damage_calc", cardTag: "nahkampf", op: "pct", value: 0.2 }], text: "Nahkampfkarten: +20% Schaden." },
     taschenuhr:    { name: "Taschenuhr", rarity: "ungewoehnlich", tags: ["item"],
-                     passives: [{ trigger: "on_turn_start", chance: 0.3, action: "draw", value: 1 }], text: "Zugbeginn: 30 % Chance, 1 Karte zu ziehen." },
+                     passives: [{ trigger: "on_turn_start", chance: 0.3, action: "draw", value: 1 }], text: "Zugbeginn: 30% Chance, 1 Karte zu ziehen." },
 
     // --- selten ---
     energiekristall: { name: "Energiekristall", rarity: "selten", tags: ["item"], stats: { energy: 1, handSize: -1, maxHp: -8 }, maxStack: 1, text: "+1 Energie pro Zug, aber 1 Handkarte weniger und -8 Max-HP." },
     blutpakt:      { name: "Blutpakt", rarity: "selten", tags: ["item", "pakt"], stats: { energy: 1, maxHp: -20 }, maxStack: 1, text: "+1 Energie, -20 Max-HP." },
     glaskanone:    { name: "Glaskanone", rarity: "selten", tags: ["item", "pakt"], stats: { maxHp: -15 }, maxStack: 2,
-                     passives: [{ trigger: "damage_calc", op: "pct", value: 0.4 }], text: "+40 % Schaden, -15 Max-HP." },
-    goldene_waage: { name: "Goldene Waage", rarity: "selten", tags: ["item", "gold"], stats: { goldPct: 40 }, maxStack: 1, text: "+40 % Gold." },
+                     passives: [{ trigger: "damage_calc", op: "pct", value: 0.4 }], text: "+40% Schaden, -15 Max-HP." },
+    goldene_waage: { name: "Goldene Waage", rarity: "selten", tags: ["item", "gold"], stats: { goldPct: 40 }, maxStack: 1, text: "+40% Gold." },
     kartenhaus:    { name: "Kartenhaus", rarity: "selten", tags: ["item", "pakt"], stats: { handSize: 2, maxHp: -8 }, maxStack: 1, text: "+2 Handkarten, -8 Max-HP." },
     schillernder_charme: { name: "Schillernder Charme", rarity: "selten", tags: ["item", "glueck"], stats: { shiny: 1 }, maxStack: 2,
                      text: "Verdoppelt deine Shiny-Chance (zweiter Charme: verdreifacht)." },
@@ -706,7 +708,7 @@ __define("content/packs/boss.js", function (__exports, __require) {
 //    Wer das passende Gegen-Element dabei hat (oder gemischte Builds spielt), macht viel mehr Schaden.
 //  - Panzerplatten: Jeder Karten-TREFFER zerbricht nur 1 Platte (Schaden = 0). Viele billige Karten, Mehrfachtreffer und
 //    Flächenschaden helfen. Gift/Blutung und Item-Effekte ignorieren Platten. Sind alle Platten weg, ist er 2 Züge verwundbar.
-//  - Phase 2 (unter 50 % HP): beschwört zwei Funken und bekommt neue Platten.
+//  - Phase 2 (unter 50% HP): beschwört zwei Funken und bekommt neue Platten.
 __exports.default = {
   id: "boss",
   name: "Endboss",
@@ -743,7 +745,7 @@ __exports.default = {
     gluecksspieler: {
       name: "Der Glücksspieler", text: "Ein Mann mit drei Bechern fordert dich heraus.",
       choices: [
-        { label: "40 Gold setzen (50 %: 120 Gold)", requires: { gold: 40 }, effects: [{ type: "gold", value: -40 }, { type: "gamble", chance: 0.5, win: [{ type: "gold", value: 120 }], lose: [] }] },
+        { label: "40 Gold setzen (50%: 120 Gold)", requires: { gold: 40 }, effects: [{ type: "gold", value: -40 }, { type: "gamble", chance: 0.5, win: [{ type: "gold", value: 120 }], lose: [] }] },
         { label: "Weitergehen", effects: [] },
       ],
     },
@@ -765,7 +767,7 @@ __exports.default = {
     quelle: {
       name: "Heilige Quelle", text: "Klares Wasser sprudelt aus dem Fels.",
       choices: [
-        { label: "Trinken (60 %: +20 HP, 40 %: -8 HP)", effects: [{ type: "gamble", chance: 0.6, win: [{ type: "heal", value: 20 }], lose: [{ type: "hurt", value: 8 }] }] },
+        { label: "Trinken (60%: +20 HP, 40%: -8 HP)", effects: [{ type: "gamble", chance: 0.6, win: [{ type: "heal", value: 20 }], lose: [{ type: "hurt", value: 8 }] }] },
         { label: "Nur Flasche füllen: +3 Max-HP", effects: [{ type: "maxHp", value: 3 }] },
       ],
     },
@@ -779,7 +781,7 @@ __exports.default = {
     truhe: {
       name: "Verdächtige Truhe", text: "Eine Truhe steht mitten im Gang. Zu mittig.",
       choices: [
-        { label: "Öffnen (60 %: Item, 40 %: Falle -10 HP, +30 Gold)", effects: [{ type: "gamble", chance: 0.6, win: [{ type: "gainItem" }], lose: [{ type: "hurt", value: 10 }, { type: "gold", value: 30 }] }] },
+        { label: "Öffnen (60%: Item, 40%: Falle -10 HP, +30 Gold)", effects: [{ type: "gamble", chance: 0.6, win: [{ type: "gainItem" }], lose: [{ type: "hurt", value: 10 }, { type: "gold", value: 30 }] }] },
         { label: "Liegen lassen", effects: [] },
       ],
     },
@@ -815,9 +817,9 @@ __exports.default = {
 
   classes: {
     fernkaempfer: {
-      abilities: ["seelenpfeil", "schattentausch"], name: "Fernkämpfer", hp: 84, stats: { handSize: 1, dodge: 6, crit: 6, rangedDmg: 2 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
-      deck: ["schnellschuss", "schnellschuss", "schnellschuss", "schnellschuss", "zielen", "praezisionsschuss", "praezisionsschuss"], shopBasics: ["rolle", "rolle"],
-      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "+ Ausweichen 6 %, Krit 6 %, Fernkampfschaden +2", "- Weniger Leben: 84 Max-HP"],
+      coreCards: ["salve", "giftpfeil", "fluchtschuss"], abilities: ["seelenpfeil", "schattentausch"], name: "Fernkämpfer", hp: 84, stats: { handSize: 1, dodge: 6, crit: 6, rangedDmg: 2 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
+      deck: ["schnellschuss", "zielen", "praezisionsschuss", "rolle"], shopBasics: [],
+      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "+ Ausweichen 6%, Krit 6%, Fernkampfschaden +2", "- Weniger Leben: 84 Max-HP"],
       weapon: "kurzbogen", starterWeapons: ["kurzbogen", "armbrust", "giftbogen"], items: [],
     },
   },
@@ -883,17 +885,17 @@ __exports.default = {
     koecher: { name: "Köcher", pools: ["fernkaempfer"], tags: ["item", "fernkampf"],
       passives: [{ trigger: "damage_calc", cardTag: "fernkampf", op: "add", value: 1 }], text: "Fernkampfkarten: +1 Schaden." },
     munitionsgurt: { name: "Munitionsgurt", pools: ["fernkaempfer"], tags: ["item", "fernkampf"],
-      passives: [{ trigger: "on_turn_start", chance: 0.35, action: "draw", value: 1 }], text: "Zugbeginn: 35 % Chance, 1 Karte zu ziehen." },
+      passives: [{ trigger: "on_turn_start", chance: 0.35, action: "draw", value: 1 }], text: "Zugbeginn: 35% Chance, 1 Karte zu ziehen." },
     adlerauge: { name: "Adlerauge", rarity: "ungewoehnlich", pools: ["fernkaempfer"], tags: ["item", "fernkampf", "debuff"],
       passives: [{ trigger: "on_combat_start", action: "status_all", status: "markiert", stacks: 2 }], text: "Kampfbeginn: alle Gegner 2 Züge markiert." },
     leichtfuessig: { name: "Leichtfüßig", rarity: "ungewoehnlich", pools: ["fernkaempfer"], tags: ["item", "ausweichen"],
       passives: [{ trigger: "on_turn_start", action: "player_status", status: "ausweichen", stacks: 2, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: weiche 2 Treffern aus." },
     jagdzeichen: { name: "Jagdzeichen", rarity: "selten", pools: ["fernkaempfer"], tags: ["item", "fernkampf", "debuff"],
       passives: [{ trigger: "on_card_played", cardTag: "fernkampf", chance: 0.3, action: "status", status: "markiert", stacks: 1, target: "random_enemy", maxPerTurn: 3 }],
-      text: "Fernkampfkarte gespielt: 30 % Chance, einen Gegner zu markieren." },
+      text: "Fernkampfkarte gespielt: 30% Chance, einen Gegner zu markieren." },
     zielfernrohr: { name: "Zielfernrohr", rarity: "selten", pools: ["fernkaempfer"], tags: ["item", "fernkampf"],
       passives: [{ trigger: "damage_calc", cardTag: "fernkampf", requires: { tag: "fernkampf", count: 6 }, op: "pct", value: 0.25 }],
-      text: "Ab 6 Fernkampf-Tags: Fernkampfkarten +25 % Schaden." },
+      text: "Ab 6 Fernkampf-Tags: Fernkampfkarten +25% Schaden." },
   },
 };
 
@@ -911,8 +913,8 @@ __exports.default = {
   classes: {
     magier: {
       abilities: ["fluchblitz", "domain"], name: "Magier", hp: 70, stats: { elementDmg: 3, crit: 8 }, blurb: "Mischen wird belohnt: Zwei verschiedene Elemente nacheinander lösen Reaktionen aus. Wenig HP, viel Kombo.",
-      deck: ["funke", "funke", "tropfen", "tropfen", "ranke", "frostnadel", "arkanblitz"], shopBasics: ["manaschild", "manaschild"],
-      perks: ["+ Reaktionen: 2 Elemente nacheinander = Zusatzeffekt", "+ Elementarschaden +3, Krit 8 %", "- Wenig Leben: 70 Max-HP"],
+      deck: ["funke", "tropfen", "ranke", "manaschild"], shopBasics: [], coreCards: ["flammenwelle", "eisregen", "arkanblitz"],
+      perks: ["+ Reaktionen: 2 Elemente nacheinander = Zusatzeffekt", "+ Elementarschaden +3, Krit 8%", "- Wenig Leben: 70 Max-HP"],
       weapon: "zauberstab", starterWeapons: ["zauberstab", "runenstab", "flammenstab"], items: [],
     },
   },
@@ -974,12 +976,12 @@ __exports.default = {
     gedankenstein: { name: "Gedankenstein", rarity: "ungewoehnlich", pools: ["magier"], tags: ["item", "zauber"],
       passives: [{ trigger: "on_reaction", action: "draw", value: 1, maxPerTurn: 2 }], text: "Reaktion: ziehe 1 Karte (max. 2/Zug)." },
     resonanzkristall: { name: "Resonanzkristall", rarity: "selten", pools: ["magier"], tags: ["item", "zauber"], stats: { reaction: 50 }, maxStack: 2,
-      text: "Reaktionen sind 50 % stärker." },
+      text: "Reaktionen sind 50% stärker." },
     manaquelle: { name: "Manaquelle", rarity: "selten", pools: ["magier"], tags: ["item", "zauber"], maxStack: 1,
       passives: [{ trigger: "on_reaction", action: "energy", value: 1, maxPerTurn: 1 }], text: "Reaktion: +1 Energie (1x pro Zug)." },
     elementarlinse: { name: "Elementarlinse", rarity: "selten", pools: ["alle"], tags: ["item", "zauber"], stats: { reaction: 30 },
       passives: [{ trigger: "on_reaction", action: "block", value: 3, maxPerTurn: 2 }],
-      text: "Reaktionen +30 %. Reaktion: 3 Block (max. 2/Zug). Für alle Klassen!" },
+      text: "Reaktionen +30%. Reaktion: 3 Block (max. 2/Zug). Für alle Klassen!" },
   },
 };
 
@@ -1193,7 +1195,7 @@ __exports.default = {
     asche_lunge: { name: "Asche-Lunge", rarity: "ungewoehnlich", tags: ["feuer", "pakt", "item"],
       stats: { healLoss: 0.5 },
       passives: [{ trigger: "on_hp_lost", action: "status_all", status: "verbrennung", stacks: 3 }],
-      text: "Wenn du HP verlierst: alle Feinde erhalten 3 Verbrennung. Heilung auf dich ist um 50 % reduziert." },
+      text: "Wenn du HP verlierst: alle Feinde erhalten 3 Verbrennung. Heilung auf dich ist um 50% reduziert." },
     krone_des_maertyrers: { name: "Krone des Märtyrers", rarity: "selten", maxStack: 1, tags: ["pakt", "item"],
       stats: { maxHp: -10 },
       passives: [{ trigger: "damage_calc", op: "xmult", perMissingHp: { step: 5, value: 0.1 } }],
@@ -1241,7 +1243,7 @@ __exports.default = {
       text: "2 Schaden. Tötet diese Karte den Gegner: erhalte sofort 40 Gold.",
       play: [{ action: "damage", base: 2, onKill: { gold: 40 } }] },
     bestechung: { name: "Bestechung", cost: 2, rarity: "ungewoehnlich", tags: ["gold"],
-      text: "Ein Gegner setzt diese Runde aus. Du zahlst sofort 15 % deines Goldes. Bosse sind unbestechlich.",
+      text: "Ein Gegner setzt diese Runde aus. Du zahlst sofort 15% deines Goldes. Bosse sind unbestechlich.",
       play: [{ action: "status", status: "aussetzen", stacks: 1 }, { action: "payGoldPct", value: 0.15, ifTarget: "aussetzen" }] },
     // ---------------- Parasitärer Gärtner
     photosynthese: { name: "Photosynthese", cost: 1, element: "pflanze", tags: ["pflanze", "heilung"], exhaust: true,
@@ -1302,30 +1304,30 @@ __exports.default = {
     pyromant: {
       abilities: ["feuerfaust", "hoellenflamme"], name: "Pyromant", hp: 80, stats: { regen: 2, elementDmg: 3, crit: 5 },
       blurb: "Spielt mit dem Schmerz: Jeder Verlust an HP setzt Gegner in Brand, und je mehr ihm fehlt, desto härter schlägt er zu. Dafür hat er wenig Leben.",
-      perks: ["+ Schmerzensglut: HP-Verlust = 1 Verbrennung für alle", "+ Lodernder Schmerz im Startdeck", "- Pechfackel verletzt dich jeden Zug", "+ Elementarschaden +3, Krit 5 %", "- Nur 80 Max-HP"],
+      perks: ["+ Schmerzensglut: HP-Verlust = 1 Verbrennung für alle", "+ Lodernder Schmerz im Startdeck", "- Pechfackel verletzt dich jeden Zug", "+ Elementarschaden +3, Krit 5%", "- Nur 80 Max-HP"],
       passive: { id: "schmerzensglut", name: "Schmerzensglut", text: "Wenn du HP verlierst, erhalten alle Gegner 1 Verbrennung (höchstens 2x pro Zug)." },
       passives: [{ trigger: "on_hp_lost", action: "status_all", status: "verbrennung", stacks: 1, maxPerTurn: 2 }],
       cardPools: ["pyromant", "magier"],
-      deck: ["flammenhieb", "flammenhieb", "hieb", "hieb", "feuerball", "wuchtschlag", "lodernder_schmerz"], shopBasics: ["deckung", "deckung"],
+      deck: ["flammenhieb", "feuerball", "lodernder_schmerz", "deckung"], shopBasics: [], coreCards: ["feuersturm", "flammenmantel", "selbstentzuendung"],
       weapon: "pechfackel", items: [], unlock: { type: "achievement", id: "g50" },
     },
     aristokrat: {
       abilities: ["tor_der_schaetze", "absoluter_befehl"], name: "Aristokrat", hp: 118, stats: { goldPct: 30, ernte: 2, regen: 3, luck: 3, armor: 1 }, startGold: 40, shopDiscount: 0.1, restHealPct: 0.2,
       blurb: "Gold ist Macht: mehr Beute, billigere Händler und festes Einkommen. Dafür kämpft er schlecht und erholt sich kaum an der Rast.",
-      perks: ["+ 30 % Gold, Ernte 2, 40 Startgold", "+ Mäzen: Händlerpreise -10 %", "- Schwaches Startdeck und schwache Waffe", "+ Glück 3, Rüstung 1", "- Rast heilt nur 20 %"],
-      passive: { id: "maezen", name: "Mäzen", text: "Händlerpreise -10 %." },
+      perks: ["+ 30% Gold, Ernte 2, 40 Startgold", "+ Mäzen: Händlerpreise -10%", "- Schwaches Startdeck und schwache Waffe", "+ Glück 3, Rüstung 1", "- Rast heilt nur 20%"],
+      passive: { id: "maezen", name: "Mäzen", text: "Händlerpreise -10%." },
       cardPools: ["aristokrat", "nahkaempfer"],
-      deck: ["hieb", "hieb", "taschendiebstahl", "taschendiebstahl", "schuldschein", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung"],
+      deck: ["hieb", "taschendiebstahl", "schuldschein", "wirbel"], shopBasics: [], coreCards: ["dekadenz", "bestechung", "adrenalin"],
       weapon: "stockdegen", items: [], unlock: { type: "achievement", id: "k25" },
     },
     gaertnerin: {
       abilities: ["heilende_ranken", "wuchernder_wald"], name: "Gärtnerin", hp: 64, stats: { regen: 3, handSize: -1, lifesteal: 4, elementDmg: 1, dodge: 8 },
       blurb: "Geduldig: Pflanzenkarten und Heilung, nach jedem Kampf erholt sie sich. Dafür hat sie wenig Leben und eine kleine Hand.",
-      perks: ["+ Nach jedem Kampf +3 HP", "+ Wurzelwerk: Pflanzenkarten +1 Schaden", "- Nur 4 Handkarten", "+ Lebensraub 4 %, Ausweichen 8 %", "- Nur 64 Max-HP"],
+      perks: ["+ Nach jedem Kampf +3 HP", "+ Wurzelwerk: Pflanzenkarten +1 Schaden", "- Nur 4 Handkarten", "+ Lebensraub 4%, Ausweichen 8%", "- Nur 64 Max-HP"],
       passive: { id: "wurzelwerk", name: "Wurzelwerk", text: "Pflanzenkarten machen +1 Schaden." },
       passives: [{ trigger: "damage_calc", cardTag: "pflanze", op: "add", value: 1 }],
       cardPools: ["gaertnerin", "magier"],
-      deck: ["ranke", "ranke", "photosynthese", "hieb", "hieb", "blutsauger_ranke", "wuchtschlag"], shopBasics: ["sporenwolke", "sporenwolke"],
+      deck: ["ranke", "photosynthese", "blutsauger_ranke", "hieb"], shopBasics: [], coreCards: ["wurzelgeflecht", "rankendornen", "sporenwolke"],
       weapon: "rankenstab", items: [], unlock: { type: "achievement", id: "s10" },
     },
   },
@@ -1350,7 +1352,7 @@ __exports.default = {
     schuldschein: { name: "Schuldschein", cost: 1, pools: ["aristokrat"], tags: ["gold"],
       text: "Erhalte 20 Gold. Ziehe 1 Karte.", play: [{ action: "gainGold", value: 20 }, { action: "draw", value: 1 }] },
     dekadenz: { name: "Dekadenz", cost: 2, rarity: "ungewoehnlich", pools: ["aristokrat"], tags: ["gold", "angriff"],
-      text: "12 Schaden an ALLEN Gegnern. Du zahlst 10 % deines Goldes.", play: [{ action: "damage", base: 12, target: "all" }, { action: "payGoldPct", value: 0.1 }] },
+      text: "12 Schaden an ALLEN Gegnern. Du zahlst 10% deines Goldes.", play: [{ action: "damage", base: 12, target: "all" }, { action: "payGoldPct", value: 0.1 }] },
     // Gärtnerin
     rankendornen: { name: "Ranken-Dornen", cost: 1, element: "pflanze", pools: ["gaertnerin"], tags: ["pflanze", "block", "dornen"],
       text: "4 Block. Dornen 3 (Angreifer erleiden bis zu deinem Zug 3 Schaden).", play: [{ action: "block", value: 4 }, { action: "playerStatus", status: "dornen", stacks: 3 }] },
@@ -1421,7 +1423,7 @@ __exports.default = {
   items: {
     ritterschwur: { name: "Ritterschwur", rarity: "ungewoehnlich", hero: "nahkaempfer", tags: ["item", "block"], text: "Block-Karte gespielt: 2 Schaden auf einen Gegner (max. 4/Zug).",
       passives: [{ trigger: "on_card_played", cardTag: "block", action: "damage", value: 2, target: "random_enemy", maxPerTurn: 4 }] },
-    eisenwall: { name: "Eisenwall", rarity: "selten", hero: "nahkaempfer", tags: ["item", "block"], text: "Ab 4 Block-Tags: ALLE Karten +20 % Schaden.",
+    eisenwall: { name: "Eisenwall", rarity: "selten", hero: "nahkaempfer", tags: ["item", "block"], text: "Ab 4 Block-Tags: ALLE Karten +20% Schaden.",
       passives: [{ trigger: "damage_calc", requires: { tag: "block", count: 4 }, op: "pct", value: 0.2 }] },
     siegerhelm: { name: "Siegerhelm", rarity: "selten", hero: "nahkaempfer", tags: ["item", "ruestung"], text: "Gegner besiegt: 4 Block und 2 HP (max. 2/Zug).",
       passives: [{ trigger: "on_kill", action: "block", value: 4, maxPerTurn: 2 }, { trigger: "on_kill", action: "heal", value: 2, maxPerTurn: 2 }] },
@@ -1429,13 +1431,13 @@ __exports.default = {
       passives: [{ trigger: "on_card_played", cardTag: "fernkampf", action: "damage_all", value: 1, maxPerTurn: 4 }] },
     windlaeufer: { name: "Windläufer", rarity: "ungewoehnlich", hero: "fernkaempfer", tags: ["item", "ausweichen", "fernkampf"], text: "Erster Zug jedes Kampfes: weiche 1 Treffer aus. Fernkampfkarten: +1 Schaden.",
       passives: [{ trigger: "on_turn_start", action: "player_status", status: "ausweichen", stacks: 1, oncePerCombat: true }, { trigger: "damage_calc", cardTag: "fernkampf", op: "add", value: 1 }] },
-    meisterschuetze: { name: "Meisterschütze", rarity: "selten", hero: "fernkaempfer", tags: ["item", "fernkampf", "debuff"], text: "Kampfbeginn: alle Gegner 2 Züge markiert. Ab 5 Fernkampf-Tags: Fernkampfkarten +30 % Schaden.",
+    meisterschuetze: { name: "Meisterschütze", rarity: "selten", hero: "fernkaempfer", tags: ["item", "fernkampf", "debuff"], text: "Kampfbeginn: alle Gegner 2 Züge markiert. Ab 5 Fernkampf-Tags: Fernkampfkarten +30% Schaden.",
       passives: [{ trigger: "on_combat_start", action: "status_all", status: "markiert", stacks: 2 }, { trigger: "damage_calc", cardTag: "fernkampf", requires: { tag: "fernkampf", count: 5 }, op: "pct", value: 0.3 }] },
-    arkane_feder: { name: "Arkane Feder", rarity: "ungewoehnlich", hero: "magier", tags: ["item", "zauber"], text: "Zauberkarten: +2 Schaden. Zauberkarte gespielt: 15 % Chance auf +1 Energie (max. 1/Zug).",
+    arkane_feder: { name: "Arkane Feder", rarity: "ungewoehnlich", hero: "magier", tags: ["item", "zauber"], text: "Zauberkarten: +2 Schaden. Zauberkarte gespielt: 15% Chance auf +1 Energie (max. 1/Zug).",
       passives: [{ trigger: "damage_calc", cardTag: "zauber", op: "add", value: 2 }, { trigger: "on_card_played", cardTag: "zauber", action: "energy", value: 1, chance: 0.15, maxPerTurn: 1 }] },
     elementarkompass: { name: "Elementarkompass", rarity: "selten", hero: "magier", tags: ["item", "zauber"], text: "Kampfbeginn: ziehe 2 Karten. Reaktion: ziehe 1 Karte (max. 1/Zug).",
       passives: [{ trigger: "on_combat_start", action: "draw", value: 2 }, { trigger: "on_reaction", action: "draw", value: 1, maxPerTurn: 1 }] },
-    prismakrone: { name: "Prismakrone", rarity: "legendaer", hero: "magier", tags: ["item", "zauber"], maxStack: 1, stats: { reaction: 50 }, text: "Reaktionen +50 %. Reaktion: heile 2 HP (max. 2/Zug).",
+    prismakrone: { name: "Prismakrone", rarity: "legendaer", hero: "magier", tags: ["item", "zauber"], maxStack: 1, stats: { reaction: 50 }, text: "Reaktionen +50%. Reaktion: heile 2 HP (max. 2/Zug).",
       passives: [{ trigger: "on_reaction", action: "heal", value: 2, maxPerTurn: 2 }] },
     glutherz: { name: "Glutherz", rarity: "ungewoehnlich", hero: "pyromant", tags: ["item", "feuer"], text: "Du wirst getroffen: alle Gegner 2 Verbrennung (max. 2/Zug).",
       passives: [{ trigger: "on_player_hit", action: "status_all", status: "verbrennung", stacks: 2, maxPerTurn: 2 }] },
@@ -1443,10 +1445,10 @@ __exports.default = {
       passives: [{ trigger: "on_turn_start", action: "hurt", value: 2 }, { trigger: "damage_calc", cardTag: "feuer", op: "add", value: 4 }] },
     phoenixblut: { name: "Phönixblut", rarity: "legendaer", hero: "pyromant", tags: ["item", "feuer"], maxStack: 1, text: "Kampfbeginn: heile 8 HP. Feuerkarte gespielt: 1 Verbrennung auf ALLE (max. 2/Zug).",
       passives: [{ trigger: "on_combat_start", action: "heal", value: 8 }, { trigger: "on_card_played", cardTag: "feuer", action: "status_all", status: "verbrennung", stacks: 1, maxPerTurn: 2 }] },
-    goldener_zahn: { name: "Goldener Zahn", rarity: "ungewoehnlich", hero: "aristokrat", tags: ["item", "gold"], stats: { goldPct: 20, ernte: 1 }, text: "+20 % Gold, Ernte 1." },
+    goldener_zahn: { name: "Goldener Zahn", rarity: "ungewoehnlich", hero: "aristokrat", tags: ["item", "gold"], stats: { goldPct: 20, ernte: 1 }, text: "+20% Gold, Ernte 1." },
     bankier: { name: "Bankier", rarity: "selten", hero: "aristokrat", tags: ["item", "gold"], text: "Alle Karten: +1 Grundschaden je 40 Gold, das du besitzt (max. +12).",
       passives: [{ trigger: "damage_calc", op: "baseadd", perGold: { step: 40, value: 1 }, cap: 12 }] },
-    kronjuwelen: { name: "Kronjuwelen", rarity: "legendaer", hero: "aristokrat", tags: ["item", "gold"], maxStack: 1, stats: { goldPct: 50, ernte: 3 }, text: "+50 % Gold, Ernte 3." },
+    kronjuwelen: { name: "Kronjuwelen", rarity: "legendaer", hero: "aristokrat", tags: ["item", "gold"], maxStack: 1, stats: { goldPct: 50, ernte: 3 }, text: "+50% Gold, Ernte 3." },
     gruener_daumen: { name: "Grüner Daumen", rarity: "ungewoehnlich", hero: "gaertnerin", tags: ["item", "pflanze"], stats: { regen: 3 }, text: "Pflanzenkarten: +2 Schaden. Heile 3 HP nach jedem Kampf.",
       passives: [{ trigger: "damage_calc", cardTag: "pflanze", op: "add", value: 2 }] },
     erntekorb: { name: "Erntekorb", rarity: "ungewoehnlich", hero: "gaertnerin", tags: ["item", "pflanze"], text: "Pflanzenkarte gespielt: heile 1 HP (max. 3/Zug).",
@@ -1532,11 +1534,11 @@ __exports.default = {
         text: "Der stärkste Gegner gehorcht: er überspringt seine nächste Aktion (Bosse sind immun), und alle Gegner werden 3 Züge verwundbar. Alle 4 Züge." }] },
     // ---- Herbalist
     heilende_ranken: { name: "Heilende Ranken", class: "gaertnerin", icon: "heart", cooldown: 5,
-      text: "Ranken umhüllen dich: heile 20 % deiner Max-HP und erhalte Dornen 3. Alle 5 Züge.",
+      text: "Ranken umhüllen dich: heile 20% deiner Max-HP und erhalte Dornen 3. Alle 5 Züge.",
       effects: [{ type: "heal", pct: 20 }, { type: "playerStatus", status: "dornen", stacks: 3 }],
-      levels: [{ unlock: { stat: "uses", count: 30 }, task: "Setze die Heilenden Ranken 30 Mal in Kämpfen ein.", reward: "Sie heilen 30 % deiner Max-HP.",
+      levels: [{ unlock: { stat: "uses", count: 30 }, task: "Setze die Heilenden Ranken 30 Mal in Kämpfen ein.", reward: "Sie heilen 30% deiner Max-HP.",
         effects: [{ type: "heal", pct: 30 }, { type: "playerStatus", status: "dornen", stacks: 3 }],
-        text: "Ranken umhüllen dich: heile 30 % deiner Max-HP und erhalte Dornen 3. Alle 5 Züge." }] },
+        text: "Ranken umhüllen dich: heile 30% deiner Max-HP und erhalte Dornen 3. Alle 5 Züge." }] },
     wuchernder_wald: { name: "Wuchernder Wald", class: "gaertnerin", icon: "leaf", cooldown: 4,
       text: "Ein Wald bricht aus dem Boden: 7 + 2x Waffe Pflanzenschaden an ALLE Gegner und 4 Blutung auf alle. Alle 4 Züge.",
       effects: [{ type: "damage", base: 7, weaponScale: 2, target: "all", element: "pflanze", status: { status: "blutung", stacks: 4 } }],
@@ -1556,45 +1558,45 @@ const PACK = {
   id: "statitems",
   name: "Wert-Items",
   items: {
-    kraftring: { name: "Kraftring", tags: ["item"], stats: { damagePct: 4 }, text: "+4 % Schaden." },
-    kriegsbemalung: { name: "Kriegsbemalung", tags: ["item"], stats: { damagePct: 8, armor: -1 }, text: "+8 % Schaden, -1 Rüstung." },
-    gewichtsweste: { name: "Gewichtsweste", tags: ["item", "ruestung"], stats: { armor: 3, dodge: -5 }, text: "+3 Rüstung, -5 % Ausweichen." },
-    federstiefel: { name: "Federstiefel", tags: ["item", "ausweichen"], stats: { dodge: 10, armor: -1 }, text: "+10 % Ausweichen, -1 Rüstung." },
-    wuchtgurt: { name: "Wuchtgurt", tags: ["item", "nahkampf"], stats: { meleeDmg: 3, dodge: -3 }, text: "+3 Nahkampfschaden, -3 % Ausweichen." },
+    kraftring: { name: "Kraftring", tags: ["item"], stats: { damagePct: 4 }, text: "+4% Schaden." },
+    kriegsbemalung: { name: "Kriegsbemalung", tags: ["item"], stats: { damagePct: 8, armor: -1 }, text: "+8% Schaden, -1 Rüstung." },
+    gewichtsweste: { name: "Gewichtsweste", tags: ["item", "ruestung"], stats: { armor: 3, dodge: -5 }, text: "+3 Rüstung, -5% Ausweichen." },
+    federstiefel: { name: "Federstiefel", tags: ["item", "ausweichen"], stats: { dodge: 10, armor: -1 }, text: "+10% Ausweichen, -1 Rüstung." },
+    wuchtgurt: { name: "Wuchtgurt", tags: ["item", "nahkampf"], stats: { meleeDmg: 3, dodge: -3 }, text: "+3 Nahkampfschaden, -3% Ausweichen." },
     heilkraut: { name: "Heilkraut", tags: ["item", "pflanze"], stats: { regen: 2, maxHp: 2 }, text: "+2 Regeneration, +2 Max-HP." },
     stahlhaut: { name: "Stahlhaut", tags: ["item", "ruestung"], stats: { armor: 2, maxHp: 6 }, text: "+2 Rüstung, +6 Max-HP." },
-    sparbuch: { name: "Sparbuch", tags: ["item", "gold"], stats: { ernte: 2, damagePct: -2 }, text: "+2 Ernte, -2 % Schaden." },
-    scharfes_auge: { name: "Scharfes Auge", rarity: "ungewoehnlich", tags: ["item", "fernkampf"], stats: { crit: 8, rangedDmg: 1 }, text: "+8 % Krit-Chance, +1 Fernkampfschaden." },
+    sparbuch: { name: "Sparbuch", tags: ["item", "gold"], stats: { ernte: 2, damagePct: -2 }, text: "+2 Ernte, -2% Schaden." },
+    scharfes_auge: { name: "Scharfes Auge", rarity: "ungewoehnlich", tags: ["item", "fernkampf"], stats: { crit: 8, rangedDmg: 1 }, text: "+8% Krit-Chance, +1 Fernkampfschaden." },
     elementarfokus: { name: "Elementarfokus", rarity: "ungewoehnlich", tags: ["item", "zauber"], stats: { elementDmg: 3, armor: -1 }, text: "+3 Elementarschaden, -1 Rüstung." },
-    blutdurstamulett: { name: "Blutdurstamulett", rarity: "ungewoehnlich", tags: ["item", "blut"], stats: { lifesteal: 5, maxHp: -6 }, text: "+5 % Lebensraub, -6 Max-HP." },
+    blutdurstamulett: { name: "Blutdurstamulett", rarity: "ungewoehnlich", tags: ["item", "blut"], stats: { lifesteal: 5, maxHp: -6 }, text: "+5% Lebensraub, -6 Max-HP." },
     glueckskeks: { name: "Glückskeks", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { luck: 3, ernte: 1 }, text: "+3 Glück, +1 Ernte." },
-    kampfnarben: { name: "Kampfnarben", rarity: "ungewoehnlich", tags: ["item"], stats: { crit: 6, damagePct: 3 }, text: "+6 % Krit-Chance, +3 % Schaden." },
-    schattenmantel: { name: "Schattenmantel", rarity: "ungewoehnlich", tags: ["item", "ausweichen"], stats: { dodge: 8, crit: 4 }, text: "+8 % Ausweichen, +4 % Krit-Chance." },
+    kampfnarben: { name: "Kampfnarben", rarity: "ungewoehnlich", tags: ["item"], stats: { crit: 6, damagePct: 3 }, text: "+6% Krit-Chance, +3% Schaden." },
+    schattenmantel: { name: "Schattenmantel", rarity: "ungewoehnlich", tags: ["item", "ausweichen"], stats: { dodge: 8, crit: 4 }, text: "+8% Ausweichen, +4% Krit-Chance." },
     panzerfaust: { name: "Panzerfaust", rarity: "ungewoehnlich", tags: ["item", "block", "ruestung"], text: "Alle Karten: +1 Schaden je 3 Rüstung (max. +6).",
       passives: [{ trigger: "damage_calc", op: "add", value: 1, perStat: { stat: "armor", step: 3 }, cap: 6 }] },
     glueckspilz: { name: "Glückspilz", rarity: "ungewoehnlich", tags: ["item", "gold"], text: "Alle Karten: +1 Schaden je 3 Glück (max. +6).",
       passives: [{ trigger: "damage_calc", op: "add", value: 1, perStat: { stat: "luck", step: 3 }, cap: 6 }] },
-    schattenklinge: { name: "Schattenklinge", rarity: "ungewoehnlich", tags: ["item", "ausweichen"], text: "Alle Karten: +1 Schaden je 4 % Ausweichen (max. +6).",
+    schattenklinge: { name: "Schattenklinge", rarity: "ungewoehnlich", tags: ["item", "ausweichen"], text: "Alle Karten: +1 Schaden je 4% Ausweichen (max. +6).",
       passives: [{ trigger: "damage_calc", op: "add", value: 1, perStat: { stat: "dodge", step: 4 }, cap: 6 }] },
-    rotes_siegel: { name: "Rotes Siegel", rarity: "selten", tags: ["item", "blut"], stats: { damagePct: 10, lifesteal: 4, maxHp: -10 }, text: "+10 % Schaden, +4 % Lebensraub, -10 Max-HP." },
-    gutschein: { name: "Gutschein", tags: ["item", "gold"], stats: { priceMod: -10 }, text: "-10 % Preise im Shop." },
-    handelsabkommen: { name: "Handelsabkommen", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { priceMod: -20, ernte: 1 }, text: "-20 % Preise im Shop, +1 Ernte." },
-    wuerfelbecher: { name: "Würfelbecher", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { rerollMod: -50, freeRerolls: 1 }, text: "1 freier Reroll pro Shop, Reroll-Preis -50 %." },
+    rotes_siegel: { name: "Rotes Siegel", rarity: "selten", tags: ["item", "blut"], stats: { damagePct: 10, lifesteal: 4, maxHp: -10 }, text: "+10% Schaden, +4% Lebensraub, -10 Max-HP." },
+    gutschein: { name: "Gutschein", tags: ["item", "gold"], stats: { priceMod: -10 }, text: "-10% Preise im Shop." },
+    handelsabkommen: { name: "Handelsabkommen", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { priceMod: -20, ernte: 1 }, text: "-20% Preise im Shop, +1 Ernte." },
+    wuerfelbecher: { name: "Würfelbecher", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { rerollMod: -50, freeRerolls: 1 }, text: "1 freier Reroll pro Shop, Reroll-Preis -50%." },
     gluecksrad: { name: "Glücksrad", rarity: "selten", tags: ["item", "gold"], stats: { freeRerolls: 2, luck: 2 }, text: "2 freie Rerolls pro Shop, +2 Glück." },
-    drachentoeter: { name: "Drachentöter", rarity: "ungewoehnlich", tags: ["item", "nahkampf"], stats: { bossDmg: 25 }, text: "+25 % Schaden gegen Bosse, Wächter und Elite." },
-    henkersbeil: { name: "Henkersbeil", rarity: "selten", tags: ["item", "nahkampf"], stats: { bossDmg: 50, armor: -1 }, text: "+50 % Schaden gegen Bosse, Wächter und Elite, -1 Rüstung." },
+    drachentoeter: { name: "Drachentöter", rarity: "ungewoehnlich", tags: ["item", "nahkampf"], stats: { bossDmg: 25 }, text: "+25% Schaden gegen Bosse, Wächter und Elite." },
+    henkersbeil: { name: "Henkersbeil", rarity: "selten", tags: ["item", "nahkampf"], stats: { bossDmg: 50, armor: -1 }, text: "+50% Schaden gegen Bosse, Wächter und Elite, -1 Rüstung." },
     schlangengift: { name: "Schlangengift", rarity: "ungewoehnlich", tags: ["item", "gift"], stats: { poisonPower: 1 }, text: "Gift tickt +1 Schaden stärker." },
     gluthoel: { name: "Glutöl", rarity: "ungewoehnlich", tags: ["item", "feuer"], stats: { burnPower: 1 }, text: "Verbrennung tickt +1 Schaden stärker." },
     dornenwein: { name: "Dornenwein", rarity: "ungewoehnlich", tags: ["item", "blut"], stats: { bleedPower: 1 }, text: "Blutung tickt +1 Schaden stärker." },
-    kraeutertee: { name: "Kräutertee", tags: ["item", "pflanze"], stats: { healPct: 25 }, text: "+25 % Heilung." },
-    lebensquell: { name: "Lebensquell", rarity: "selten", tags: ["item", "pflanze"], stats: { healPct: 50, regen: 1 }, text: "+50 % Heilung, +1 Regeneration." },
-    goldwaescher: { name: "Goldwäscher", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { doubleChance: 15 }, text: "15 % Chance, dass die Gold-Belohnung eines Kampfes verdoppelt wird." },
-    gluecksmuenze: { name: "Glücksmünze", tags: ["item", "gold"], stats: { doubleChance: 10, luck: 1 }, text: "10 % Doppel-Gold-Chance, +1 Glück." },
-    verfluchter_dolch: { name: "Verfluchter Dolch", rarity: "selten", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 15, damagePct: 14 }, text: "+15 Fluch (Gegner stärker, mehr Gold und bessere Beute), +14 % Schaden." },
+    kraeutertee: { name: "Kräutertee", tags: ["item", "pflanze"], stats: { healPct: 25 }, text: "+25% Heilung." },
+    lebensquell: { name: "Lebensquell", rarity: "selten", tags: ["item", "pflanze"], stats: { healPct: 50, regen: 1 }, text: "+50% Heilung, +1 Regeneration." },
+    goldwaescher: { name: "Goldwäscher", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { doubleChance: 15 }, text: "15% Chance, dass die Gold-Belohnung eines Kampfes verdoppelt wird." },
+    gluecksmuenze: { name: "Glücksmünze", tags: ["item", "gold"], stats: { doubleChance: 10, luck: 1 }, text: "10% Doppel-Gold-Chance, +1 Glück." },
+    verfluchter_dolch: { name: "Verfluchter Dolch", rarity: "selten", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 15, damagePct: 14 }, text: "+15 Fluch (Gegner stärker, mehr Gold und bessere Beute), +14% Schaden." },
     fluchsiegel: { name: "Fluchsiegel", rarity: "ungewoehnlich", tags: ["item", "fluch"], stats: { curse: 8, luck: 2, ernte: 1 }, text: "+8 Fluch, +2 Glück, +1 Ernte." },
-    daemonenpakt: { name: "Dämonenpakt", rarity: "legendaer", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 25, damagePct: 20, armor: 2 }, text: "+25 Fluch, +20 % Schaden, +2 Rüstung." },
-    herz_der_vollendung: { name: "Herz der Vollendung", rarity: "legendaer", maxStack: 1, tags: ["item"], unlock: { type: "achievement", id: "x_vollendung" }, stats: { damagePct: 10, armor: 2, luck: 3, regen: 2, crit: 6, maxHp: 15, ernte: 2 }, text: "Die Belohnung für 100 %: +10 % Schaden, +2 Rüstung, +3 Glück, +2 Regeneration, +6 % Krit, +15 Max-HP, +2 Ernte." },
-    koenigsring: { name: "Königsring", rarity: "selten", tags: ["item", "gold"], stats: { luck: 4, ernte: 2, damagePct: 5, armor: -1 }, text: "+4 Glück, +2 Ernte, +5 % Schaden, -1 Rüstung." },
+    daemonenpakt: { name: "Dämonenpakt", rarity: "legendaer", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 25, damagePct: 20, armor: 2 }, text: "+25 Fluch, +20% Schaden, +2 Rüstung." },
+    herz_der_vollendung: { name: "Herz der Vollendung", rarity: "legendaer", maxStack: 1, tags: ["item"], unlock: { type: "achievement", id: "x_vollendung" }, stats: { damagePct: 10, armor: 2, luck: 3, regen: 2, crit: 6, maxHp: 15, ernte: 2 }, text: "Die Belohnung für 100%: +10% Schaden, +2 Rüstung, +3 Glück, +2 Regeneration, +6% Krit, +15 Max-HP, +2 Ernte." },
+    koenigsring: { name: "Königsring", rarity: "selten", tags: ["item", "gold"], stats: { luck: 4, ernte: 2, damagePct: 5, armor: -1 }, text: "+4 Glück, +2 Ernte, +5% Schaden, -1 Rüstung." },
   },
 };
 const ADAPT = {
@@ -1605,9 +1607,9 @@ const ADAPT = {
   lederweste: { stats: { armor: 1 }, text: "+8 Max-HP, +1 Rüstung." },
   eisenpanzer: { stats: { armor: 2 }, text: "+2 Rüstung. Erster Zug jedes Kampfes: 4 Block." },
   eisenhelm: { stats: { armor: 1 }, text: "+1 Rüstung. Erster Zug jedes Kampfes: 6 Block." },
-  vampirzahn: { stats: { lifesteal: 3 }, text: "+3 % Lebensraub. Gegner besiegt: heile 4 HP (max. 2/Zug)." },
-  leichtfuessig: { stats: { dodge: 6 }, text: "+6 % Ausweichen. Erster Zug jedes Kampfes: weiche 2 Treffern aus." },
-  adlerauge: { stats: { crit: 6 }, text: "+6 % Krit-Chance. Kampfbeginn: alle Gegner 2 Züge markiert." },
+  vampirzahn: { stats: { lifesteal: 3 }, text: "+3% Lebensraub. Gegner besiegt: heile 4 HP (max. 2/Zug)." },
+  leichtfuessig: { stats: { dodge: 6 }, text: "+6% Ausweichen. Erster Zug jedes Kampfes: weiche 2 Treffern aus." },
+  adlerauge: { stats: { crit: 6 }, text: "+6% Krit-Chance. Kampfbeginn: alle Gegner 2 Züge markiert." },
   dornenruestung: { stats: { armor: 1 }, text: "+1 Rüstung. Wer dich trifft, nimmt 3 Schaden." },
 };
 PACK.adapt = ADAPT;
@@ -1627,7 +1629,8 @@ __exports.default = {
     knochenhauptmann: { name: "Knochenmarschall (Mini-Boss allein)" }, gluthoehle: { name: "Brandzone (Fluchflammen)" }, eliterudel: { name: "Eisrudel (Elite)" }, pflanzenhain: { name: "Wuchergarten (Ranken + Smog-Geist)" },
     sumpfwacht: { name: "Smogwacht (Elite)" }, flussufer: { name: "Kanalufer (Wassergeister)" }, boss_wandler: { name: "Gate-Lord (Endboss)" } },
   achievements: { g500: { name: "Legende der Gates" }, w1: { name: "Der Gate-Lord fällt" }, w25: { name: "Gate-Legende" } },
-  items: { herz_der_vollendung: { name: "Kern der Vollendung", text: "Die Belohnung für 100 %: +10 % Schaden, +2 Rüstung, +3 Glück, +2 Regeneration, +6 % Krit, +15 Max-HP, +2 Ernte." } },
+  cards: { hieb: { name: "Direkter Treffer" }, wuchtschlag: { name: "Ernster Schlag" }, wirbel: { name: "Sturmwirbel" }, deckung: { name: "Abwehrhaltung" }, schildwall: { name: "Unbezwingbare Mauer" }, adrenalin: { name: "Zweiter Gang" }, schwachstelle: { name: "Linie des Todes" }, wasserstrahl: { name: "Hydro-Lanze" }, flutwelle: { name: "Tsunami-Schlag" }, dornenpeitsche: { name: "Rosenpeitsche" }, flammenhieb: { name: "Atem der Flamme" }, feuerball: { name: "Feuerball-Jutsu" }, inferno: { name: "Schwarze Flamme" }, phoenixschlag: { name: "Phönixsturz" }, giftklinge: { name: "Viperbiss" }, giftwolke: { name: "Toxische Schwaden" }, pandemie: { name: "Ausbruch" }, aufschlitzen: { name: "Raubtier-Kralle" }, blutrausch: { name: "Berserker-Wut" }, eissplitter: { name: "Gefrorener Splitter" }, frostnova: { name: "Kristallwelt" }, eiszeit: { name: "Absolute Null" }, schnellschuss: { name: "Blitzschuss" }, zielen: { name: "Adleraugen-Fokus" }, rolle: { name: "Blitzschritt" }, praezisionsschuss: { name: "Punktgenauer Treffer" }, giftpfeil: { name: "Giftdorn-Pfeil" }, brandpfeil: { name: "Glutpfeil" }, eispfeil: { name: "Frostspitze" }, nachladen: { name: "Schneller Wechsel" }, salve: { name: "Drei-Pfeil-Salve" }, pfeilhagel: { name: "Pfeilregen" }, fluchtschuss: { name: "Rückzugsschuss" }, scharfschuetze: { name: "Todesschuss" }, dauerfeuer: { name: "Dauerbeschuss" }, pfeilsturm: { name: "Himmel aus Pfeilen" }, funke: { name: "Zündfunke" }, tropfen: { name: "Wasserperle" }, ranke: { name: "Würgender Spross" }, frostnadel: { name: "Eisnadel-Stich" }, manaschild: { name: "Mana-Barriere" }, arkanblitz: { name: "Reiner Mana-Strahl" }, gedankenblitz: { name: "Plötzliche Eingebung" }, flammenwelle: { name: "Brandwelle" }, dornenwall: { name: "Dornenhecke" }, eisregen: { name: "Hagelsturm" }, meteor: { name: "Sternenfall" }, arkaner_sturm: { name: "Manasturm" }, prismasturm: { name: "Elementarer Zorn" }, schildstoss: { name: "Bollwerk-Stoß" }, dornenpanzer: { name: "Stachelpanzer" }, eiserner_wille: { name: "Unbeugsamer Wille" }, bollwerk: { name: "Titanenmauer" }, festungsbau: { name: "Zitadelle" }, blutopfer: { name: "Äquivalenter Tausch" }, blutdurst: { name: "Durst der Klinge" }, zerfleischen: { name: "Gnadenloses Zerfetzen" }, aderlass: { name: "Blutige Beschwörung" }, lodernder_schmerz: { name: "Flammende Qual" }, feuersturm: { name: "Höllenfeuer-Sturm" }, taschendiebstahl: { name: "Fertigkeiten-Raub" }, bestechung: { name: "Schmiergeld" }, photosynthese: { name: "Sonnenbad" }, sporenwolke: { name: "Sporenschleier" }, blutsauger_ranke: { name: "Vampir-Liane" }, selbstentzuendung: { name: "Inneres Feuer" }, flammenmantel: { name: "Glutmantel" }, schuldschein: { name: "Blankoscheck" }, dekadenz: { name: "Goldener Exzess" }, rankendornen: { name: "Verflochtene Dornen" }, wurzelgeflecht: { name: "Lebenswurzeln" } },
+  items: { quellstein: { name: "Ozean-Splitter" }, gezeitenperle: { name: "Mondflut-Perle" }, treibholz: { name: "Schiffbruch-Splitter" }, dornenring: { name: "Rosenring" }, sporenbeutel: { name: "Myzel-Beutel" }, wurzelherz: { name: "Keimling des Lebens" }, eisenpanzer: { name: "Schwarzstahl-Weste" }, vielfaltsmedaille: { name: "S-Rang-Abzeichen" }, kleeblatt: { name: "Fünfblatt-Klee" }, glueckswuerfel: { name: "Zockerwürfel" }, prismalinse: { name: "Wahrheitsbrille" }, jaegerauge: { name: "Scharlachrote Augen" }, lederweste: { name: "Jägerweste" }, eisenhelm: { name: "Gate-Einsatzhelm" }, muenzbeutel: { name: "Gilden-Taschengeld" }, feldflasche: { name: "Konbini-Tee" }, hasenpfote: { name: "Maneki-Neko" }, wetzstein: { name: "Schwertschmied-Stein" }, notfallration: { name: "Onigiri-Ration" }, rucksack: { name: "Inventar-Tasche" }, ledergurt: { name: "Werkzeuggürtel" }, dornenruestung: { name: "Stachel-Exoskelett" }, kampfhorn: { name: "Gate-Sirene" }, adrenalinpumpe: { name: "Notfall-Injektor" }, beutegier: { name: "Raubtier-Instinkt" }, kriegstrommel: { name: "Kriegs-Taiko" }, echostein: { name: "Hanafuda-Ohrringe" }, meisterhammer: { name: "Schmiedekönig-Hammer" }, taschenuhr: { name: "Zeitstopp-Uhr" }, energiekristall: { name: "Instabiler Mana-Kern" }, blutpakt: { name: "Geass-Vertrag" }, glaskanone: { name: "Zerbrechliche Macht" }, goldene_waage: { name: "Händlers Goldwaage" }, kartenhaus: { name: "Joker-Kartenspiel" }, schillernder_charme: { name: "Chromatisches Amulett" }, phoenixfeder: { name: "Blauer Phönix" }, funkenfeuerzeug: { name: "Zippo des Pyromanen" }, lavaruestung: { name: "Magma-Panzer" }, glutschale: { name: "Kohlenbecken" }, aschemantel: { name: "Aschenmantel" }, glutstein: { name: "Ember-Kristall" }, schmiedeherz: { name: "Herz der Esse" }, flammenkrone: { name: "Flammenkönig-Krone" }, giftzahn: { name: "Hydra-Zahn" }, schierlingsflasche: { name: "Apotheker-Fläschchen" }, miasmaflasche: { name: "Miasma-Gefäß" }, leichengift: { name: "Verwesungs-Essenz" }, apothekerwaage: { name: "Alchemisten-Mörser" }, seuchenkoenig: { name: "Pestkönig" }, giftring: { name: "Skorpion-Ring" }, seuchenbeutel: { name: "Pest-Talisman" }, blutegel: { name: "Parasit" }, rasiermesser: { name: "Todes-Rasiermesser" }, vampirzahn: { name: "Nosferatu-Reißzahn" }, dornenkrone: { name: "Leidenskrone" }, blutmond: { name: "Roter Vollmond" }, opferdolch: { name: "Ritual-Tanto" }, blutkelch: { name: "Blutnacht-Kelch" }, raureif: { name: "Eishauch" }, eiszapfen: { name: "Eislanze" }, schneekugel: { name: "Winter-Globus" }, kaelteamulett: { name: "Schneefrau-Amulett" }, herz_des_winters: { name: "Eismonarch-Herz" }, eiskristall: { name: "Gefrorene Träne" }, frostherz: { name: "Kaltes Herz" }, koecher: { name: "Reishi-Köcher" }, munitionsgurt: { name: "Magazin-Bandelier" }, adlerauge: { name: "Falkenblick" }, leichtfuessig: { name: "Wolkenschritt" }, jagdzeichen: { name: "Hunter-Lizenz" }, zielfernrohr: { name: "Sniper-Visier" }, grimoire: { name: "Zauberbuch der Gilde" }, funkenschlag: { name: "Elektro-Impuls" }, gedankenstein: { name: "Telepathie-Stein" }, resonanzkristall: { name: "Resonanz-Kern" }, manaquelle: { name: "Brunnen der Magie" }, elementarlinse: { name: "Elementar-Prisma" }, feuerflasche: { name: "Brandflasche" }, heiltrank: { name: "Senzu-Bohne" }, rauchbombe: { name: "Ninja-Rauchbombe" }, giftphiole: { name: "Toxin-Ampulle" }, frostphiole: { name: "Kältekapsel" }, blutampulle: { name: "Berserker-Ampulle" }, schlachtrufrolle: { name: "Kriegs-Schriftrolle" }, prismasplitter: { name: "Regenbogenscherbe" }, phoenixasche: { name: "Wiedergeburts-Asche" }, narbenleder: { name: "Vernarbte Haut" }, stachelschild: { name: "Stachel-Buckler" }, eisenfaust: { name: "Stahl-Knöchel" }, pech_raeucherstaebchen: { name: "Fluchweihrauch" }, asche_lunge: { name: "Rauchlunge" }, krone_des_maertyrers: { name: "Märtyrer-Aureole" }, erntesichel: { name: "Schnitter-Sichel" }, vorratskammer: { name: "Konbini-Lager" }, boerse_des_geizkragens: { name: "Geizhals-Brieftasche" }, midas_fluch: { name: "Goldene Hand" }, nekromanten_pakt: { name: "Skelettkönig-Pakt" }, wuchernde_wurzeln: { name: "Lebendiger Wald" }, ritterschwur: { name: "Hunter-Eid" }, eisenwall: { name: "Mauer-Fragment" }, siegerhelm: { name: "Trophäen-Helm" }, sperrfeuer: { name: "Deckungsfeuer-Modul" }, windlaeufer: { name: "Windläufer-Stiefel" }, meisterschuetze: { name: "Scharfschützen-Orden" }, arkane_feder: { name: "Grimoire-Feder" }, elementarkompass: { name: "Mana-Kompass" }, prismakrone: { name: "Erzmagier-Diadem" }, glutherz: { name: "Pyro-Kern" }, schmerzkelch: { name: "Kelch der Qual" }, phoenixblut: { name: "Unsterbliches Blut" }, goldener_zahn: { name: "Goldzahn-Grinsen" }, bankier: { name: "Schwarze Kreditkarte" }, kronjuwelen: { name: "Juwelen des Hauses" }, gruener_daumen: { name: "Hand der Natur" }, erntekorb: { name: "Korb der Fülle" }, weltenbaum: { name: "Yggdrasil-Zweig" }, kraftring: { name: "Kraft-Armband" }, kriegsbemalung: { name: "Kriegs-Tattoo" }, gewichtsweste: { name: "Trainingsgewichte" }, federstiefel: { name: "Sprint-Sneaker" }, wuchtgurt: { name: "Champion-Gürtel" }, heilkraut: { name: "Kräuterbündel" }, stahlhaut: { name: "Stahlhaut-Technik" }, sparbuch: { name: "Haushaltsbuch" }, scharfes_auge: { name: "Zielhilfe-Monokel" }, elementarfokus: { name: "Fokus-Kristall" }, blutdurstamulett: { name: "Blutdurst-Anhänger" }, glueckskeks: { name: "Omikuji-Zettel" }, kampfnarben: { name: "Veteranen-Narben" }, schattenmantel: { name: "Schattenmonarch-Umhang" }, panzerfaust: { name: "Titanfaust" }, glueckspilz: { name: "Fliegenpilz-Talisman" }, schattenklinge: { name: "Schatten-Kunai" }, rotes_siegel: { name: "Crimson-Siegel" }, gutschein: { name: "Gilden-Rabattmarke" }, handelsabkommen: { name: "Kaufmanns-Abkommen" }, wuerfelbecher: { name: "Gacha-Kapsel" }, gluecksrad: { name: "Schicksals-Roulette" }, drachentoeter: { name: "Drachentöter" }, henkersbeil: { name: "Henker-Guillotine" }, schlangengift: { name: "Schlangen-Toxin" }, gluthoel: { name: "Brandöl" }, dornenwein: { name: "Blutroter Wein" }, kraeutertee: { name: "Beruhigungstee" }, lebensquell: { name: "Quell der Jugend" }, goldwaescher: { name: "Goldsucher-Pfanne" }, gluecksmuenze: { name: "Fünf-Yen-Münze" }, verfluchter_dolch: { name: "Muramasa-Dolch" }, fluchsiegel: { name: "Fluch-Ofuda" }, daemonenpakt: { name: "Dämonenfürst-Pakt" }, koenigsring: { name: "Königlicher Siegelring" }, herz_der_vollendung: { name: "Kern der Vollendung", text: "Die Belohnung für 100%: +10% Schaden, +2 Rüstung, +3 Glück, +2 Regeneration, +6% Krit, +15 Max-HP, +2 Ernte." } },
   speakers: { brumm: { name: "Brumm", title: "Besitzer des Konbini am Gate" }, mira: { name: "Mira", title: "Forscherin der Hunter-Gilde" } },
   stories: {
     intro: [
@@ -1686,12 +1689,99 @@ const CONTENT = createContent();
 
 CONTENT.finalize();
 for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; if (patch.text) d.text = patch.text; if (patch.maxStack) d.maxStack = patch.maxStack; } }     // bestehende Items auf die Werte umbauen
-for (const kind of ["classes", "enemies", "encounters", "achievements", "items", "speakers"]) for (const [id, patch] of Object.entries(thema[kind] ?? {})) if (CONTENT[kind]?.[id]) Object.assign(CONTENT[kind][id], patch);       // Thema: Anzeigenamen
+for (const kind of ["classes", "enemies", "encounters", "achievements", "cards", "items", "speakers"]) for (const [id, patch] of Object.entries(thema[kind] ?? {})) if (CONTENT[kind]?.[id]) Object.assign(CONTENT[kind][id], patch);       // Thema: Anzeigenamen
 for (const [id, lines] of Object.entries(thema.stories)) if (CONTENT.stories[id]) CONTENT.stories[id].lines = lines;                                  // Thema: Geschichte
 const problems = CONTENT.validate();
 if (problems.length) throw new Error("Content-Fehler:\n- " + problems.join("\n- "));
 
 __exports.CONTENT = CONTENT;
+
+});
+__define("engine/rng.js", function (__exports, __require) {
+// Zufall mit Seed: gleicher Seed = gleicher Run (wichtig für Tests und "Daily Seeds").
+const { CONFIG } = __require("data/config.js");
+
+function createRng(seed = Date.now()) {
+  let s = seed >>> 0;
+  const next = () => { // mulberry32
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return {
+    next,
+    state: () => s,                       // für Savegames: createRng(state) setzt den Strom fort
+    pick: (arr) => arr[Math.floor(next() * arr.length)],
+    shuffle: (arr) => {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(next() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    },
+    // entries: [{ value, weight }]
+    weighted: (entries) => {
+      const total = entries.reduce((sum, e) => sum + e.weight, 0);
+      let r = next() * total;
+      for (const e of entries) { r -= e.weight; if (r < 0) return e.value; }
+      return entries[entries.length - 1].value;
+    },
+  };
+}
+
+// Würfelt eine Seltenheit anhand der Gewichte aus der Config.
+function rollRarity(rng, table = CONFIG.rarities) {
+  return rng.weighted(Object.entries(table).map(([value, { weight }]) => ({ value, weight })));
+}
+
+__exports.createRng = createRng;
+__exports.rollRarity = rollRarity;
+
+});
+__define("engine/draft.js", function (__exports, __require) {
+// STARTDECK-DRAFT: Nach der Heldenwahl stellt man das Startdeck in mehreren Zügen zusammen. Bei jedem Zug werden zufällig
+// CONFIG.draft.options Karten angeboten (nur einfache Karten aus dem Pool des Helden, eigene Karten häufiger), man nimmt eine.
+// Das Angebot hängt nur vom Seed, vom Helden und von den bisherigen Wahlen ab (gleicher Seed = gleiche Angebote).
+// Sicherung: Zug 1 enthält immer eine Angriffskarte; hat man bis zum letzten Zug keine genommen, sind alle Angebote Angriffskarten.
+const { CONTENT } = __require("content/index.js");
+const { CONFIG } = __require("data/config.js");
+const { createRng } = __require("engine/rng.js");
+
+const isAttackCard = (def) => def.play.some((a) => String(a.action).startsWith("damage"));
+
+function starterPool(classId) {
+  const cls = CONTENT.classes[classId], pools = cls.cardPools ?? [classId];
+  return Object.values(CONTENT.cards).filter((c) => (c.rarity ?? "gewoehnlich") === "gewoehnlich" && (c.pools.includes("alle") || c.pools.some((p) => pools.includes(p))));
+}
+
+function draftOffer(classId, seed, picks = []) {
+  const D = CONFIG.draft, pool = starterPool(classId), round = picks.length, rng = createRng(((seed >>> 0) ^ Math.imul(round + 1, 0x9e3779b1)) >>> 0);
+  const hasAtk = picks.some((id) => isAttackCard(CONTENT.cards[id])), lastForced = round === D.rounds - 1 && !hasAtk;       // letzter Zug ohne Angriffskarte im Deck: nur Angriffskarten zur Wahl
+  const own = (c) => !c.pools.includes("alle"), left = lastForced ? pool.filter(isAttackCard) : [...pool], offer = [];
+  while (offer.length < D.options && left.length) {                                         // gewichtet ohne Wiederholung innerhalb eines Zuges
+    const w = left.map((c) => (own(c) ? D.ownWeight : 1)), sum = w.reduce((a, b) => a + b, 0);
+    let r = rng.next() * sum, i = 0; while (i < left.length - 1 && r > w[i]) { r -= w[i]; i++; }
+    offer.push(left.splice(i, 1)[0]);
+  }
+  if (round === 0 && !offer.some(isAttackCard)) {                                               // Sicherung: mindestens eine Angriffskarte im Angebot
+    const atk = pool.filter((c) => isAttackCard(c) && !offer.includes(c));
+    if (atk.length) offer[offer.length - 1] = atk[Math.floor(rng.next() * atk.length)];
+  }
+  return offer.map((c) => c.id);
+}
+
+function validStartDeck(ids, classId) {
+  const pool = new Set(starterPool(classId).map((c) => c.id));
+  return Array.isArray(ids) && ids.length === CONFIG.draft.rounds && ids.every((id) => pool.has(id)) && ids.some((id) => isAttackCard(CONTENT.cards[id]));
+}
+
+__exports.isAttackCard = isAttackCard;
+__exports.starterPool = starterPool;
+__exports.draftOffer = draftOffer;
+__exports.validStartDeck = validStartDeck;
 
 });
 __define("engine/abilities.js", function (__exports, __require) {
@@ -1713,95 +1803,95 @@ __exports.maxAbilityLevel = maxAbilityLevel;
 __define("ui/en_cards_items.js", function (__exports, __require) {
 // Englische Texte: Karten und Items. Format: id: [Name, Text].
 const EN_CARDS = {
-  hieb: ["Strike", "Damage: 4 + weapon."], wuchtschlag: ["Heavy Blow", "Damage: 11 + 3x weapon."], wirbel: ["Whirlwind", "Damage to ALL: 3 + weapon."],
-  deckung: ["Guard", "6 Block."], schildwall: ["Shield Wall", "13 Block."], adrenalin: ["Adrenaline", "Draw 2 cards."], schwachstelle: ["Weak Point", "2 Vulnerable (+50% damage)."],
-  wasserstrahl: ["Water Jet", "Water damage: 10 + 2x weapon."], flutwelle: ["Tidal Wave", "Water damage to ALL: 4 + 0.5x weapon."], dornenpeitsche: ["Thorn Whip", "Plant damage: 3 + 0.5x weapon. 3 Bleed."],
-  flammenhieb: ["Flame Strike", "Fire damage: 4 + weapon."], feuerball: ["Fireball", "Fire damage to ALL: 5 + 0.5x weapon."], inferno: ["Inferno", "Fire damage to ALL: 9 + weapon."],
-  phoenixschlag: ["Phoenix Strike", "Fire damage: 14 + 2x weapon. Draw 1 card."], giftklinge: ["Poison Blade", "Damage: 3 + 0.5x weapon. 4 Poison."], giftwolke: ["Poison Cloud", "3 Poison to ALL."],
-  pandemie: ["Pandemic", "Double the Poison on ALL enemies."], aufschlitzen: ["Slash Open", "Damage: 3 + 0.5x weapon. 4 Bleed."], blutrausch: ["Blood Frenzy", "Damage: 6 + 1.5x weapon, +2 per Bleed on the target."],
-  eissplitter: ["Ice Shard", "Ice damage: 8 + 1.5x weapon. 1 Vulnerable, 1 Chill."], frostnova: ["Frost Nova", "Ice damage to ALL: 3 + 0.5x weapon. 1 Vulnerable and 1 Chill to ALL."],
-  eiszeit: ["Ice Age", "Ice damage to ALL: 4 + weapon. 1 Vulnerable and 2 Chill to ALL."], schnellschuss: ["Quick Shot", "Damage: 3 + weapon, +1 per card played earlier this turn."],
-  zielen: ["Take Aim", "Mark the target (3 turns): hits deal +1 damage."], rolle: ["Dodge Roll", "Dodge 1 hit. 4 Block."], praezisionsschuss: ["Precision Shot", "Damage: 6 + 1.5x weapon, +3 per Mark on the target."],
-  giftpfeil: ["Poison Arrow", "Damage: 4 + 1.5x weapon. 6 Poison."], brandpfeil: ["Fire Arrow", "Fire damage: 8 + 2x weapon."], eispfeil: ["Ice Arrow", "Ice damage: 6 + 1.5x weapon. 1 Vulnerable, 1 Chill."],
-  nachladen: ["Reload", "Draw 2 cards."], salve: ["Volley", "3 hits: 2 + 0.5x weapon each."], pfeilhagel: ["Arrow Hail", "2 hits on ALL: 2 + 0.5x weapon each."],
-  fluchtschuss: ["Parting Shot", "Damage: 6 + 1.5x weapon. Draw 1 card. Dodge 2 hits."], scharfschuetze: ["Sniper Shot", "Damage: 12 + 2x weapon, +4 per Mark on the target."],
-  dauerfeuer: ["Rapid Fire", "6 hits: 1 + 0.5x weapon each, +1 per card played earlier."], pfeilsturm: ["Arrow Storm", "4 hits on ALL: 2 + 0.5x weapon each."],
-  funke: ["Spark", "Fire damage: 5 + 0.5x weapon."], tropfen: ["Water Drop", "Water damage: 4 + 0.5x weapon. 2 Block."], ranke: ["Vine", "Plant damage: 3 + 0.5x weapon. 2 Bleed."],
-  frostnadel: ["Frost Needle", "Ice damage: 8 + weapon. 2 Chill."], manaschild: ["Mana Shield", "5 Block."], arkanblitz: ["Arcane Bolt", "Damage: 11 + 1.5x weapon (no element)."],
-  gedankenblitz: ["Brainstorm", "Draw 1 card."], flammenwelle: ["Flame Wave", "Fire damage to ALL: 5 + 0.5x weapon."], dornenwall: ["Thorn Wall", "Plant: 8 Block. 3 Bleed to ALL."],
-  eisregen: ["Ice Rain", "Ice damage to ALL: 4 + 0.5x weapon. 1 Chill to ALL."], meteor: ["Meteor", "Fire damage: 16 + 2x weapon."], arkaner_sturm: ["Arcane Storm", "Damage to ALL: 4 + weapon. 1 Vulnerable to ALL."],
-  prismasturm: ["Prismatic Storm", "3 + 0.5x weapon damage each to ALL in Fire, Water, Plant and Ice."], schildstoss: ["Shield Bash", "Damage equal to your Block (max. 12). The Block stays."],
-  dornenpanzer: ["Thorn Armor", "8 Block. Thorns 2: attackers take 2 damage until your next turn."], eiserner_wille: ["Iron Will", "5 Block. Heal 2 HP."], bollwerk: ["Bulwark", "12 Block. Draw 1 card."],
-  festungsbau: ["Fortress", "16 Block. Thorns 4: attackers take 4 damage until your next turn."], blutopfer: ["Blood Offering", "Lose 5 HP (never below 1). +1 Energy."],
-  blutdurst: ["Bloodthirst", "Damage: 4 + weapon. If the target bleeds: heal 3 HP."], zerfleischen: ["Maul", "Damage: 4 + weapon, +4 per Bleed on the target."],
-  aderlass: ["Bloodletting", "Take 4 damage (never below 1 HP). Draw 2 cards, gain 1 Energy."], lodernder_schmerz: ["Burning Pain", "Fire damage equal to your missing HP (max. 40)."],
-  feuersturm: ["Firestorm", "12 fire damage to one enemy. If you lost HP this turn: hits ALL enemies and gives each 2 Burn."],
-  taschendiebstahl: ["Pickpocket", "2 damage. If this card kills the enemy: gain 40 Gold at once."], bestechung: ["Bribe", "One enemy skips this turn. You pay 15% of your Gold at once. Bosses can't be bribed."],
-  photosynthese: ["Photosynthesis", "Heal 8 HP. Max HP +1 until the end of the run. Exhaust."], sporenwolke: ["Spore Cloud", "5 Block. If you were already healed this turn (or tried to heal): 15 Block instead."],
-  blutsauger_ranke: ["Bloodsucker Vine", "6 damage. Heal yourself for the damage dealt."], selbstentzuendung: ["Self-Immolation", "Take 4 damage (never below 1 HP). All enemies get 4 Burn."],
-  flammenmantel: ["Flame Cloak", "10 Block. If you lost HP this turn: Thorns 5 (attackers take 5 damage until your next turn)."], schuldschein: ["IOU", "Gain 20 Gold. Draw 1 card."],
-  dekadenz: ["Decadence", "12 damage to ALL enemies. You pay 10% of your Gold."], rankendornen: ["Vine Thorns", "4 Block. Thorns 3 (attackers take 3 damage until your next turn)."], wurzelgeflecht: ["Root Tangle", "8 Block. Heal 4 HP."],
+  hieb: ["Direct Hit", "Damage: 4 + weapon."], wuchtschlag: ["Serious Punch", "Damage: 11 + 3x weapon."], wirbel: ["Storm Whirl", "Damage to ALL: 3 + weapon."],
+  deckung: ["Guard Stance", "6 Block."], schildwall: ["Unbreakable Wall", "13 Block."], adrenalin: ["Second Gear", "Draw 2 cards."], schwachstelle: ["Line of Death", "2 Vulnerable (+50% damage)."],
+  wasserstrahl: ["Hydro Lance", "Water damage: 10 + 2x weapon."], flutwelle: ["Tsunami Strike", "Water damage to ALL: 4 + 0.5x weapon."], dornenpeitsche: ["Rose Whip", "Plant damage: 3 + 0.5x weapon. 3 Bleed."],
+  flammenhieb: ["Flame Breathing", "Fire damage: 4 + weapon."], feuerball: ["Fireball Jutsu", "Fire damage to ALL: 5 + 0.5x weapon."], inferno: ["Black Flame", "Fire damage to ALL: 9 + weapon."],
+  phoenixschlag: ["Phoenix Fall", "Fire damage: 14 + 2x weapon. Draw 1 card."], giftklinge: ["Viper Bite", "Damage: 3 + 0.5x weapon. 4 Poison."], giftwolke: ["Toxic Haze", "3 Poison to ALL."],
+  pandemie: ["Outbreak", "Double the Poison on ALL enemies."], aufschlitzen: ["Predator's Claw", "Damage: 3 + 0.5x weapon. 4 Bleed."], blutrausch: ["Berserker Rage", "Damage: 6 + 1.5x weapon, +2 per Bleed on the target."],
+  eissplitter: ["Frozen Shard", "Ice damage: 8 + 1.5x weapon. 1 Vulnerable, 1 Chill."], frostnova: ["Crystal World", "Ice damage to ALL: 3 + 0.5x weapon. 1 Vulnerable and 1 Chill to ALL."],
+  eiszeit: ["Absolute Zero", "Ice damage to ALL: 4 + weapon. 1 Vulnerable and 2 Chill to ALL."], schnellschuss: ["Quick Draw", "Damage: 3 + weapon, +1 per card played earlier this turn."],
+  zielen: ["Eagle Focus", "Mark the target (3 turns): hits deal +1 damage."], rolle: ["Flash Step", "Dodge 1 hit. 4 Block."], praezisionsschuss: ["Pinpoint Hit", "Damage: 6 + 1.5x weapon, +3 per Mark on the target."],
+  giftpfeil: ["Venom Arrow", "Damage: 4 + 1.5x weapon. 6 Poison."], brandpfeil: ["Blazing Arrow", "Fire damage: 8 + 2x weapon."], eispfeil: ["Frost Point", "Ice damage: 6 + 1.5x weapon. 1 Vulnerable, 1 Chill."],
+  nachladen: ["Quick Reload", "Draw 2 cards."], salve: ["Triple Volley", "3 hits: 2 + 0.5x weapon each."], pfeilhagel: ["Arrow Rain", "2 hits on ALL: 2 + 0.5x weapon each."],
+  fluchtschuss: ["Parting Shot", "Damage: 6 + 1.5x weapon. Draw 1 card. Dodge 2 hits."], scharfschuetze: ["Kill Shot", "Damage: 12 + 2x weapon, +4 per Mark on the target."],
+  dauerfeuer: ["Rapid Barrage", "6 hits: 1 + 0.5x weapon each, +1 per card played earlier."], pfeilsturm: ["Sky of Arrows", "4 hits on ALL: 2 + 0.5x weapon each."],
+  funke: ["Spark", "Fire damage: 5 + 0.5x weapon."], tropfen: ["Water Bead", "Water damage: 4 + 0.5x weapon. 2 Block."], ranke: ["Choking Sprout", "Plant damage: 3 + 0.5x weapon. 2 Bleed."],
+  frostnadel: ["Ice Needle", "Ice damage: 8 + weapon. 2 Chill."], manaschild: ["Mana Barrier", "5 Block."], arkanblitz: ["Pure Mana Beam", "Damage: 11 + 1.5x weapon (no element)."],
+  gedankenblitz: ["Sudden Insight", "Draw 1 card."], flammenwelle: ["Fire Surge", "Fire damage to ALL: 5 + 0.5x weapon."], dornenwall: ["Thorn Hedge", "Plant: 8 Block. 3 Bleed to ALL."],
+  eisregen: ["Hailstorm", "Ice damage to ALL: 4 + 0.5x weapon. 1 Chill to ALL."], meteor: ["Starfall", "Fire damage: 16 + 2x weapon."], arkaner_sturm: ["Mana Storm", "Damage to ALL: 4 + weapon. 1 Vulnerable to ALL."],
+  prismasturm: ["Elemental Wrath", "3 + 0.5x weapon damage each to ALL in Fire, Water, Plant and Ice."], schildstoss: ["Bulwark Bash", "Damage equal to your Block (max. 12). The Block stays."],
+  dornenpanzer: ["Spiked Armor", "8 Block. Thorns 2: attackers take 2 damage until your next turn."], eiserner_wille: ["Unbreakable Will", "5 Block. Heal 2 HP."], bollwerk: ["Titan Wall", "12 Block. Draw 1 card."],
+  festungsbau: ["Citadel", "16 Block. Thorns 4: attackers take 4 damage until your next turn."], blutopfer: ["Equivalent Exchange", "Lose 5 HP (never below 1). +1 Energy."],
+  blutdurst: ["Thirsting Blade", "Damage: 4 + weapon. If the target bleeds: heal 3 HP."], zerfleischen: ["Merciless Rend", "Damage: 4 + weapon, +4 per Bleed on the target."],
+  aderlass: ["Blood Summoning", "Take 4 damage (never below 1 HP). Draw 2 cards, gain 1 Energy."], lodernder_schmerz: ["Burning Agony", "Fire damage equal to your missing HP (max. 40)."],
+  feuersturm: ["Hellfire Storm", "12 fire damage to one enemy. If you lost HP this turn: hits ALL enemies and gives each 2 Burn."],
+  taschendiebstahl: ["Skill Steal", "2 damage. If this card kills the enemy: gain 40 Gold at once."], bestechung: ["Hush Money", "One enemy skips this turn. You pay 15% of your Gold at once. Bosses can't be bribed."],
+  photosynthese: ["Sun Bath", "Heal 8 HP. Max HP +1 until the end of the run. Exhaust."], sporenwolke: ["Spore Veil", "5 Block. If you were already healed this turn (or tried to heal): 15 Block instead."],
+  blutsauger_ranke: ["Vampire Vine", "6 damage. Heal yourself for the damage dealt."], selbstentzuendung: ["Inner Fire", "Take 4 damage (never below 1 HP). All enemies get 4 Burn."],
+  flammenmantel: ["Ember Cloak", "10 Block. If you lost HP this turn: Thorns 5 (attackers take 5 damage until your next turn)."], schuldschein: ["Blank Check", "Gain 20 Gold. Draw 1 card."],
+  dekadenz: ["Golden Excess", "12 damage to ALL enemies. You pay 10% of your Gold."], rankendornen: ["Entwined Thorns", "4 Block. Thorns 3 (attackers take 3 damage until your next turn)."], wurzelgeflecht: ["Life Roots", "8 Block. Heal 4 HP."],
 };
 const EN_ITEMS = {
-  quellstein: ["Spring Stone", "Water cards: +2 damage."], gezeitenperle: ["Tide Pearl", "Water card played: 3 Block (max. 4/turn)."], treibholz: ["Driftwood", "First turn of every combat: 2 Block per Water tag (max. 8)."],
-  dornenring: ["Thorn Ring", "Plant cards: +2 damage."], sporenbeutel: ["Spore Pouch", "Plant card played: 1 Poison on an enemy (max. 3/turn)."], wurzelherz: ["Root Heart", "Start of turn: heal 1 HP per Plant tag (max. 2)."],
-  eisenpanzer: ["Iron Armor", "First turn of every combat: 4 Block."], vielfaltsmedaille: ["Medal of Variety", "All cards: +1 damage per different type in your build (max. +3)."],
-  kleeblatt: ["Clover", "+2 Luck (better rarities in rewards)."], glueckswuerfel: ["Lucky Dice", "+4 Luck (better rarities in rewards)."], prismalinse: ["Prism Lens", "Elemental resistances are ignored."],
-  jaegerauge: ["Hunter's Eye", "Elemental weaknesses hit harder (x1.5 becomes x1.75)."], lederweste: ["Leather Vest", "+8 Max HP."], eisenhelm: ["Iron Helmet", "First turn of every combat: 6 Block."],
-  muenzbeutel: ["Coin Purse", "+15% Gold."], feldflasche: ["Canteen", "Heal 5 HP after every combat."], hasenpfote: ["Rabbit's Foot", "+1 Luck, +10% Gold."], wetzstein: ["Whetstone", "Melee cards: +1 damage."],
-  notfallration: ["Emergency Ration", "Heal 5 HP at the start of combat."], rucksack: ["Backpack", "+1 card in hand."], ledergurt: ["Leather Belt", "+4 Max HP. First turn of every combat: 3 Block."],
-  dornenruestung: ["Spiked Mail", "Whoever hits you takes 3 damage."], kampfhorn: ["War Horn", "Start of combat: all enemies 1 Vulnerable."], adrenalinpumpe: ["Adrenaline Pump", "Enemy defeated: draw 1 card (max. 2/turn)."],
-  beutegier: ["Loot Lust", "Enemy defeated: heal 2 HP (max. 3/turn)."], kriegstrommel: ["War Drum", "Start of turn: 25% chance for +1 Energy."], echostein: ["Echo Stone", "Card played: 15% chance to draw 1 card (max. 2/turn)."],
-  meisterhammer: ["Master Hammer", "Melee cards: +20% damage."], taschenuhr: ["Pocket Watch", "Start of turn: 30% chance to draw 1 card."], energiekristall: ["Energy Crystal", "+1 Energy per turn, but 1 fewer card in hand and -8 Max HP."],
-  blutpakt: ["Blood Pact", "+1 Energy, -20 Max HP."], glaskanone: ["Glass Cannon", "+40% damage, -15 Max HP."], goldene_waage: ["Golden Scales", "+40% Gold."], kartenhaus: ["House of Cards", "+2 cards in hand, -8 Max HP."],
-  schillernder_charme: ["Shimmering Charm", "Doubles your Shiny chance (second charm: triples it)."], phoenixfeder: ["Phoenix Feather", "+10 Max HP, heal 12 HP after every combat."],
-  funkenfeuerzeug: ["Spark Lighter", "Fire card played: 30% chance for 3 damage to an enemy."], lavaruestung: ["Lava Armor", "When you are hit: 2 damage to ALL (max. 2/turn)."],
-  glutschale: ["Ember Bowl", "First turn of every combat: 2 Block per Fire tag (max. 8)."], aschemantel: ["Ash Mantle", "From 4 Fire tags: Fire cards +3 damage."], glutstein: ["Ember Stone", "Fire cards: +2 damage."],
-  schmiedeherz: ["Forge Heart", "Fire cards: +1 damage per Fire tag (max. +4)."], flammenkrone: ["Flame Crown", "From 6 Fire tags: Fire cards +25% damage."], giftzahn: ["Venom Fang", "Poison cards: +2 damage."],
-  schierlingsflasche: ["Hemlock Flask", "Start of turn: 2 Poison on a random enemy."], miasmaflasche: ["Miasma Flask", "Poison applied: 30% chance for 2 damage (max. 4/turn)."],
-  leichengift: ["Corpse Venom", "Enemy defeated: 2 Poison on ALL others (max. 3/turn)."], apothekerwaage: ["Apothecary Scales", "From 4 Poison tags: ALL cards +20% damage."],
-  seuchenkoenig: ["Plague King", "Poison applied: 1 Poison on ALL enemies (max. 2/turn)."], giftring: ["Poison Ring", "Poison card played: 1 Poison on a random enemy (max. 2/turn)."],
-  seuchenbeutel: ["Plague Pouch", "Poison applied: target becomes 1 Vulnerable (max. 2/turn)."], blutegel: ["Leech", "Bleed applied: heal 1 HP (max. 3/turn)."], rasiermesser: ["Razor", "Blood cards: +2 damage."],
-  vampirzahn: ["Vampire Fang", "Enemy defeated: heal 4 HP (max. 2/turn)."], dornenkrone: ["Crown of Thorns", "Whoever hits you bleeds (3 Bleed, max. 3/turn)."], blutmond: ["Blood Moon", "From 4 Blood tags: Blood cards +25% damage."],
-  opferdolch: ["Sacrificial Dagger", "Start of turn: -2 HP. All cards +4 damage."], blutkelch: ["Blood Chalice", "Bleed applied: 2 damage (max. 4/turn)."], raureif: ["Hoarfrost", "First turn of every combat: 2 Block per Ice tag (max. 8)."],
-  eiszapfen: ["Icicle", "Ice card played: 2 damage (max. 4/turn)."], schneekugel: ["Snow Globe", "End of turn: 50% chance to give all enemies 1 Chill."],
-  kaelteamulett: ["Chill Amulet", "Enemies freeze at just 2 Chill. From 4 Ice tags: Ice cards +25% damage."], herz_des_winters: ["Heart of Winter", "Start of combat: all enemies 2 Chill and 2 Vulnerable. Ice cards +3 damage."],
-  eiskristall: ["Ice Crystal", "Ice cards: +2 damage."], frostherz: ["Frost Heart", "Ice card played: 1 Chill on an enemy (max. 2/turn)."], koecher: ["Quiver", "Ranged cards: +1 damage."],
-  munitionsgurt: ["Ammo Belt", "Start of turn: 35% chance to draw 1 card."], adlerauge: ["Eagle Eye", "Start of combat: all enemies marked for 2 turns."], leichtfuessig: ["Light-Footed", "First turn of every combat: dodge 2 hits."],
-  jagdzeichen: ["Hunter's Mark", "Ranged card played: 30% chance to mark an enemy."], zielfernrohr: ["Scope", "From 6 Ranged tags: Ranged cards +25% damage."], grimoire: ["Grimoire", "Spell cards: +1 damage."],
-  funkenschlag: ["Spark Strike", "Reaction: 2 damage to ALL (max. 3/turn)."], gedankenstein: ["Mind Stone", "Reaction: draw 1 card (max. 2/turn)."], resonanzkristall: ["Resonance Crystal", "Reactions are 50% stronger."],
-  manaquelle: ["Mana Spring", "Reaction: +1 Energy (once per turn)."], elementarlinse: ["Elemental Lens", "Reactions +30%. Reaction: 3 Block (max. 2/turn). For all classes!"],
-  feuerflasche: ["Fire Flask", "Active (1 Energy, once per combat): 6 fire damage to ALL."], heiltrank: ["Healing Potion", "Active (1 Energy, once per combat): heal 12 HP."],
-  rauchbombe: ["Smoke Bomb", "Active (1 Energy, once per combat): dodge 3 hits. 4 Block."], giftphiole: ["Poison Vial", "Active (1 Energy, once per combat): 6 Poison on ALL enemies."],
-  frostphiole: ["Frost Vial", "Active (1 Energy, once per combat): 4 ice damage and 2 Vulnerable to ALL."], blutampulle: ["Blood Ampoule", "Active (1 Energy, once per combat): 10 damage and 5 Bleed on one target."],
-  schlachtrufrolle: ["Battle Cry Scroll", "Active (1 Energy, once per combat): all enemies marked for 3 turns and 1 Vulnerable."],
-  prismasplitter: ["Prism Shard", "Active (2 Energy, once per combat): 4 damage each to ALL in Fire, Water, Plant and Ice."], phoenixasche: ["Phoenix Ash", "Active (2 Energy, once per combat): heal 20 HP, 10 Block and +1 Energy."],
-  narbenleder: ["Scar Leather", "Bleed applied: 2 Block (max. 3x/turn)."], stachelschild: ["Spiked Shield", "Start of turn: Thorns 1 (attackers take 1 damage)."], eisenfaust: ["Iron Fist", "Block cards: +3 damage."],
-  pech_raeucherstaebchen: ["Pitch Incense", "Fire cards: +3 damage. End of turn: you take 1 damage."], asche_lunge: ["Ash Lung", "When you lose HP: all foes get 3 Burn. Healing on you is reduced by 50%."],
-  krone_des_maertyrers: ["Martyr's Crown", "Damage x0.1 per 5 HP you are missing from your maximum (cap x3). -10 Max HP."], erntesichel: ["Harvest Sickle", "Harvest 2: +2 Gold after every combat."],
-  vorratskammer: ["Pantry", "Harvest 4: +4 Gold after every combat."], boerse_des_geizkragens: ["Miser's Purse", "All cards: +1 base damage per 50 Gold you own (max. +15)."],
-  midas_fluch: ["Midas Curse", "Doubles all Gold you receive (loot, overkill, harvest, card gold). Item locking in the shop is permanently disabled."],
-  nekromanten_pakt: ["Necromancer's Pact", "All healing becomes 0. Instead, a random enemy takes double the amount as damage (outside combat it fizzles)."], wuchernde_wurzeln: ["Overgrown Roots", "End of turn: heal 1 HP per card in hand. Hand size -2."],
-  ritterschwur: ["Knight's Oath", "Block card played: 2 damage to an enemy (max. 4/turn)."], eisenwall: ["Iron Wall", "From 4 Block tags: ALL cards +20% damage."], siegerhelm: ["Victor's Helm", "Enemy defeated: 4 Block and 2 HP (max. 2/turn)."],
-  sperrfeuer: ["Suppressing Fire", "Ranged card played: 1 damage to ALL (max. 4/turn)."], windlaeufer: ["Windrunner", "First turn of every combat: dodge 1 hit. Ranged cards: +1 damage."],
-  meisterschuetze: ["Marksman", "Start of combat: all enemies marked for 2 turns. From 5 Ranged tags: Ranged cards +30% damage."],
-  arkane_feder: ["Arcane Quill", "Spell cards: +2 damage. Spell card played: 15% chance for +1 Energy (max. 1/turn)."], elementarkompass: ["Elemental Compass", "Start of combat: draw 2 cards. Reaction: draw 1 card (max. 1/turn)."],
-  prismakrone: ["Prism Crown", "Reactions +50%. Reaction: heal 2 HP (max. 2/turn)."], glutherz: ["Ember Heart", "You are hit: all enemies 2 Burn (max. 2/turn)."], schmerzkelch: ["Chalice of Pain", "Start of turn: -2 HP. Fire cards +4 damage."],
-  phoenixblut: ["Phoenix Blood", "Start of combat: heal 8 HP. Fire card played: 1 Burn on ALL (max. 2/turn)."], goldener_zahn: ["Golden Tooth", "+20% Gold, Harvest 1."],
-  bankier: ["Banker", "All cards: +1 base damage per 40 Gold you own (max. +12)."], kronjuwelen: ["Crown Jewels", "+50% Gold, Harvest 3."], gruener_daumen: ["Green Thumb", "Plant cards: +2 damage. Heal 3 HP after every combat."],
-  erntekorb: ["Harvest Basket", "Plant card played: heal 1 HP (max. 3/turn)."], weltenbaum: ["World Tree", "+10 Max HP. Start of turn: heal 1 HP per Plant tag (max. 3)."],
-  kraftring: ["Power Ring", "+4% Damage."], kriegsbemalung: ["War Paint", "+8% Damage, -1 Armor."], gewichtsweste: ["Weighted Vest", "+3 Armor, -5% Dodge."], federstiefel: ["Feather Boots", "+10% Dodge, -1 Armor."],
-  wuchtgurt: ["Power Belt", "+3 Melee Damage, -3% Dodge."], heilkraut: ["Healing Herb", "+2 Regeneration, +2 Max HP."], stahlhaut: ["Steel Skin", "+2 Armor, +6 Max HP."], sparbuch: ["Savings Book", "+2 Harvest, -2% Damage."],
-  scharfes_auge: ["Sharp Eye", "+8% Crit Chance, +1 Ranged Damage."], elementarfokus: ["Elemental Focus", "+3 Elemental Damage, -1 Armor."], blutdurstamulett: ["Bloodlust Amulet", "+5% Lifesteal, -6 Max HP."], glueckskeks: ["Fortune Cookie", "+3 Luck, +1 Harvest."],
-  kampfnarben: ["Battle Scars", "+6% Crit Chance, +3% Damage."], schattenmantel: ["Shadow Cloak", "+8% Dodge, +4% Crit Chance."], panzerfaust: ["Armor Fist", "All cards: +1 damage per 3 Armor (max. +6)."], glueckspilz: ["Lucky Mushroom", "All cards: +1 damage per 3 Luck (max. +6)."],
-  schattenklinge: ["Shadow Blade", "All cards: +1 damage per 4% Dodge (max. +6)."], rotes_siegel: ["Red Seal", "+10% Damage, +4% Lifesteal, -10 Max HP."], koenigsring: ["King's Ring", "+4 Luck, +2 Harvest, +5% Damage, -1 Armor."],
+  quellstein: ["Ocean Shard", "Water cards: +2 damage."], gezeitenperle: ["Moontide Pearl", "Water card played: 3 Block (max. 4/turn)."], treibholz: ["Shipwreck Splinter", "First turn of every combat: 2 Block per Water tag (max. 8)."],
+  dornenring: ["Rose Ring", "Plant cards: +2 damage."], sporenbeutel: ["Mycelium Pouch", "Plant card played: 1 Poison on an enemy (max. 3/turn)."], wurzelherz: ["Seed of Life", "Start of turn: heal 1 HP per Plant tag (max. 2)."],
+  eisenpanzer: ["Blacksteel Vest", "First turn of every combat: 4 Block."], vielfaltsmedaille: ["S-Rank Badge", "All cards: +1 damage per different type in your build (max. +3)."],
+  kleeblatt: ["Five-Leaf Clover", "+2 Luck (better rarities in rewards)."], glueckswuerfel: ["Gambler's Dice", "+4 Luck (better rarities in rewards)."], prismalinse: ["Truth Lens", "Elemental resistances are ignored."],
+  jaegerauge: ["Scarlet Eyes", "Elemental weaknesses hit harder (x1.5 becomes x1.75)."], lederweste: ["Hunter's Vest", "+8 Max HP."], eisenhelm: ["Gate Raid Helmet", "First turn of every combat: 6 Block."],
+  muenzbeutel: ["Guild Allowance", "+15% Gold."], feldflasche: ["Konbini Tea", "Heal 5 HP after every combat."], hasenpfote: ["Lucky Cat", "+1 Luck, +10% Gold."], wetzstein: ["Swordsmith Stone", "Melee cards: +1 damage."],
+  notfallration: ["Onigiri Ration", "Heal 5 HP at the start of combat."], rucksack: ["Inventory Pouch", "+1 card in hand."], ledergurt: ["Tool Belt", "+4 Max HP. First turn of every combat: 3 Block."],
+  dornenruestung: ["Spiked Exoskeleton", "Whoever hits you takes 3 damage."], kampfhorn: ["Gate Siren", "Start of combat: all enemies 1 Vulnerable."], adrenalinpumpe: ["Emergency Injector", "Enemy defeated: draw 1 card (max. 2/turn)."],
+  beutegier: ["Predator Instinct", "Enemy defeated: heal 2 HP (max. 3/turn)."], kriegstrommel: ["War Taiko", "Start of turn: 25% chance for +1 Energy."], echostein: ["Hanafuda Earrings", "Card played: 15% chance to draw 1 card (max. 2/turn)."],
+  meisterhammer: ["Smith King's Hammer", "Melee cards: +20% damage."], taschenuhr: ["Time-Stop Watch", "Start of turn: 30% chance to draw 1 card."], energiekristall: ["Unstable Mana Core", "+1 Energy per turn, but 1 fewer card in hand and -8 Max HP."],
+  blutpakt: ["Geass Contract", "+1 Energy, -20 Max HP."], glaskanone: ["Fragile Power", "+40% damage, -15 Max HP."], goldene_waage: ["Merchant's Gold Scale", "+40% Gold."], kartenhaus: ["Joker Card Deck", "+2 cards in hand, -8 Max HP."],
+  schillernder_charme: ["Chromatic Amulet", "Doubles your Shiny chance (second charm: triples it)."], phoenixfeder: ["Blue Phoenix", "+10 Max HP, heal 12 HP after every combat."],
+  funkenfeuerzeug: ["Pyromaniac's Lighter", "Fire card played: 30% chance for 3 damage to an enemy."], lavaruestung: ["Magma Plate", "When you are hit: 2 damage to ALL (max. 2/turn)."],
+  glutschale: ["Brazier", "First turn of every combat: 2 Block per Fire tag (max. 8)."], aschemantel: ["Ashen Mantle", "From 4 Fire tags: Fire cards +3 damage."], glutstein: ["Ember Crystal", "Fire cards: +2 damage."],
+  schmiedeherz: ["Heart of the Forge", "Fire cards: +1 damage per Fire tag (max. +4)."], flammenkrone: ["Flame King's Crown", "From 6 Fire tags: Fire cards +25% damage."], giftzahn: ["Hydra Fang", "Poison cards: +2 damage."],
+  schierlingsflasche: ["Apothecary Vial", "Start of turn: 2 Poison on a random enemy."], miasmaflasche: ["Miasma Jar", "Poison applied: 30% chance for 2 damage (max. 4/turn)."],
+  leichengift: ["Decay Essence", "Enemy defeated: 2 Poison on ALL others (max. 3/turn)."], apothekerwaage: ["Alchemist's Mortar", "From 4 Poison tags: ALL cards +20% damage."],
+  seuchenkoenig: ["Plague King", "Poison applied: 1 Poison on ALL enemies (max. 2/turn)."], giftring: ["Scorpion Ring", "Poison card played: 1 Poison on a random enemy (max. 2/turn)."],
+  seuchenbeutel: ["Plague Talisman", "Poison applied: target becomes 1 Vulnerable (max. 2/turn)."], blutegel: ["Parasite", "Bleed applied: heal 1 HP (max. 3/turn)."], rasiermesser: ["Death Razor", "Blood cards: +2 damage."],
+  vampirzahn: ["Nosferatu Fang", "Enemy defeated: heal 4 HP (max. 2/turn)."], dornenkrone: ["Crown of Suffering", "Whoever hits you bleeds (3 Bleed, max. 3/turn)."], blutmond: ["Crimson Full Moon", "From 4 Blood tags: Blood cards +25% damage."],
+  opferdolch: ["Ritual Tanto", "Start of turn: -2 HP. All cards +4 damage."], blutkelch: ["Bloodnight Chalice", "Bleed applied: 2 damage (max. 4/turn)."], raureif: ["Ice Breath", "First turn of every combat: 2 Block per Ice tag (max. 8)."],
+  eiszapfen: ["Ice Lance", "Ice card played: 2 damage (max. 4/turn)."], schneekugel: ["Winter Globe", "End of turn: 50% chance to give all enemies 1 Chill."],
+  kaelteamulett: ["Snow Woman Amulet", "Enemies freeze at just 2 Chill. From 4 Ice tags: Ice cards +25% damage."], herz_des_winters: ["Ice Monarch Heart", "Start of combat: all enemies 2 Chill and 2 Vulnerable. Ice cards +3 damage."],
+  eiskristall: ["Frozen Tear", "Ice cards: +2 damage."], frostherz: ["Cold Heart", "Ice card played: 1 Chill on an enemy (max. 2/turn)."], koecher: ["Reishi Quiver", "Ranged cards: +1 damage."],
+  munitionsgurt: ["Bandolier", "Start of turn: 35% chance to draw 1 card."], adlerauge: ["Falcon's Gaze", "Start of combat: all enemies marked for 2 turns."], leichtfuessig: ["Cloud Step", "First turn of every combat: dodge 2 hits."],
+  jagdzeichen: ["Hunter License", "Ranged card played: 30% chance to mark an enemy."], zielfernrohr: ["Sniper Visor", "From 6 Ranged tags: Ranged cards +25% damage."], grimoire: ["Guild Grimoire", "Spell cards: +1 damage."],
+  funkenschlag: ["Static Pulse", "Reaction: 2 damage to ALL (max. 3/turn)."], gedankenstein: ["Telepathy Stone", "Reaction: draw 1 card (max. 2/turn)."], resonanzkristall: ["Resonance Core", "Reactions are 50% stronger."],
+  manaquelle: ["Well of Magic", "Reaction: +1 Energy (once per turn)."], elementarlinse: ["Elemental Prism", "Reactions +30%. Reaction: 3 Block (max. 2/turn). For all classes!"],
+  feuerflasche: ["Firebomb Flask", "Active (1 Energy, once per combat): 6 fire damage to ALL."], heiltrank: ["Senzu Bean", "Active (1 Energy, once per combat): heal 12 HP."],
+  rauchbombe: ["Ninja Smoke Bomb", "Active (1 Energy, once per combat): dodge 3 hits. 4 Block."], giftphiole: ["Toxin Ampoule", "Active (1 Energy, once per combat): 6 Poison on ALL enemies."],
+  frostphiole: ["Cold Capsule", "Active (1 Energy, once per combat): 4 ice damage and 2 Vulnerable to ALL."], blutampulle: ["Berserker Ampoule", "Active (1 Energy, once per combat): 10 damage and 5 Bleed on one target."],
+  schlachtrufrolle: ["War Scroll", "Active (1 Energy, once per combat): all enemies marked for 3 turns and 1 Vulnerable."],
+  prismasplitter: ["Rainbow Shard", "Active (2 Energy, once per combat): 4 damage each to ALL in Fire, Water, Plant and Ice."], phoenixasche: ["Rebirth Ash", "Active (2 Energy, once per combat): heal 20 HP, 10 Block and +1 Energy."],
+  narbenleder: ["Scarred Hide", "Bleed applied: 2 Block (max. 3x/turn)."], stachelschild: ["Spiked Buckler", "Start of turn: Thorns 1 (attackers take 1 damage)."], eisenfaust: ["Steel Knuckles", "Block cards: +3 damage."],
+  pech_raeucherstaebchen: ["Cursed Incense", "Fire cards: +3 damage. End of turn: you take 1 damage."], asche_lunge: ["Ashen Lungs", "When you lose HP: all foes get 3 Burn. Healing on you is reduced by 50%."],
+  krone_des_maertyrers: ["Martyr's Halo", "Damage x0.1 per 5 HP you are missing from your maximum (cap x3). -10 Max HP."], erntesichel: ["Reaper's Sickle", "Harvest 2: +2 Gold after every combat."],
+  vorratskammer: ["Konbini Stockroom", "Harvest 4: +4 Gold after every combat."], boerse_des_geizkragens: ["Miser's Wallet", "All cards: +1 base damage per 50 Gold you own (max. +15)."],
+  midas_fluch: ["Golden Touch", "Doubles all Gold you receive (loot, overkill, harvest, card gold). Item locking in the shop is permanently disabled."],
+  nekromanten_pakt: ["Skeleton King's Pact", "All healing becomes 0. Instead, a random enemy takes double the amount as damage (outside combat it fizzles)."], wuchernde_wurzeln: ["Living Forest", "End of turn: heal 1 HP per card in hand. Hand size -2."],
+  ritterschwur: ["Hunter's Oath", "Block card played: 2 damage to an enemy (max. 4/turn)."], eisenwall: ["Wall Fragment", "From 4 Block tags: ALL cards +20% damage."], siegerhelm: ["Trophy Helm", "Enemy defeated: 4 Block and 2 HP (max. 2/turn)."],
+  sperrfeuer: ["Suppression Module", "Ranged card played: 1 damage to ALL (max. 4/turn)."], windlaeufer: ["Windrunner Boots", "First turn of every combat: dodge 1 hit. Ranged cards: +1 damage."],
+  meisterschuetze: ["Marksman Order", "Start of combat: all enemies marked for 2 turns. From 5 Ranged tags: Ranged cards +30% damage."],
+  arkane_feder: ["Grimoire Quill", "Spell cards: +2 damage. Spell card played: 15% chance for +1 Energy (max. 1/turn)."], elementarkompass: ["Mana Compass", "Start of combat: draw 2 cards. Reaction: draw 1 card (max. 1/turn)."],
+  prismakrone: ["Archmage Diadem", "Reactions +50%. Reaction: heal 2 HP (max. 2/turn)."], glutherz: ["Pyro Core", "You are hit: all enemies 2 Burn (max. 2/turn)."], schmerzkelch: ["Chalice of Agony", "Start of turn: -2 HP. Fire cards +4 damage."],
+  phoenixblut: ["Immortal Blood", "Start of combat: heal 8 HP. Fire card played: 1 Burn on ALL (max. 2/turn)."], goldener_zahn: ["Gold-Tooth Grin", "+20% Gold, Harvest 1."],
+  bankier: ["Black Credit Card", "All cards: +1 base damage per 40 Gold you own (max. +12)."], kronjuwelen: ["House Jewels", "+50% Gold, Harvest 3."], gruener_daumen: ["Nature's Hand", "Plant cards: +2 damage. Heal 3 HP after every combat."],
+  erntekorb: ["Basket of Plenty", "Plant card played: heal 1 HP (max. 3/turn)."], weltenbaum: ["Yggdrasil Branch", "+10 Max HP. Start of turn: heal 1 HP per Plant tag (max. 3)."],
+  kraftring: ["Strength Band", "+4% Damage."], kriegsbemalung: ["War Tattoo", "+8% Damage, -1 Armor."], gewichtsweste: ["Training Weights", "+3 Armor, -5% Dodge."], federstiefel: ["Sprint Sneakers", "+10% Dodge, -1 Armor."],
+  wuchtgurt: ["Champion Belt", "+3 Melee Damage, -3% Dodge."], heilkraut: ["Herb Bundle", "+2 Regeneration, +2 Max HP."], stahlhaut: ["Iron Body Technique", "+2 Armor, +6 Max HP."], sparbuch: ["Budget Ledger", "+2 Harvest, -2% Damage."],
+  scharfes_auge: ["Targeting Monocle", "+8% Crit Chance, +1 Ranged Damage."], elementarfokus: ["Focus Crystal", "+3 Elemental Damage, -1 Armor."], blutdurstamulett: ["Bloodthirst Pendant", "+5% Lifesteal, -6 Max HP."], glueckskeks: ["Omikuji Slip", "+3 Luck, +1 Harvest."],
+  kampfnarben: ["Veteran Scars", "+6% Crit Chance, +3% Damage."], schattenmantel: ["Shadow Monarch Cloak", "+8% Dodge, +4% Crit Chance."], panzerfaust: ["Titan Fist", "All cards: +1 damage per 3 Armor (max. +6)."], glueckspilz: ["Toadstool Talisman", "All cards: +1 damage per 3 Luck (max. +6)."],
+  schattenklinge: ["Shadow Kunai", "All cards: +1 damage per 4% Dodge (max. +6)."], rotes_siegel: ["Crimson Seal", "+10% Damage, +4% Lifesteal, -10 Max HP."], koenigsring: ["Royal Signet Ring", "+4 Luck, +2 Harvest, +5% Damage, -1 Armor."],
   wetzstein: ["Whetstone", "+2 Melee Damage."], koecher: ["Quiver", "+2 Ranged Damage."], grimoire: ["Grimoire", "+2 Elemental Damage."], lederweste: ["Leather Vest", "+8 Max HP, +1 Armor."], eisenpanzer: ["Iron Armor", "+2 Armor. First turn of every combat: 4 Block."],
   eisenhelm: ["Iron Helmet", "+1 Armor. First turn of every combat: 6 Block."], vampirzahn: ["Vampire Fang", "+3% Lifesteal. Enemy defeated: heal 4 HP (max. 2/turn)."], leichtfuessig: ["Light-Footed", "+6% Dodge. First turn of every combat: dodge 2 hits."],
   adlerauge: ["Eagle Eye", "+6% Crit Chance. Start of combat: all enemies marked for 2 turns."], dornenruestung: ["Spiked Mail", "+1 Armor. Whoever hits you takes 3 damage."],
-  gutschein: ["Coupon", "-10% shop prices."], handelsabkommen: ["Trade Deal", "-20% shop prices, +1 Harvest."], wuerfelbecher: ["Dice Cup", "1 free reroll per shop, reroll price -50%."], gluecksrad: ["Wheel of Fortune", "2 free rerolls per shop, +2 Luck."],
-  drachentoeter: ["Dragon Slayer", "+25% damage vs bosses, guardians and elites."], henkersbeil: ["Executioner's Axe", "+50% damage vs bosses, guardians and elites, -1 Armor."], schlangengift: ["Snake Venom", "Poison ticks for +1 more damage."], gluthoel: ["Ember Oil", "Burn ticks for +1 more damage."],
-  dornenwein: ["Thorn Wine", "Bleed ticks for +1 more damage."], kraeutertee: ["Herbal Tea", "+25% healing."], lebensquell: ["Life Spring", "+50% healing, +1 Regeneration."], goldwaescher: ["Gold Panner", "15% chance that a combat's Gold reward is doubled."],
-  gluecksmuenze: ["Lucky Coin", "10% Double Gold chance, +1 Luck."], verfluchter_dolch: ["Cursed Dagger", "+15 Curse (stronger enemies, more Gold and better loot), +14% Damage."], fluchsiegel: ["Curse Seal", "+8 Curse, +2 Luck, +1 Harvest."], daemonenpakt: ["Demon Pact", "+25 Curse, +20% Damage, +2 Armor."],
+  gutschein: ["Guild Coupon", "-10% shop prices."], handelsabkommen: ["Merchant Accord", "-20% shop prices, +1 Harvest."], wuerfelbecher: ["Gacha Capsule", "1 free reroll per shop, reroll price -50%."], gluecksrad: ["Wheel of Fate", "2 free rerolls per shop, +2 Luck."],
+  drachentoeter: ["Dragonslayer", "+25% damage vs bosses, guardians and elites."], henkersbeil: ["Executioner's Guillotine", "+50% damage vs bosses, guardians and elites, -1 Armor."], schlangengift: ["Serpent Toxin", "Poison ticks for +1 more damage."], gluthoel: ["Burning Oil", "Burn ticks for +1 more damage."],
+  dornenwein: ["Crimson Wine", "Bleed ticks for +1 more damage."], kraeutertee: ["Calming Tea", "+25% healing."], lebensquell: ["Fountain of Youth", "+50% healing, +1 Regeneration."], goldwaescher: ["Prospector's Pan", "15% chance that a combat's Gold reward is doubled."],
+  gluecksmuenze: ["Five-Yen Coin", "10% Double Gold chance, +1 Luck."], verfluchter_dolch: ["Muramasa Dagger", "+15 Curse (stronger enemies, more Gold and better loot), +14% Damage."], fluchsiegel: ["Curse Ofuda", "+8 Curse, +2 Luck, +1 Harvest."], daemonenpakt: ["Demon Lord Pact", "+25 Curse, +20% Damage, +2 Armor."],
   herz_der_vollendung: ["Core of Completion", "The reward for 100%: +10% Damage, +2 Armor, +3 Luck, +2 Regeneration, +6% Crit, +15 Max HP, +2 Harvest."],
 };
 
@@ -1968,6 +2058,9 @@ const EN_UI = {
   "Fähigkeit": "Ability", "BEREIT": "READY", "Keine Fähigkeit gewählt": "No ability chosen",
   "Fähigkeiten": "Abilities", "Maximale Stufe": "Max level", "Fähigkeit verbessert": "Ability upgraded", "Fähigkeiten werden nur hier verbessert: durch Aufgaben mit der jeweiligen Fähigkeit, nie während eines Runs.": "Abilities are only upgraded here: by tasks with that ability, never during a run.",
   "Sieg!": "Victory!", "Niederlage": "Defeat",
+  "Lebensraub": "Lifesteal", "Schaden": "Damage", "Krit-Chance": "Crit Chance", "Ausweichen": "Dodge", "Gold": "Gold", "Preise": "Prices", "Reroll-Preis": "Reroll price", "Schaden gegen Bosse": "Damage vs bosses", "Heilung": "Healing", "Doppel-Gold": "Double Gold", "Reaktionen": "Reactions",
+  "Wird behalten": "Will be kept", "Am Zugende behalten": "Keep at end of turn", "Gratis": "Free",
+  "Empfohlenes Deck": "Recommended deck", "Neu wählen": "Choose again", "Dein Startdeck steht. Mit Aufbrechen beginnt der Run.": "Your starting deck is set. Set out to begin the run.", "Weiter": "Next",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -1989,6 +2082,8 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^Dein Startdeck: Karte (\d+) von (\d+)$/, (t, a, b) => `Your starting deck: card ${a} of ${b}`],
+  [/^([+-]?\d+%?) (Max-HP|Regeneration|Lebensraub|Schaden|Nahkampfschaden|Fernkampfschaden|Elementarschaden|Krit-Chance|Rüstung|Ausweichen|Glück|Ernte|Energie|Handkarten|Gold|Block\/Zug|Shiny-Chance|Reaktionen|Einfrier-Hilfe|Preise|Reroll-Preis|Freie Rerolls|Schaden gegen Bosse|Gift-Stärke|Brenn-Stärke|Blutungs-Stärke|Heilung|Doppel-Gold|Fluch)$/, (t, v, s) => `${v} ${t(s)}`],
   [/^Stufe (\d+)\/(\d+)$/, (t, a, b) => `Level ${a}/${b}`], [/^(.+) ist jetzt Stufe (\d+)\.$/, (t, n, l) => `${n} is now level ${l}.`], [/^([\d.,]+) \/ ([\d.,]+) · Belohnung: (.+)$/, (t, a, b, r) => `${a} / ${b} · Reward: ${r}`],
   [/^(.+) · St\. (\d+)$/, (t, n, l) => `${n} · Lv ${l}`], [/^Noch (\d+) Züge Cooldown$/, (t, n) => `${n} more turns of cooldown`],
   [/^(Items|Waffen|Gegner): (\d+) von (\d+) entdeckt · (\d+) Shiny$/, (t, k, a, b, c) => `${t(k)}: ${a} of ${b} discovered · ${c} Shiny`], [/^Freigeschaltet am (.+)$/, (t, d) => `Unlocked on ${d}`],
@@ -2125,14 +2220,21 @@ const CLASS_ART = { nahkaempfer: "nahkaempfer", fernkaempfer: "fernkaempfer", ma
 
 // Werte (Brotato-Richtung): Kernwerte in fester Reihenfolge, dazu Spezialwerte der Items
 const CORE_STATS = ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"];
-const STAT_LABELS = { maxHp: "Max-HP", regen: "Regeneration", lifesteal: "Lebensraub %", damagePct: "Schaden %", meleeDmg: "Nahkampfschaden", rangedDmg: "Fernkampfschaden", elementDmg: "Elementarschaden", crit: "Krit-Chance %", armor: "Rüstung", dodge: "Ausweichen %", luck: "Glück", ernte: "Ernte",
-  energy: "Energie", handSize: "Handkarten", goldPct: "% Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "% Reaktionen", freezeEase: "Einfrier-Hilfe", priceMod: "Preise %", rerollMod: "Reroll-Preis %", freeRerolls: "Freie Rerolls", bossDmg: "Schaden gegen Bosse %", poisonPower: "Gift-Stärke", burnPower: "Brenn-Stärke", bleedPower: "Blutungs-Stärke", healPct: "Heilung %", doubleChance: "Doppel-Gold %", curse: "Fluch" };
+const STAT_LABELS = { maxHp: "Max-HP", regen: "Regeneration", lifesteal: "Lebensraub", damagePct: "Schaden", meleeDmg: "Nahkampfschaden", rangedDmg: "Fernkampfschaden", elementDmg: "Elementarschaden", crit: "Krit-Chance", armor: "Rüstung", dodge: "Ausweichen", luck: "Glück", ernte: "Ernte",
+  energy: "Energie", handSize: "Handkarten", goldPct: "Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "Reaktionen", freezeEase: "Einfrier-Hilfe", priceMod: "Preise", rerollMod: "Reroll-Preis", freeRerolls: "Freie Rerolls", bossDmg: "Schaden gegen Bosse", poisonPower: "Gift-Stärke", burnPower: "Brenn-Stärke", bleedPower: "Blutungs-Stärke", healPct: "Heilung", doubleChance: "Doppel-Gold", curse: "Fluch" };
+const PCT_STATS = new Set(["lifesteal", "damagePct", "crit", "dodge", "goldPct", "shiny", "reaction", "priceMod", "rerollMod", "bossDmg", "healPct", "doubleChance"]);
+const fmtVal = (k, v) => `${v > 0 ? "+" : ""}${v}${PCT_STATS.has(k) ? "%" : ""}`;                       // +3% bzw. -2 (Prozent direkt am Wert)
+const fmtStat = (k, v) => `${fmtVal(k, v)} ${STAT_LABELS[k] ?? k}`;                                       // +3% Lebensraub
+const STAT_ICON = { maxHp: "heart", regen: "s_regen", lifesteal: "s_drop", damagePct: "s_up", meleeDmg: "s_fist", rangedDmg: "s_arrow", elementDmg: "s_orb", crit: "s_crit", armor: "shield", dodge: "wind", luck: "s_clover", ernte: "s_wheat",
+  energy: "bolt", handSize: "pile", goldPct: "coin", blockStart: "shield", shiny: "star", reaction: "s_orb", freezeEase: "snow", priceMod: "coin", rerollMod: "s_dice", freeRerolls: "s_dice", bossDmg: "skull", poisonPower: "poison", burnPower: "flame", bleedPower: "blood", healPct: "plus", doubleChance: "s_coins", curse: "s_curse" };
+
 const STAT_DESC = { maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
 const TIER_NAME = ["I", "II", "III", "IV"];
 const TIER_COLOR = ["#9aa0a6", "#4a8fd8", "#a45bd6", "#e8a33d"];
 
 const NODE_INFO = { kampf: "Normale Gegner. Du bekommst Gold, eine Karte zur Wahl und manchmal ein Item.", elite: "Ein starker Gegner. Dafür gibt es mehr Gold und sicher ein Item.", miniboss: "Ein sehr starker Gegner. Dafür gibt es eine Waffe zur Wahl, ein Item und viel Gold.",
   rast: "Ein Lagerfeuer: Heile dich oder entferne eine Karte aus deinem Deck.", haendler: "Hier kaufst du Karten, Items und Dienste (Verband, Stärkungstrank). Gold ausgeben lohnt sich.", ereignis: "Eine Begegnung mit einer Wahl. Sie kann dir nützen oder etwas kosten.", boss: "Der Endboss. Besiegst du ihn, gewinnst du den Run." };
+
 
 __exports.elementColor = elementColor;
 __exports.elementName = elementName;
@@ -2143,54 +2245,14 @@ __exports.RARITY = RARITY;
 __exports.CLASS_ART = CLASS_ART;
 __exports.CORE_STATS = CORE_STATS;
 __exports.STAT_LABELS = STAT_LABELS;
+__exports.PCT_STATS = PCT_STATS;
+__exports.fmtVal = fmtVal;
+__exports.fmtStat = fmtStat;
+__exports.STAT_ICON = STAT_ICON;
 __exports.STAT_DESC = STAT_DESC;
 __exports.TIER_NAME = TIER_NAME;
 __exports.TIER_COLOR = TIER_COLOR;
 __exports.NODE_INFO = NODE_INFO;
-
-});
-__define("engine/rng.js", function (__exports, __require) {
-// Zufall mit Seed: gleicher Seed = gleicher Run (wichtig für Tests und "Daily Seeds").
-const { CONFIG } = __require("data/config.js");
-
-function createRng(seed = Date.now()) {
-  let s = seed >>> 0;
-  const next = () => { // mulberry32
-    s = (s + 0x6D2B79F5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  return {
-    next,
-    state: () => s,                       // für Savegames: createRng(state) setzt den Strom fort
-    pick: (arr) => arr[Math.floor(next() * arr.length)],
-    shuffle: (arr) => {
-      const a = [...arr];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(next() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    },
-    // entries: [{ value, weight }]
-    weighted: (entries) => {
-      const total = entries.reduce((sum, e) => sum + e.weight, 0);
-      let r = next() * total;
-      for (const e of entries) { r -= e.weight; if (r < 0) return e.value; }
-      return entries[entries.length - 1].value;
-    },
-  };
-}
-
-// Würfelt eine Seltenheit anhand der Gewichte aus der Config.
-function rollRarity(rng, table = CONFIG.rarities) {
-  return rng.weighted(Object.entries(table).map(([value, { weight }]) => ({ value, weight })));
-}
-
-__exports.createRng = createRng;
-__exports.rollRarity = rollRarity;
 
 });
 __define("engine/map.js", function (__exports, __require) {
@@ -2575,7 +2637,7 @@ function startPlayerTurn(s) {
   fx(s, { t: "turn", n: s.turn });
   emit(s, "on_turn_start", {}, 0);
   s.player.block = Math.min(s.player.block, CONFIG.balance.maxTurnStartBlock);          // Gratis-Block pro Zug ist gedeckelt (Block aus Karten nicht)
-  draw(s, Math.max(1, CONFIG.player.handSize + s.build.stats.handSize));
+  draw(s, Math.max(1, CONFIG.player.handSize + s.build.stats.handSize + (s.turn === 1 ? CONFIG.player.openingDraw ?? 0 : 0) - s.piles.hand.length));          // behaltene Karten zählen zur Handgröße
 }
 
 // ---------------------------------------------------------------- Schaden / Status
@@ -2952,6 +3014,12 @@ function playCard(s, handIndex, targetUid) {
   return { ok: true };
 }
 
+function toggleKeep(s, index) {                                                       // eine Karte zum Behalten markieren (höchstens eine)
+  const card = s.piles.hand[index];
+  if (s.result || !card) return { ok: false, reason: "Keine Karte" };
+  const was = card.keep; s.piles.hand.forEach((c) => { c.keep = false; }); card.keep = !was;
+  return { ok: true, keep: card.keep };
+}
 function endPlayerTurn(s) {
   if (s.result) return;
   emit(s, "on_turn_end", {}, 0);
@@ -2961,8 +3029,10 @@ function endPlayerTurn(s) {
   }
   checkProgress(s);
   if (s.result) return;
-  s.piles.discard.push(...s.piles.hand);
-  s.piles.hand = [];
+  const kept = s.piles.hand.filter((c) => c.keep);                                       // "Behalten": eine markierte Karte bleibt auf der Hand und belegt dort einen Platz
+  s.piles.discard.push(...s.piles.hand.filter((c) => !c.keep));
+  s.piles.hand = kept; kept.forEach((c) => { c.keep = false; });
+  if (kept.length) log(s, `  Behalten: ${kept.map((c) => c.def.name).join(", ")}`);
   enemyPhase(s);
   if (!s.result) startPlayerTurn(s);
 }
@@ -3048,6 +3118,7 @@ __exports.abilityNeedsAttack = abilityNeedsAttack;
 __exports.useAbility = useAbility;
 __exports.useItem = useItem;
 __exports.playCard = playCard;
+__exports.toggleKeep = toggleKeep;
 __exports.endPlayerTurn = endPlayerTurn;
 
 });
@@ -3466,13 +3537,14 @@ const slot = (rng, kind, def, inflation = 1) => ({
   price: priceFor(rng, kind, def, inflation), sold: false,
 });
 // Karten-Schredder: 50 Gold, pauschal +25 Gold für jede bereits entfernte Karte in diesem Run (Shop und Rast zusammen)
-const removalCost = (removed) => CONFIG.shop.removeBase + CONFIG.shop.removeIncrement * removed;
+const removalCost = (removed) => (removed === 0 ? 0 : CONFIG.shop.removeBase + CONFIG.shop.removeIncrement * (removed - 1));       // das erste Entfernen im Run ist gratis
 
 // Startladen nach dem ersten Kampf: halbe Preise, die Grundkarten der Klasse (z. B. Schild) fest dabei, sonst nur einfache Ware
 function generateStartShop(ctx) {
   const S = CONFIG.shop, cls = CONTENT.classes[ctx.classId];
   const cheap = (kind, def) => ({ ...slot(ctx.rng, kind, def), price: Math.max(5, Math.round((priceFor(ctx.rng, kind, def) * S.startDiscount) / 5) * 5) });
   const basics = cls.shopBasics.map((id) => ({ ...cheap("cards", CONTENT.get("cards", id)), fixed: true }));
+  const core = cls.coreCards.map((id) => ({ ...slot(ctx.rng, "cards", CONTENT.get("cards", id)), price: 0, core: true }));          // Kernkarten: eine davon gratis
   const pickPlain = (kind, rarities, n, exclude) => {                                   // zufällig aus einfachen Seltenheiten, ohne Wiederholung
     const out = [], taken = new Set(exclude);
     for (let i = 0; i < n; i++) {
@@ -3482,9 +3554,9 @@ function generateStartShop(ctx) {
     }
     return out;
   };
-  const cards = pickPlain("cards", ["gewoehnlich"], Math.max(0, S.cardSlots - basics.length), cls.shopBasics).map((d) => cheap("cards", d));
-  const items = pickPlain("items", ["gewoehnlich", "ungewoehnlich"], S.itemSlots, maxedItems(ctx.build)).map((d) => cheap("items", d));
-  return { cards: [...basics, ...cards], items, removeCost: S.removeBase, removals: 0, rerollCost: S.rerollBase, rerolls: 0, start: true };
+  const cards = pickPlain("cards", ["gewoehnlich"], Math.max(0, S.cardSlots - basics.length - core.length), [...cls.shopBasics, ...cls.coreCards]).map((d) => cheap("cards", d));
+  const items = pickPlain("items", ["gewoehnlich"], S.itemSlots, maxedItems(ctx.build)).map((d) => cheap("items", d));
+  return { cards: [...core, ...basics, ...cards], items, removeCost: removalCost(ctx.removedCards ?? 0), removals: 0, rerollCost: S.rerollBase, rerolls: 0, start: true };
 }
 
 function generateShop(ctx, quick = false) {
@@ -3508,7 +3580,7 @@ function generateShop(ctx, quick = false) {
 function rerollShop(shop, ctx, run) {
   const free = (shop.freeRerolls ?? 0) > 0;                                       // freie Rerolls (Wert) zuerst, ohne dass die Kosten steigen
   if (!free && run.gold < shop.rerollCost) return { ok: false, reason: "Zu wenig Gold" };
-  if (free) shop.freeRerolls--; else { run.gold -= shop.rerollCost; shop.rerollCost *= CONFIG.shop.rerollMult; }
+  if (free) shop.freeRerolls--; else { run.gold -= shop.rerollCost; shop.rerollCost = Math.round(shop.rerollCost * CONFIG.shop.rerollMult); }
   shop.rerolls++;
   const infl = ctx.inflation ?? 1;
   const shown = new Set([...shop.cards, ...shop.items].map((s) => baseOf(s.id)));
@@ -3580,6 +3652,7 @@ __define("engine/run.js", function (__exports, __require) {
 // Ablauf: availableNodes -> enterNode -> (Kampf spielen -> completeCombat -> takeCard/takeItem/... -> finishReward) usw.
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
+const { validStartDeck } = __require("engine/draft.js");
 const { createRng } = __require("engine/rng.js");
 const { generateMap, findNode } = __require("engine/map.js");
 const { resolveBuild } = __require("engine/modifiers.js");
@@ -3597,7 +3670,7 @@ const ok = (extra = {}) => ({ ok: true, ...extra });
 // Shiny-Held: wird beim Run-Start einmal gewürfelt (bewusst NICHT vom Seed abhängig, damit man keine Seeds "farmen" kann).
 const rollShinyHero = (rand = Math.random) => rand() < CONFIG.shiny.heroChance;
 
-function createRun({ ability, classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
+function createRun({ startDeck, ability, classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
   const cls = CONTENT.classes[classId];
   const startWeapon = cls.starterWeapons.includes(weapon) ? weapon : cls.weapon;      // jede Klasse darf jede Startwaffe wählen
   const rng = createRng(seed);
@@ -3605,7 +3678,7 @@ function createRun({ ability, classId = "nahkaempfer", seed = (Date.now() >>> 0)
     seed, classId, difficulty, meta, rng, shinyHero: Boolean(shinyHero),
     phase: "intro", map: generateMap(rng), nodeId: null,
     hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold + (cls.startGold ?? 0), removedCards: 0, frozenItems: [], flags: {},
-    deck: [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
+    deck: validStartDeck(startDeck, classId) ? [...startDeck] : [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
     ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
@@ -3894,6 +3967,7 @@ function shopBuy(run, kind, idx) {
   if (!res.ok) return res;
   run.stats.purchases = (run.stats.purchases ?? 0) + 1;
   if (kind === "cards") addCard(run, res.id); else addItem(run, res.id);
+  if (kind === "cards" && run.pending.shop.cards[idx].core) for (const s of run.pending.shop.cards) if (s.core) s.sold = true;          // nur eine Kernkarte gratis
   return res;
 }
 function shopService(run, id) {                                         // Dienste beim Händler: Verband und Stärkungstrank
@@ -6017,6 +6091,21 @@ const FX = {
   torch: S(["...", "..Y", "..o", "..O", "..o", "..n", "..N", "..n", "..N", "..n", "..n", "..n"]),
 };
 ICONS.thorns = S([".....i", "i....i", ".i.hhh", "..hhhi", "i.hhhg", "..hhgg", "..hhgg", "i.hhhg", "..hhhi", ".i.hhh", "i....i", ".....i"]);      // Dornen: Stachelkugel (eigenes Symbol, nicht mehr der Block-Schild)
+// Wert-Symbole (8x8): jedes Symbol sieht anders aus, damit Werte schneller erfasst werden
+Object.assign(ICONS, {
+  s_regen: A(["...FF...", "...FF...", "...FF...", "FFFFFFFF", "FFFFFFFF", "...FF...", "...FF...", "...FF..."]),
+  s_drop: A(["...RR...", "..RRRR..", "..RRRR..", ".RRwRRR.", ".RRwRRR.", ".RRRRRR.", "..RRRR..", "...RR..."]),
+  s_up: A(["...RR...", "..RRRR..", ".RRRRRR.", "RR.RR.RR", "...RR...", "...RR...", "...RR...", "........"]),
+  s_fist: A(["..SSSS..", ".SSSSSS.", "SSsSsSsS", "SSSSSSSS", "SSSSSSSS", ".SSSSSS.", "..hhhh..", "..hhhh.."]),
+  s_arrow: A(["......hh", ".....hhh", "...nhhh.", "..nnh...", ".nn.....", "wn......", "ww......", "w......."]),
+  s_orb: A(["..RRuu..", ".RRRuuu.", "RRRRuuuu", "RRRRuuuu", "ffffjjjj", "ffffjjjj", ".fffjjj.", "..ffjj.."]),
+  s_crit: A(["...Y....", "...Y..Y.", "Y.YYY.Y.", ".YYYYY..", "YYYwYYYY", ".YYYYY..", "Y.YYY.Y.", "...Y..Y."]),
+  s_clover: A(["..FF.FF.", ".FFFFFFF", "..FFGFF.", ".FFFFFFF", "..FF.FF.", "....F...", "...F....", "..F....."]),
+  s_wheat: A(["..Y..Y..", "..Y..Y..", ".YY..YY.", "..YYYY..", "...YY...", "...nn...", "...nn...", "...nn..."]),
+  s_dice: A(["hhhhhhhh", "hwwwwwwh", "hwkwwwwh", "hwwwwwwh", "hwwwkwwh", "hwwwwwwh", "hwwwwkwh", "hhhhhhhh"]),
+  s_coins: A(["..YY....", ".YzzY...", ".YzYzY..", ".YYzzYY.", "..YYYzY.", "...YzzY.", "....YY..", "........"]),
+  s_curse: A(["...Q....", "..QQ.Q..", "..QQQQ..", ".QQPPQQ.", ".QPPPPQ.", ".QPwPPQ.", "..QPPQ..", "...QQ..."]),
+});
 const ALL_ICONS = { ...ICONS, ...NODES, ...FX };
 
 __exports.ICONS = ICONS;
@@ -6178,6 +6267,8 @@ const bar = (frac, cls = "") => `<div class="bar ${cls}"><i style="width:${pctOf
 
 // ---------------------------------------------------------------- Karten
 // Kennzahlen einer Karte (aktueller Schaden inkl. Waffe und Items), als kleine Symbol-Zahl-Paare
+const nameLen = (n) => (n.length > 17 ? " n-xl" : n.length > 13 ? " n-l" : "");        // lange Namen bekommen automatisch kleinere Schrift
+const itemNameCls = nameLen;
 function cardChips(def, build, playsBefore = 0, ctx = {}) {
   const raw = [];
   for (const a of def.play) {
@@ -6214,8 +6305,9 @@ function cardHtml(def, o = {}) {
     : spr("icon", icon, { shiny: def.shiny, attrs: 'width="100%" height="100%"' });
   const glow = `rgba(${[1, 3, 5].map((i) => parseInt(el.slice(i, i + 2), 16)).join(",")},.38)`;
   return `<div class="card ${o.size ?? "sm"} ${def.shiny ? "shiny sh" : ""} ${o.selected ? "sel" : ""} ${o.dim ? "dim" : ""}" style="--el:${el};--rar:${rar[1]};--elg:${glow}"${o.action ? at(o.action, o.arg, o.arg2) : ""}>
-    <div class="c-top"><span class="c-cost">${ico("bolt", 12)}${def.cost}</span><span class="c-name">${esc(def.name)}</span></div>
+    <div class="c-top"><span class="c-cost">${ico("bolt", 12)}${def.cost}</span><span class="c-name${nameLen(def.name)}">${esc(def.name)}</span></div>
     <div class="c-art">${art}</div>
+    ${o.keepIdx === undefined ? "" : `<span class="c-keep${o.kept ? " on" : ""}"${at("keep-card", String(o.keepIdx))} title="${o.kept ? "Wird behalten" : "Am Zugende behalten"}" role="button" aria-label="Karte behalten">${ico("lock", 10)}</span>`}
     ${o.info === false ? "" : `<span class="c-info"${at("card-info", def.id)} title="Details" role="button" aria-label="Details zu ${esc(def.name)}">i</span>`}
     <div class="c-chips">${chips.map((c) => `<span class="chip2">${ico(c.ic, 12)}<b>${esc(c.n)}</b></span>`).join("")}</div>
     ${o.size === "lg" ? `<div class="c-text">${esc(def.text ?? "")}</div>` : ""}
@@ -6227,9 +6319,9 @@ function itemHtml(def, kind = "items", o = {}) {
   const rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
   const art = spr(kind === "weapons" ? "weapon" : "item", def.id.replace(/:s$/, ""), { shiny: def.shiny, attrs: 'width="100%" height="100%"' });
   const text = kind === "weapons" ? describeWeapon(def) : describeItem(def);
-  return `<div class="itemcard ${def.shiny ? "shiny sh" : ""}" style="--rar:${rar[1]}">
+  return `<div class="itemcard ${def.shiny ? "shiny sh" : ""}" style="--rar:${rar[1]}" data-tip-ref="${kind}:${def.id}">
     <div class="i-art ${kind === "weapons" ? "tall" : ""}">${art}</div>
-    <div class="i-body"><b>${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}${kind === "items" && def.maxStack === 1 ? " · Einzigartig" : ""}</span><span class="d">${esc(text)}</span></div></div>`;
+    <div class="i-body"><b class="${nameLen(def.name).trim()}">${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}${kind === "items" && def.maxStack === 1 ? " · Einzigartig" : ""}</span><span class="d">${esc(text)}</span></div></div>`;
 }
 const itemIcon = (def, px = 30, kind = "item") =>
   `<span class="mini ${def.shiny ? "sh" : ""}">${spr(kind, def.id.replace(/:s$/, ""), { shiny: def.shiny, attrs: `width="${px}" height="${px}"` })}</span>`;
@@ -6276,6 +6368,7 @@ __exports.btn = btn;
 __exports.ibtn = ibtn;
 __exports.pctOf = pctOf;
 __exports.bar = bar;
+__exports.itemNameCls = itemNameCls;
 __exports.cardChips = cardChips;
 __exports.cardHtml = cardHtml;
 __exports.itemHtml = itemHtml;
@@ -6833,10 +6926,10 @@ const { abilityProgress } = __require("engine/meta.js");
 const { maxDifficulty, describeUnlock, isUnlocked } = __require("engine/meta.js");
 const { dexProgress } = __require("engine/dex.js");
 const { storyLines, storySpeaker } = __require("engine/story.js");
-const { CORE_STATS, STAT_LABELS, STAT_DESC, TIER_NAME, TIER_COLOR, NODE_INFO } = __require("ui/theme.js");
+const { CORE_STATS, STAT_LABELS, STAT_DESC, STAT_ICON, fmtVal, fmtStat, TIER_NAME, TIER_COLOR, NODE_INFO } = __require("ui/theme.js");
 const { xpNeed } = __require("engine/run.js");
 const { reactionText } = __require("ui/util.js");
-const { esc, needsTarget, describeWeapon, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
+const { esc, needsTarget, describeWeapon, describeItem, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
 const { achInfoView, achievementsView, cosmeticsView } = __require("ui/achview.js");
 const { spr, elementIconId } = __require("ui/art/index.js");
 const { NODE_ICON, NODE_NAME, STATUS, RARITY, elementName } = __require("ui/theme.js");
@@ -6849,8 +6942,9 @@ const sceneExt = (ui, areaH) => Math.max(0, Math.round((232 * ((ui.stageW ?? 800
 
 function hud(ui) {
   const run = ui.run, cls = CONTENT.classes[run.classId];
+  const inFight = run.phase === "combat" && run.pending?.combat, hpNow = inFight ? run.pending.combat.player.hp : run.hp, hpMax = inFight ? run.pending.combat.player.maxHp : run.maxHp;     // im Kampf gilt die Kampf-HP sofort
   const where = `Stage ${run.stage}/${CONFIG.stages.count} · ` + (run.nodeId === "boss" ? (run.stage >= CONFIG.stages.count ? "Endboss" : "Wächter") : run.nodeId ? `Ebene ${Math.min(currentLayer(run) + 1, CONFIG.map.layers)}/${CONFIG.map.layers}` : "Start");
-  return `<div class="hud"><div class="hud-l">${ico("heart", 18)}<span class="hudhp">${run.hp}/${run.maxHp}</span>${ico("coin", 18)}<b class="gold">${run.gold}</b><span class="xpbar" title="Erfahrung"><b>St. ${run.level + 1}</b><i style="width:${Math.round((100 * run.xp) / xpNeed(run.level))}%"></i></span></div>
+  return `<div class="hud"><div class="hud-l">${ico("heart", 18)}<span class="hudhp">${hpNow}/${hpMax}</span>${ico("coin", 18)}<b class="gold">${run.gold}</b><span class="xpbar" title="Erfahrung"><b>St. ${run.level + 1}</b><i style="width:${Math.round((100 * run.xp) / xpNeed(run.level))}%"></i></span></div>
     <div class="hud-m">${esc(cls.name)} · ${esc(CONFIG.difficulty[run.difficulty].name)} · ${where}</div>
     <div class="hud-r">${ibtn("pile", "show-deck", "Deck", `<span class="cnt">${run.deck.length}</span>`)}${ibtn("bag", "show-items", "Ausrüstung", `<span class="cnt">${run.items.length + 1}</span>`)}${ibtn("menu", "show-menu", "Menü")}</div></div>`;
 }
@@ -6872,6 +6966,15 @@ function titleView(ui) {
 function setupView(ui) {
   const st = ui.setup, classes = Object.values(CONTENT.classes), cur = CONTENT.classes[st.classId];
   const bg = `<div class="bgscene">${menuBackdrop(sceneExt(ui, ui.stageH ?? 400))}</div>`;
+  if (st.step === 2) {                                                                     // Startdeck zusammenstellen: 4 Züge, je 3 Karten
+    const total = CONFIG.draft.rounds, n = st.picks.length, done = n === total;
+    const slots = Array.from({ length: total }, (_, i) => st.picks[i] ? `<div class="dslot on">${esc(CONTENT.get("cards", st.picks[i]).name)}</div>` : `<div class="dslot">${i + 1}</div>`).join("");
+    const body = done
+      ? `<div class="muted small">Dein Startdeck steht. Mit Aufbrechen beginnt der Run.</div>${btn("Aufbrechen", "start-run", undefined, { cls: "primary big" })}${btn("Neu wählen", "draft-reset", undefined, { cls: "small" })}`
+      : `<div class="cards3 dcards">${st.offer.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg" })}${btn("Nehmen", "draft-pick", String(i), { cls: "small good" })}</div>`).join("")}</div>`;
+    return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Dein Startdeck: Karte ${Math.min(n + 1, total)} von ${total}</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${done ? "" : btn("Empfohlenes Deck", "draft-recommended", undefined, { cls: "small" })}</div></div>
+      <div class="dslots">${slots}</div><div class="stack center dbody">${body}</div></div></div>`;
+  }
   if (st.step === 0) {
     const card = (c) => {
       const open = isUnlocked(ui.meta, "classes", c), on = st.classId === c.id;
@@ -6887,7 +6990,7 @@ function setupView(ui) {
   }
   const maxD = maxDifficulty(ui.meta, cur.id);
   const sig = (w) => (w.signature === cur.id ? "Dein Held" : esc(CONTENT.classes[w.signature]?.name ?? ""));
-  return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deine Waffe</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Aufbrechen", "start-run", undefined, { cls: "primary" })}</div></div>
+  return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deine Waffe</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Weiter", "setup-draft", undefined, { cls: "primary" })}</div></div>
     <div class="weapongrid2"><div class="hero-big px">${heroPortrait(cur.id, st.weaponId, activeSkin(ui.meta, cur.id))}<b>${esc(cur.name)}</b></div>
       <div class="wcol"><div class="wgrid">${cur.starterWeapons.map((id) => { const w = CONTENT.get("weapons", id);
         return `<div class="wtile ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}><span class="wico">${spr("weapon", id, { attrs: 'width="100%" height="100%"' })}</span><span class="wname"><b>${esc(w.name)}</b><small class="${w.signature === cur.id ? "own" : ""}">${sig(w)}</small></span></div>`; }).join("")}</div>
@@ -6969,7 +7072,7 @@ function combatView(ui) {
         ${btn(ui.auto ? "Auto: an" : "Auto", "toggle-auto", undefined, { cls: `small ${ui.auto ? "good" : ""}`, disabled: Boolean(c.result) })}${btn(`Tempo x${ui.speed}`, "cycle-speed", undefined, { cls: "small" })}</div>
       <div class="side right"><div class="energy">${pips}</div>${btn("Zug beenden", "end-turn", undefined, { cls: "primary", disabled: Boolean(c.result) || ui.auto })}${btn(ui.showLog ? "Log aus" : "Log", "toggle-log", undefined, { cls: "small" })}</div>
       ${ui.showLog ? `<div class="logpanel px">${logLines}</div>` : ""}</div>
-    <div class="handrow"><div class="hand" style="--n:${hand.length}">${hand.map((inst, i) => cardHtml(inst.def, { build, plays: c.playsThisTurn, ctx: { hp: P.hp, maxHp: P.maxHp, gold: c.gold }, selected: ui.selected === i, dim: inst.def.cost > P.energy, action: "select-card", arg: String(i) })).join("") || "<span class='muted pad'>Keine Karten auf der Hand</span>"}</div></div></div>
+    <div class="handrow"><div class="hand" style="--n:${hand.length}">${hand.map((inst, i) => cardHtml(inst.def, { build, plays: c.playsThisTurn, ctx: { hp: P.hp, maxHp: P.maxHp, gold: c.gold }, selected: ui.selected === i, dim: inst.def.cost > P.energy, action: "select-card", arg: String(i), keepIdx: i, kept: Boolean(inst.keep) })).join("") || "<span class='muted pad'>Keine Karten auf der Hand</span>"}</div></div></div>
     ${ui.victory ? `<div class="victorybanner">Sieg!</div>` : ""}${c.result && !ui.victory ? `<div class="overlay"><div class="sheet mid center stack"><h2>${c.result === "won" ? "Sieg!" : "Niederlage"}</h2>
       ${c.shinyKills.length ? `<div class="shiny sh px pad"><b>Chrom-Gegner besiegt!</b><br>Bonus: +${CONFIG.shiny.enemyGold} Gold, ein seltenes Chrom-Item und eine Chrom-Waffe zur Wahl.</div>` : ""}${btn("Weiter", "after-combat", undefined, { cls: "primary" })}</div></div>` : ""}`;
 }
@@ -6987,7 +7090,7 @@ function rewardView(ui) {
   if (r.weapons.length) cats.push({ key: "weapons", label: "Waffe", kind: "weapons", ids: r.weapons, title: `Waffe tauschen? (aktuell: ${cur.name}, Stärke ${cur.power})` });
   const sel = cats.find((c) => c.key === ui.tab.reward) ?? cats.find((c) => !t[c.key]) ?? cats[0];
   const slots = sel.kind === "level"
-    ? `<div class="items3 lv4">${r.levelChoices.map((c, i) => `<div class="slot"><div class="itemcard upg" style="--rar:${TIER_COLOR[c.tier]}"><div class="i-body"><b>+${c.value} ${STAT_LABELS[c.stat]}</b><span class="rar" style="color:${TIER_COLOR[c.tier]}">Stufe ${TIER_NAME[c.tier]}</span><span class="d">${esc(STAT_DESC[c.stat])}</span></div></div>${btn("Nehmen", "take-level", String(i), { cls: "small good" })}</div>`).join("")}</div>`
+    ? `<div class="items3 lv4">${r.levelChoices.map((c, i) => `<div class="slot"><div class="itemcard upg" style="--rar:${TIER_COLOR[c.tier]}"><div class="i-body"><b>${ico(STAT_ICON[c.stat], 18)} ${fmtStat(c.stat, c.value)}</b><span class="rar" style="color:${TIER_COLOR[c.tier]}">Stufe ${TIER_NAME[c.tier]}</span><span class="d">${esc(STAT_DESC[c.stat])}</span></div></div>${btn("Nehmen", "take-level", String(i), { cls: "small good" })}</div>`).join("")}</div>`
     : sel.kind === "cards"
     ? `<div class="cards3">${sel.ids.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}</div>`).join("")}</div>`
     : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind)}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
@@ -7000,7 +7103,7 @@ function rewardView(ui) {
 function shopView(ui) {
   const run = ui.run, shop = run.pending.shop, build = buildOf(run);
   const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""}">${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
-    ${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
+    ${btn(s.sold ? "Verkauft" : s.core ? "Gratis" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
   const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}"><div class="itemwrap">${itemHtml(CONTENT.get("items", s.id))}<span class="c-info iinfo"${at("item-info", `items:${s.id}`)} role="button" aria-label="Details">i</span></div>
     <div class="buyrow">${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Item für die nächste Runde sperren" })}</div></div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
@@ -7013,7 +7116,7 @@ function shopView(ui) {
       ${btn(`${ico("discard", 14)} Schredder (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
       ${(shop.services ?? []).map((s) => btn(`${ico(s.id === "heal" ? "heart" : "star", 14)} ${s.id === "heal" ? `Verband +${Math.round(CONFIG.shop.services.heal.pct * 100)}% HP` : `Trank +${CONFIG.shop.services.vitality.maxHp} Max-HP`} (${s.price})`, "service", s.id, { cls: "small", disabled: s.sold || run.gold < s.price })).join("")}
       <span class="grow"></span>${btn("Weiter", "leave-shop", undefined, { cls: "primary" })}</div>
-    <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items4">${items}</div></div></div>`;
+    <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items4">${items}</div></div><div class="shop-spacer"></div></div>`;
 }
 function restView(ui) {
   const run = ui.run, heal = Math.min(run.maxHp - run.hp, restHealAmount(run, Math.ceil(run.maxHp * restPct(run))));
@@ -7099,8 +7202,8 @@ function overlayView(ui) {
     const weapon = CONTENT.get("weapons", run.weapon);
     const labels = STAT_LABELS;
     const sv = (k) => (k === "maxHp" ? run.maxHp : build.stats[k] ?? 0);
-    const grid = `<div class="statgrid">${CORE_STATS.map((k) => `<div class="stat" title="${esc(STAT_DESC[k])}"><span class="k">${labels[k]}</span><b class="${k !== "maxHp" && sv(k) < 0 ? "bad" : k !== "maxHp" && sv(k) > 0 ? "good" : ""}">${k !== "maxHp" && sv(k) > 0 ? "+" : ""}${sv(k)}</b></div>`).join("")}</div>`;
-    const stats = grid + `<div class="chips">${Object.entries(build.stats).filter(([k, v]) => v && !CORE_STATS.includes(k)).map(([k, v]) => `<span class="chip">${v > 0 ? "+" : ""}${v} ${labels[k] ?? k}</span>`).join(" ")}</div>`;
+    const grid = `<div class="statgrid">${CORE_STATS.map((k) => `<div class="stat" title="${esc(STAT_DESC[k])}"><span class="k">${ico(STAT_ICON[k], 12)} ${labels[k]}</span><b class="${k !== "maxHp" && sv(k) < 0 ? "bad" : k !== "maxHp" && sv(k) > 0 ? "good" : ""}">${k === "maxHp" ? sv(k) : fmtVal(k, sv(k))}</b></div>`).join("")}</div>`;
+    const stats = grid + `<div class="chips">${Object.entries(build.stats).filter(([k, v]) => v && !CORE_STATS.includes(k)).map(([k, v]) => `<span class="chip">${ico(STAT_ICON[k] ?? "star", 12)} ${fmtStat(k, v)}</span>`).join(" ")}</div>`;
     const tags = [...new Set([...CONFIG.typeTags, ...Object.keys(CONTENT.elements)])].map((t) => [t, tagCount(build, t)]).filter(([, n]) => n > 0)
       .map(([t, n]) => `<span class="chip">${CONTENT.elements[t] ? ico(elementIconId(t), 12) + " " : ""}${esc(t)} ${n}</span>`).join(" ");
     return `<div class="overlay"><div class="sheet stack"><h2>Ausrüstung</h2><div class="grid2">${itemHtml(weapon, "weapons")}${run.items.map((id) => itemHtml(CONTENT.get("items", id))).join("")}</div>
@@ -7150,14 +7253,26 @@ function cardDetailView(ui) {
       ${btn("Schließen", "close-cardinfo", undefined, { cls: "primary" })}</div></div></div>`;
 }
 const nodeInfoView = (ui) => `<div class="overlay"><div class="sheet mid stack center">${ico(NODE_ICON[ui.nodeInfo], 32)}<h2>${esc(NODE_NAME[ui.nodeInfo])}</h2><div>${esc(NODE_INFO[ui.nodeInfo] ?? "")}</div>${btn("Schließen", "close-node-info", undefined, { cls: "primary" })}</div></div>`;
+function tipRefHtml(ref) {
+  const [kind, id] = ref.split(":"), def = CONTENT.get(kind, id); if (!def) return "";
+  const rar = RARITY[def.rarity] ?? RARITY.gewoehnlich, text = kind === "weapons" ? describeWeapon(def) : describeItem(def);
+  const stats = Object.entries(def.stats ?? {}).filter(([, v]) => v).map(([k, v]) => `<span class="chip">${ico(STAT_ICON[k] ?? "star", 12)} ${fmtStat(k, v)}</span>`).join(" ");
+  const hero = def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : "", uniq = kind === "items" && def.maxStack === 1 ? " · Einzigartig" : "";
+  return `<div class="tiprow"><b>${esc(def.name)}</b><div class="muted small">${esc(rar[0])}${esc(hero)}${uniq}</div><div>${esc(text)}</div>${stats ? `<div class="chips">${stats}</div>` : ""}</div>`;
+}
 function itemInfoView(ui) {
   const [kind, id] = ui.itemInfo.split(":"), def = CONTENT.get(kind, id), rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
-  const stats = Object.entries(def.stats ?? {}).filter(([, v]) => v).map(([k, v]) => `<span class="chip">${v > 0 ? "+" : ""}${v} ${STAT_LABELS[k] ?? k}</span>`).join(" ");
+  const stats = Object.entries(def.stats ?? {}).filter(([, v]) => v).map(([k, v]) => `<span class="chip">${ico(STAT_ICON[k] ?? "star", 12)} ${fmtStat(k, v)}</span>`).join(" ");
   const hero = def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : "";
   const text = kind === "weapons" ? describeWeapon(def) : def.text ?? "";
   return `<div class="overlay"><div class="sheet mid stack"><div class="row">${itemHtml(def, kind)}</div><h2>${esc(def.name)}</h2><div class="muted small">${esc(rar[0])}${hero}</div><p>${esc(text)}</p>${stats ? `<div class="chips">${stats}</div>` : ""}${btn("Schließen", "close-item-info", undefined, { cls: "primary" })}</div></div>`;
 }
-const noticeView = (n) => `<div class="overlay"><div class="sheet mid stack center"><h2>${esc(n.title)}</h2>${n.lines.map((l) => `<div>${esc(l)}</div>`).join("")}${btn("OK", "ack-notice", undefined, { cls: "primary" })}</div></div>`;
+function gainedBox(id) {                                                          // erhaltenes Item oder Karte mit voller Beschreibung
+  const kind = CONTENT.get("items", id) ? "items" : CONTENT.get("cards", id) ? "cards" : CONTENT.get("weapons", id) ? "weapons" : null; if (!kind) return "";
+  const def = CONTENT.get(kind, id);
+  return kind === "cards" ? `<div class="gained px"><b>${esc(def.name)}</b><div class="muted small">${esc(def.text ?? "")}</div></div>` : `<div class="gained">${itemHtml(def, kind)}${tipRefHtml(`${kind}:${id}`)}</div>`;
+}
+const noticeView = (n) => `<div class="overlay"><div class="sheet mid stack center"><h2>${esc(n.title)}</h2>${n.lines.map((l) => `<div>${esc(l)}</div>`).join("")}${(n.gained ?? []).map(gainedBox).join("")}${btn("OK", "ack-notice", undefined, { cls: "primary" })}</div></div>`;
 
 // ---------------------------------------------------------------- Einstieg
 function render(ui) {
@@ -7178,6 +7293,7 @@ function render(ui) {
   return `<div class="app ${ui.landscape ? "land" : "port"}${frame !== "default" ? ` frame-${frame}` : ""}">${body}</div>${overlay}${ui.notice ? noticeView(ui.notice) : ""}${ui.toast ? `<div class="toast">${esc(ui.toast)}</div>` : ""}`;
 }
 
+__exports.tipRefHtml = tipRefHtml;
 __exports.render = render;
 
 });
@@ -7185,12 +7301,13 @@ __define("ui/controller.js", function (__exports, __require) {
 // Controller: verbindet Engine und Ansichten. Kein DOM, daher komplett in Node testbar.
 // dispatch(action, arg, arg2) verändert den Zustand und gibt false zurück, wenn kein Neuzeichnen nötig ist.
 const { CONTENT } = __require("content/index.js");
+const { draftOffer } = __require("engine/draft.js");
 const { abilityAt } = __require("engine/abilities.js");
 const { applyContentLanguage } = __require("ui/i18n.js");
-const { STAT_LABELS } = __require("ui/theme.js");
+const { fmtStat } = __require("ui/theme.js");
 const { CONFIG } = __require("data/config.js");
 const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, takeLevelUp, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
-const { aliveEnemies, playCard, endPlayerTurn, useItem, useAbility, activeItems } = __require("engine/combat.js");
+const { toggleKeep, aliveEnemies, playCard, endPlayerTurn, useItem, useAbility, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
 const { createMeta, normalizeMeta, recordRun, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
 const { evaluateAchievements } = __require("engine/achievements.js");
@@ -7221,7 +7338,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
 
   const ui = {
     screen: "title", run: null, meta, landscape, dev,
-    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.weapon, abilityId: CONTENT.classes.nahkaempfer.abilities[0] ?? null, difficulty: 0, seed: "" },
+    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.weapon, abilityId: CONTENT.classes.nahkaempfer.abilities[0] ?? null, difficulty: 0, seed: "", draftSeed: null, picks: [], offer: [] },
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
@@ -7299,10 +7416,19 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "new-run": Object.assign(st, { step: 0, difficulty: 0 }); ui.screen = "setup"; break;
       case "pick-class":
         if (!isUnlocked(ui.meta, "classes", CONTENT.classes[arg])) { toast(`Noch gesperrt: ${describeUnlock(CONTENT.classes[arg].unlock)}`); break; }
-        st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; st.abilityId = CONTENT.classes[arg].abilities[0] ?? null; break;
+        st.draftSeed = null; st.picks = []; st.offer = []; st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; st.abilityId = CONTENT.classes[arg].abilities[0] ?? null; break;
       case "pick-ability": if (CONTENT.classes[st.classId].abilities.includes(arg)) st.abilityId = arg; break;
       case "setup-next": st.step = 1; break;
-      case "setup-back": if (st.step === 0) ui.screen = "title"; else st.step = 0; break;
+      case "setup-draft": {                                                  // Schritt 3: Startdeck zusammenstellen (Seed steht ab jetzt fest)
+        st.draftSeed = parseInt(st.seed, 10) || seedFn(); st.picks = []; st.offer = draftOffer(st.classId, st.draftSeed, st.picks); st.step = 2; break;
+      }
+      case "draft-pick": {
+        const id = st.offer[Number(arg)]; if (!id || st.picks.length >= CONFIG.draft.rounds) break;
+        st.picks = [...st.picks, id]; st.offer = st.picks.length < CONFIG.draft.rounds ? draftOffer(st.classId, st.draftSeed, st.picks) : []; break;
+      }
+      case "draft-reset": st.picks = []; st.offer = draftOffer(st.classId, st.draftSeed, st.picks); break;
+      case "draft-recommended": st.picks = [...CONTENT.classes[st.classId].deck]; st.offer = []; break;
+      case "setup-back": if (st.step === 0) ui.screen = "title"; else if (st.step === 2) st.step = 1; else st.step = 0; break;
       case "pick-weapon": st.weaponId = arg; break;
       case "set-diff": st.difficulty = Number(arg); break;
       case "set-seed": st.seed = String(arg ?? "").replace(/\D/g, "").slice(0, 10); rerender = false; break;
@@ -7318,8 +7444,8 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       }
       case "start-run": {
         endPreview();
-        const seed = parseInt(st.seed, 10) || seedFn();
-        openRun(createRun({ ability: st.abilityId, classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
+        const seed = st.draftSeed ?? (parseInt(st.seed, 10) || seedFn()), deck = st.picks.length === CONFIG.draft.rounds ? st.picks : undefined;     // gewähltes Startdeck (ohne Draft: das Standarddeck der Klasse)
+        openRun(createRun({ startDeck: deck, ability: st.abilityId, classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
         if (ui.run.shinyHero) ui.notice = { title: "Chrom-Held!", lines: ["Sehr selten: Dein Held schimmert wie Chrom.", `Bonus für diesen Run: +${CONFIG.shiny.heroLuck} Glück.`, `Chance beim Start: 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)}.`] };
         break;
       }
@@ -7379,6 +7505,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         break;
       case "play-selected": if (inPhase("combat") && ui.selected !== null) { const i = ui.selected; if (tryPlay(i, pickTarget(run.pending.combat, run.pending.combat.piles.hand[i]?.def ?? { play: [] }, ui.focus))) maybeEndTurn(); } break;
       case "target": if (inPhase("combat") && ui.selected !== null) { if (tryPlay(ui.selected, arg)) maybeEndTurn(); } break;
+      case "keep-card": if (inPhase("combat") && !run.pending.combat.result) toggleKeep(run.pending.combat, Number(arg)); break;       // Behalten: Karte bleibt am Zugende auf der Hand
       case "use-ability": {                                // Signatur-Fähigkeit (kostet keine Energie, nur Cooldown); Ziel: gewählter Gegner, sonst der stärkste
         if (!inPhase("combat") || run.pending.combat.result) break;
         const combat = run.pending.combat, alive = aliveEnemies(combat), t = alive.find((e) => e.uid === ui.focus) ?? [...alive].sort((a, b) => b.hp - a.hp)[0];
@@ -7461,7 +7588,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       // ---- Belohnung
       case "take-level": {
         const r = takeLevelUp(run, Number(arg));
-        toast(r.ok ? `+${r.value} ${STAT_LABELS[r.stat]}` : r.reason);
+        toast(r.ok ? fmtStat(r.stat, r.value) : r.reason);
         if (r.ok) {
           ui.tab.reward = null;
           const rw = run.pending.reward, t = rw.taken;
@@ -7515,7 +7642,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         const gainedCards = (res.gained ?? []).filter((id) => CONTENT.get("cards", id)).length;
         if (run.deck.length < before.deck + gainedCards) lines.push("Eine Karte wurde entfernt.");
         if (res.fight) lines.push("Ein Kampf beginnt!");
-        ui.notice = { title: ev.name, lines: lines.length ? lines : ["Nichts passiert."] };
+        ui.notice = { title: ev.name, lines: lines.length ? lines : ["Nichts passiert."], gained: res.gained ?? [] };
         break;
       }
       default: toast(`Unbekannte Aktion: ${action}`);
@@ -7572,6 +7699,7 @@ __define("ui/main.js", function (__exports, __require) {
 // Einstiegspunkt im Browser: hängt Controller und DOM zusammen (Klicks per Event-Delegation).
 const { createController } = __require("ui/controller.js");
 const { translateDom } = __require("ui/i18n.js");
+const { tipRefHtml } = __require("ui/views.js");
 
 const root = document.getElementById("app");
 const storage = (() => {
@@ -7583,11 +7711,12 @@ const ctrl = createController({ storage, landscape: true, dev, victoryPose: true
 // ---- Bühne: das Spiel ist immer 400 Einheiten hoch und 720 bis 960 breit und wird auf den Bildschirm skaliert (Handy, Tablet, Monitor).
 // So passt jeder Bildschirm ohne Scrollen, und alle Maße im Stylesheet gelten überall gleich.
 const stage = document.getElementById("stage"), probe = document.getElementById("probe");
-const STAGE_SIZES = { normal: 400, gross: 360, riesig: 330 };      // Anzeigegröße: weniger Höhe = alles erscheint größer
+const STAGE_SIZES = { normal: 450, gross: 410, riesig: 360 };      // Anzeigegröße: weniger Höhe = alles erscheint größer
 const STAGE_MIN_W = 720, STAGE_MAX_W = 960;
 const devHeight = Number(new URLSearchParams(window.location.search).get("h")) || 0;     // nur zum Testen (?h=360)
 function fit() {
-  const BASE_H = devHeight || STAGE_SIZES[ctrl.ui.meta.settings.size ?? "gross"] || 400;
+  const desk = window.innerWidth >= 1100 && window.innerWidth > window.innerHeight ? 1.1 : 1;                  // Desktop: alles ca. 10 % kleiner (Schrift war zu groß)
+  const BASE_H = devHeight || Math.round((STAGE_SIZES[ctrl.ui.meta.settings.size ?? "normal"] || 400) * desk);
   const cs = window.getComputedStyle(probe);                                    // Sicherheitsabstände (Notch) aus CSS lesen
   const L = parseFloat(cs.paddingLeft) || 0, R = parseFloat(cs.paddingRight) || 0, T = parseFloat(cs.paddingTop) || 0, B = parseFloat(cs.paddingBottom) || 0;
   const vw = window.innerWidth - L - R, vh = window.innerHeight - T - B;
@@ -7622,6 +7751,34 @@ function showBanners() {
 
 // Autopilot: solange "Auto" an ist, im Takt Schritte ausführen (Wartezeit kommt vom Controller und hängt vom Tempo ab)
 let autoTimer = null;
+// ---- Eigene Tooltips: native title-Tooltips lassen den Bildschirm im Vollbild flackern; hier eine ruhige Box, Hover (PC) und langes Drücken (Touch)
+const hasDom = typeof document.addEventListener === "function" && typeof document.body?.appendChild === "function";          // (die Test-Attrappe hat kein echtes DOM)
+const tipEl = hasDom ? document.createElement("div") : { hidden: true, style: {} }; tipEl.className = "tip"; tipEl.hidden = true; if (hasDom) document.body.appendChild(tipEl);
+let tipTimer = null, pressTimer = null, tipOwner = null, swallowClick = false;
+let tipKeyShown = "";
+const tipKey = (el) => (el ? `${el.dataset.tipRef ?? ""}|${el.dataset.tip ?? ""}` : "");        // gleicher Inhalt = gleiches Ziel, auch wenn das Element beim Neuzeichnen ersetzt wurde
+function hideTip() { clearTimeout(tipTimer); tipEl.hidden = true; tipOwner = null; tipKeyShown = ""; }
+function showTip(el) {
+  const ref = el.dataset.tipRef, html = ref ? tipRefHtml(ref) : `<div>${(el.dataset.tip ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))}</div>`;
+  if (!html) return;
+  tipEl.innerHTML = html; translateDom(tipEl); tipEl.hidden = false; tipOwner = el;
+  const r = el.getBoundingClientRect(), tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  tipEl.style.left = `${Math.max(6, Math.min(window.innerWidth - tw - 6, r.left + r.width / 2 - tw / 2))}px`;
+  tipEl.style.top = `${r.top - th - 8 > 6 ? r.top - th - 8 : Math.min(window.innerHeight - th - 6, r.bottom + 8)}px`;
+}
+function tipTarget(node) { return node?.closest?.("[data-tip],[data-tip-ref]"); }
+function stripTitles(rootEl) { rootEl.querySelectorAll?.("[title]")?.forEach((e) => { e.dataset.tip = e.getAttribute("title"); e.removeAttribute("title"); }); }
+if (hasDom) {
+document.addEventListener("pointerover", (ev) => { if (ev.pointerType === "touch") return; const el = tipTarget(ev.target), key = tipKey(el); if (key && key === tipKeyShown) return; hideTip(); if (el) { tipKeyShown = key; tipTimer = setTimeout(() => showTip(el), 300); } });
+document.addEventListener("pointerdown", (ev) => {
+  if (ev.pointerType !== "touch") { hideTip(); return; }
+  const el = tipTarget(ev.target); hideTip(); clearTimeout(pressTimer);
+  if (el && !el.closest(".c-info")) pressTimer = setTimeout(() => { showTip(el); swallowClick = true; }, 450);     // Gedrückt halten: Infobox, der folgende Tipp löst nichts aus
+});
+for (const t of ["pointerup", "pointercancel", "pointermove"]) document.addEventListener(t, () => clearTimeout(pressTimer));
+document.addEventListener("click", (ev) => { if (swallowClick) { swallowClick = false; ev.stopPropagation(); ev.preventDefault(); } else hideTip(); }, true);
+}
+
 let victoryTimer = null;
 function scheduleVictory() {                                       // nach der Sieges-Pose das Sieg-Fenster zeigen
   const ms = ctrl.victoryMs();
@@ -7638,7 +7795,7 @@ function scheduleAuto() {
 function render() {
   root.innerHTML = ctrl.render();
   if (ctrl.ui.toast) { const tt = ctrl.ui.toast; setTimeout(() => { if (ctrl.ui.toast === tt) { ctrl.ui.toast = null; document.querySelector(".toast")?.remove(); } }, 2200); }      // Meldungen blenden sich nach 2 Sekunden aus
-  translateDom(document.body);                                     // Sprache Englisch: alle Texte der Oberfläche übersetzen (auch Hinweise und Meldungen außerhalb der App-Fläche)
+  translateDom(document.body); stripTitles(document.body);          // Sprache Englisch: alle Texte der Oberfläche übersetzen (auch Hinweise und Meldungen außerhalb der App-Fläche)
   showBanners();
   scheduleVictory();
   scheduleAuto();
