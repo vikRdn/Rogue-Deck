@@ -12,6 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
+  version: "3.0",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 5, maxHp: 70 },
 
   balance: {
@@ -23,6 +24,9 @@ const CONFIG = {
     enemyDmgScale: 0.57,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
+    maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
+    maxTurnStartBlock: 10,  // Obergrenze für GRATIS-Block zu Beginn des Zuges (Block-Start und Zugbeginn-Items zusammen); Block aus Karten zählt nicht
+    freezeAt: 3,            // Eis: so viele Kälte-Stapel lassen einen Gegner einfrieren (Kältemulett senkt die Schwelle um 1, mindestens 2)
     maxXMult: 3,          // Obergrenze für den Endmultiplikator (xMult), damit High-Risk-Builds nicht ins Unendliche laufen,          // Max. Bonus durch "pro zuvor gespielter Karte"  // Globaler Regler für ALLEN Gegnerschaden (vor der Schwierigkeitsstufe)
   },
 
@@ -76,7 +80,7 @@ const CONFIG = {
     layers: 10,                 // Ebenen vor dem Boss
     width: [3, 4],              // Knoten pro Ebene (min, max)
     skipEdgeChance: 0.2,        // Chance auf Abkürzung (überspringt eine Ebene) -> Run-Länge hängt vom Weg ab
-    minibossLayer: 5,           // Pflicht-Ebene mit Mini-Bossen (nicht überspringbar)
+    minibossLayer: 5, restBeforeMiniboss: true,           // Pflicht-Ebene mit Mini-Bossen (nicht überspringbar)
     firstEncounter: "kellerratten",   // Ebene 0 hat genau EINEN Ort mit diesem festen Kampf, danach beginnt die Wegwahl
     nodeWeights: { kampf: 48, ereignis: 18, haendler: 9, rast: 12, elite: 13 },
     minLayer: { elite: 3, rast: 2, haendler: 2 },
@@ -91,6 +95,7 @@ const CONFIG = {
   ],
 
   // Typ-Tags, die für Vielfalts-Effekte und Lenkung zählen (Element-IDs kommen automatisch dazu)
+  ui: { speeds: [1, 2] },   // Kampf-Tempo: Tempo 3 war zu schnell. Bei Bedarf wieder [1, 2, 3] eintragen, die Logik kann es noch.
   economy: { overkillPerGold: 5 },   // Überschuss-Schaden beim Töten wird zu Gold (5 Überschuss = 1 Gold)
   typeTags: ["feuer", "gift", "blut", "block", "dornen", "pakt", "heilung", "ruestung"],   // diese Tags zählen für Synergien und die Beute-Lenkung
 };
@@ -119,7 +124,8 @@ function normalize(kind, id, def, packId) {
   if (kind === "items") { out.stats = def.stats ?? {}; out.maxStack = def.maxStack ?? CONFIG.items.maxStack; }
   if (kind === "enemies") out.elements = def.elements ?? [];
   if (kind === "achievements") { out.group = def.group ?? "runs"; out.secret = Boolean(def.secret); }
-  if (kind === "classes") { out.stats = def.stats ?? {}; out.starterWeapons = def.starterWeapons ?? [def.weapon]; out.shopBasics = def.shopBasics ?? []; out.passive = def.passive ?? null; }
+  if (kind === "classes") { out.stats = def.stats ?? {}; out.starterWeapons = def.starterWeapons ?? [def.weapon]; out.shopBasics = def.shopBasics ?? []; out.passive = def.passive ?? null;
+    out.passives = def.passives ?? []; out.perks = def.perks ?? []; out.cardPools = def.cardPools ?? [out.id]; }      // passives: Klassen-Passive als Daten, perks: Vor- und Nachteile für die Anzeige, cardPools: welche Kartenpools der Held findet
   if (kind === "reactions") out.key = [...def.pair].sort().join("+");   // ungeordnetes Elementpaar
   if (kind === "encounters") { out.kind = def.kind ?? "normal"; out.tier = def.tier ?? 1; }   // normal | elite | miniboss | boss
   return out;
@@ -153,6 +159,7 @@ function makeShiny(def) {
 function createContent() {
   const c = { packs: [], elements: {}, relations: [], matrix: {}, cards: {}, weapons: {}, items: {}, enemies: {}, encounters: {}, classes: {}, events: {}, reactions: {}, reactionIndex: {}, speakers: {}, stories: {}, skins: {}, frames: {}, achievements: {} };
   const shinyCache = {};
+  c.clearShinyCache = () => { for (const k of Object.keys(shinyCache)) delete shinyCache[k]; };         // nach Sprachwechsel: Chrom-Namen neu bilden
 
   // Holt eine Definition. IDs mit Endung ":s" liefern die Shiny-Variante (serialisierbar für Savegames).
   c.get = (kind, id) => {
@@ -247,6 +254,7 @@ function createContent() {
       for (const ph of e.mechanics?.phases ?? []) for (const id of ph.summon ?? []) if (!has("enemies", id)) p.push(`${e.id}: Phase beschwört unbekannten Gegner ${id}`);
     }
     for (const r of Object.values(c.reactions)) for (const el of r.pair) if (!c.elements[el]) p.push(`Reaktion ${r.id}: unbekanntes Element ${el}`);
+    for (const cl of Object.values(c.classes)) for (const pool of cl.cardPools) if (pool !== "alle" && !has("classes", pool)) p.push(`Klasse ${cl.id}: unbekannter Kartenpool ${pool}`);
     for (const w of Object.values(c.weapons)) if (w.signature && !has("classes", w.signature)) p.push(`Waffe ${w.id}: unbekannte Signatur-Klasse ${w.signature}`);
     const REWARD_KINDS = ["items", "weapons", "cards", "skins", "frames"];
     const starters = new Set(Object.values(c.classes).flatMap((cl) => [cl.weapon, ...cl.starterWeapons]));
@@ -318,6 +326,7 @@ __exports.default = {
   classes: {
     nahkaempfer: {
       name: "Nahkämpfer", hp: 90, stats: {}, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
+      perks: ["+ Viel Leben: 90 Max-HP", "+ Unbeugsam: 25 % des Blocks wird zu Schaden (max. 2)", "- Kein Fern- oder Zauberbonus"],
       passive: { id: "unbeugsam", name: "Unbeugsam", text: "Am Zugende gehen 25 % deines übrigen Blocks als Schaden an den ersten Gegner (höchstens 2)." },
       deck: ["hieb", "hieb", "hieb", "hieb", "wuchtschlag", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung", "deckung"],
       weapon: "rostiges_schwert", starterWeapons: ["rostiges_schwert", "flammenschwert", "giftdolch"], items: [],
@@ -360,7 +369,7 @@ __exports.default = {
     gezeitenperle: { name: "Gezeitenperle", rarity: "ungewoehnlich", tags: ["wasser", "item", "block"],
       passives: [{ trigger: "on_card_played", cardTag: "wasser", action: "block", value: 3, maxPerTurn: 4 }], text: "Wasserkarte gespielt: 3 Block (max. 4/Zug)." },
     treibholz:     { name: "Treibholz", tags: ["wasser", "item", "block"],
-      passives: [{ trigger: "on_turn_start", action: "block", perTag: "wasser", value: 1, cap: 4 }], text: "Zugbeginn: 1 Block pro Wasser-Tag (max. 4)." },
+      passives: [{ trigger: "on_turn_start", action: "block", perTag: "wasser", value: 2, cap: 8, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: 2 Block pro Wasser-Tag (max. 8)." },
     dornenring:    { name: "Dornenring", tags: ["pflanze", "item"],
       passives: [{ trigger: "damage_calc", cardTag: "pflanze", op: "add", value: 2 }], text: "Pflanzenkarten: +2 Schaden." },
     sporenbeutel:  { name: "Sporenbeutel", rarity: "ungewoehnlich", tags: ["pflanze", "gift", "item"],
@@ -369,7 +378,7 @@ __exports.default = {
     wurzelherz:    { name: "Wurzelherz", rarity: "selten", tags: ["pflanze", "item", "heilung"],
       passives: [{ trigger: "on_turn_start", action: "heal", perTag: "pflanze", value: 1, cap: 2 }], text: "Zugbeginn: heile 1 HP pro Pflanzen-Tag (max. 2)." },
     eisenpanzer: { name: "Eisenpanzer", tags: ["block", "item"],
-      passives: [{ trigger: "on_turn_start", action: "block", value: 2 }], text: "Zugbeginn: 2 Block." },
+      passives: [{ trigger: "on_turn_start", action: "block", value: 4, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: 4 Block." },
     vielfaltsmedaille: { name: "Vielfaltsmedaille", text: "Alle Karten: +1 Schaden pro verschiedenem Typ im Build (max. +3).", rarity: "selten", tags: ["item", "utility"],
       // Belohnt gemischte Builds: +1 Schaden pro verschiedenem Typ-Tag, max. +3
       passives: [{ trigger: "damage_calc", perDistinct: true, op: "add", value: 1, cap: 3 }] },
@@ -390,7 +399,7 @@ __exports.default = {
     bandit:  { name: "Bandit",  hp: 26, pattern: [{ type: "attack", value: 5 }, { type: "attack", value: 3, hits: 2 }, { type: "block", value: 6 }] },
     steingolem: { name: "Steingolem", hp: 130,
       pattern: [{ type: "block", value: 14 }, { type: "attack", value: 22 }, { type: "attack", value: 12 }] },
-    knochenhauptmann: { name: "Knochenhauptmann", hp: 200,
+    knochenhauptmann: { name: "Knochenhauptmann", hp: 245,
       pattern: [{ type: "attack", value: 14 }, { type: "block", value: 16 }, { type: "attack", value: 6, hits: 3 }] },
   },
 
@@ -433,7 +442,7 @@ __exports.default = {
     lavaruestung: { name: "Lavarüstung", rarity: "ungewoehnlich", tags: ["feuer", "item", "ruestung", "dornen"],
       passives: [{ trigger: "on_player_hit", action: "damage_all", value: 2, maxPerTurn: 2 }], text: "Du wirst getroffen: 2 Schaden an ALLE (max. 2/Zug)." },
     glutschale:   { name: "Glutschale", rarity: "ungewoehnlich", tags: ["feuer", "item", "block"],
-      passives: [{ trigger: "on_turn_start", action: "block", perTag: "feuer", value: 1, cap: 6 }], text: "Zugbeginn: 1 Block pro Feuer-Tag (max. 6)." },
+      passives: [{ trigger: "on_turn_start", action: "block", perTag: "feuer", value: 2, cap: 8, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: 2 Block pro Feuer-Tag (max. 8)." },
     aschemantel:  { name: "Aschemantel", rarity: "selten", tags: ["feuer", "item", "ruestung"],
       passives: [{ trigger: "damage_calc", cardTag: "feuer", requires: { tag: "feuer", count: 4 }, op: "add", value: 3 }], text: "Ab 4 Feuer-Tags: Feuerkarten +3 Schaden." },
     glutstein: { name: "Glutstein", text: "Feuerkarten: +2 Schaden.", tags: ["feuer", "item"],
@@ -446,7 +455,7 @@ __exports.default = {
       passives: [{ trigger: "damage_calc", cardTag: "feuer", requires: { tag: "feuer", count: 6 }, op: "pct", value: 0.25 }] },
   },
   enemies: {
-    glutgeist: { name: "Glutgeist", hp: 24, elements: ["feuer"], pattern: [{ type: "attack", value: 8 }, { type: "attack", value: 5 }] },
+    glutgeist: { immune: ["eingefroren"], name: "Glutgeist", hp: 24, elements: ["feuer"], pattern: [{ type: "attack", value: 8 }, { type: "attack", value: 5 }] },
   },
   encounters: {
     gluthoehle: { tier: 2, name: "Glutöhle (Feuergeister)", waves: [["glutgeist", "glutgeist", "glutgeist"]] },
@@ -552,12 +561,12 @@ __exports.default = {
     dornenfrost: { name: "Dornenfrost", pair: ["pflanze", "eis"], effects: [{ action: "status", status: "blutung", stacks: 4 }] },
   },
   cards: {
-    eissplitter: { name: "Eissplitter", cost: 2, element: "eis", tags: ["angriff"], text: "Eisschaden: 8 + 1,5x Waffe. 2 Verwundbar.",
-      play: [{ action: "damage", base: 8, weaponScale: 1.5 }, { action: "status", status: "verwundbar", stacks: 2 }] },
-    frostnova:   { name: "Frostnova", cost: 2, rarity: "ungewoehnlich", element: "eis", tags: ["flaeche"], text: "Eisschaden an ALLEN: 3 + 0,5x Waffe. 1 Verwundbar.",
-      play: [{ action: "damage", base: 3, weaponScale: 0.5, target: "all" }, { action: "status", status: "verwundbar", stacks: 1, target: "all" }] },
-    eiszeit:     { name: "Eiszeit", unlock: { type: "runs", count: 2 }, cost: 2, rarity: "selten", element: "eis", tags: ["flaeche"], text: "Eisschaden an ALLEN: 4 + Waffe. 2 Verwundbar.",
-      play: [{ action: "damage", base: 4, weaponScale: 1, target: "all" }, { action: "status", status: "verwundbar", stacks: 2, target: "all" }] },
+    eissplitter: { name: "Eissplitter", cost: 2, element: "eis", tags: ["angriff"], text: "Eisschaden: 8 + 1,5x Waffe. 1 Verwundbar, 1 Kälte.",
+      play: [{ action: "damage", base: 8, weaponScale: 1.5 }, { action: "status", status: "verwundbar", stacks: 1 }, { action: "status", status: "frost", stacks: 1 }] },
+    frostnova:   { name: "Frostnova", cost: 2, rarity: "ungewoehnlich", element: "eis", tags: ["flaeche"], text: "Eisschaden an ALLEN: 3 + 0,5x Waffe. 1 Verwundbar und 1 Kälte auf ALLE.",
+      play: [{ action: "damage", base: 3, weaponScale: 0.5, target: "all" }, { action: "status", status: "verwundbar", stacks: 1, target: "all" }, { action: "status", status: "frost", stacks: 1, target: "all" }] },
+    eiszeit:     { name: "Eiszeit", unlock: { type: "runs", count: 2 }, cost: 2, rarity: "selten", element: "eis", tags: ["flaeche"], text: "Eisschaden an ALLEN: 4 + Waffe. 1 Verwundbar und 2 Kälte auf ALLE.",
+      play: [{ action: "damage", base: 4, weaponScale: 1, target: "all" }, { action: "status", status: "verwundbar", stacks: 1, target: "all" }, { action: "status", status: "frost", stacks: 2, target: "all" }] },
   },
   weapons: {
     frostklinge: { name: "Frostklinge", rarity: "ungewoehnlich", pools: ["nahkaempfer"], power: 1, tags: ["waffe", "nahkampf", "eis"],
@@ -565,20 +574,20 @@ __exports.default = {
   },
   items: {
     raureif:      { name: "Raureif", tags: ["eis", "item", "block"],
-      passives: [{ trigger: "on_turn_start", action: "block", perTag: "eis", value: 1, cap: 5 }], text: "Zugbeginn: 1 Block pro Eis-Tag (max. 5)." },
+      passives: [{ trigger: "on_turn_start", action: "block", perTag: "eis", value: 2, cap: 8, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: 2 Block pro Eis-Tag (max. 8)." },
     eiszapfen:    { name: "Eiszapfen", tags: ["eis", "item"],
       passives: [{ trigger: "on_card_played", cardTag: "eis", action: "damage", value: 2, target: "event_target", maxPerTurn: 4 }], text: "Eiskarte gespielt: 2 Schaden (max. 4/Zug)." },
     schneekugel:  { name: "Schneekugel", rarity: "ungewoehnlich", tags: ["eis", "item", "debuff"],
-      passives: [{ trigger: "on_turn_end", chance: 0.5, action: "status_all", status: "verwundbar", stacks: 1 }], text: "Zugende: 50 % Chance, alle Gegner 1x Verwundbar zu machen." },
-    kaelteamulett: { name: "Kälteamulett", rarity: "selten", tags: ["eis", "item"],
-      passives: [{ trigger: "damage_calc", cardTag: "eis", requires: { tag: "eis", count: 4 }, op: "pct", value: 0.25 }], text: "Ab 4 Eis-Tags: Eiskarten +25 % Schaden." },
+      passives: [{ trigger: "on_turn_end", chance: 0.5, action: "status_all", status: "frost", stacks: 1 }], text: "Zugende: 50 % Chance, allen Gegnern 1 Kälte zu geben." },
+    kaelteamulett: { name: "Kälteamulett", rarity: "selten", tags: ["eis", "item"], maxStack: 1, stats: { freezeEase: 1 },
+      passives: [{ trigger: "damage_calc", cardTag: "eis", requires: { tag: "eis", count: 4 }, op: "pct", value: 0.25 }], text: "Gegner frieren schon bei 2 Kälte ein. Ab 4 Eis-Tags: Eiskarten +25 % Schaden." },
     herz_des_winters: { name: "Herz des Winters", unlock: { type: "wins", count: 1 }, rarity: "legendaer", tags: ["eis", "item"], maxStack: 1,
-      passives: [{ trigger: "on_combat_start", action: "status_all", status: "verwundbar", stacks: 3 }, { trigger: "damage_calc", cardTag: "eis", op: "add", value: 3 }],
-      text: "Kampfbeginn: alle Gegner 3x Verwundbar. Eiskarten +3 Schaden." },
+      passives: [{ trigger: "on_combat_start", action: "status_all", status: "frost", stacks: 2 }, { trigger: "on_combat_start", action: "status_all", status: "verwundbar", stacks: 2 }, { trigger: "damage_calc", cardTag: "eis", op: "add", value: 3 }],
+      text: "Kampfbeginn: alle Gegner 2 Kälte und 2x Verwundbar. Eiskarten +3 Schaden." },
     eiskristall: { name: "Eiskristall", text: "Eiskarten: +2 Schaden.", rarity: "ungewoehnlich", tags: ["eis", "item"],
       passives: [{ trigger: "damage_calc", cardTag: "eis", op: "add", value: 2 }] },
-    frostherz: { name: "Frostherz", text: "Eiskarte gespielt: 1x Verwundbar auf einen Gegner (max. 2/Zug).", rarity: "selten", tags: ["eis", "item"],
-      passives: [{ trigger: "on_card_played", cardTag: "eis", action: "status", status: "verwundbar", stacks: 1, target: "random_enemy", maxPerTurn: 2 }] },
+    frostherz: { name: "Frostherz", text: "Eiskarte gespielt: 1 Kälte auf einen Gegner (max. 2/Zug).", rarity: "selten", tags: ["eis", "item"],
+      passives: [{ trigger: "on_card_played", cardTag: "eis", action: "status", status: "frost", stacks: 1, target: "random_enemy", maxPerTurn: 2 }] },
   },
   enemies: {
     frostwolf: { name: "Frostwolf", hp: 26, elements: ["eis"], pattern: [{ type: "attack", value: 9 }, { type: "attack", value: 6 }] },
@@ -621,7 +630,7 @@ __exports.default = {
   items: {
     // --- gewöhnlich ---
     lederweste:    { name: "Lederweste", tags: ["item", "ruestung"], stats: { maxHp: 8 }, text: "+8 Max-HP." },
-    eisenhelm:     { name: "Eisenhelm", tags: ["item", "ruestung", "block"], stats: { blockStart: 2 }, text: "Starte jeden Zug mit 2 Block." },
+    eisenhelm:     { name: "Eisenhelm", tags: ["item", "ruestung", "block"], passives: [{ trigger: "on_turn_start", action: "block", value: 6, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: 6 Block." },
     muenzbeutel:   { name: "Münzbeutel", tags: ["item", "gold"], stats: { goldPct: 15 }, text: "+15 % Gold." },
     feldflasche:   { name: "Feldflasche", tags: ["item", "heilung"], stats: { regen: 5 }, text: "Heile 5 HP nach jedem Kampf." },
     hasenpfote:    { name: "Hasenpfote", tags: ["item", "glueck", "gold"], stats: { luck: 1, goldPct: 10 }, text: "+1 Glück, +10 % Gold." },
@@ -632,7 +641,7 @@ __exports.default = {
 
     // --- ungewöhnlich ---
     rucksack:      { name: "Rucksack", rarity: "ungewoehnlich", tags: ["item"], stats: { handSize: 1 }, maxStack: 2, text: "+1 Handkarte." },
-    ledergurt:     { name: "Ledergurt", rarity: "ungewoehnlich", tags: ["item", "ruestung", "block"], stats: { maxHp: 6, blockStart: 1 }, text: "+6 Max-HP, +1 Block pro Zug." },
+    ledergurt:     { name: "Ledergurt", rarity: "ungewoehnlich", tags: ["item", "ruestung", "block"], stats: { maxHp: 4 }, passives: [{ trigger: "on_turn_start", action: "block", value: 3, oncePerCombat: true }], text: "+4 Max-HP. Erster Zug jedes Kampfes: 3 Block." },
     dornenruestung: { name: "Dornenrüstung", rarity: "ungewoehnlich", tags: ["item", "ruestung", "dornen"],
                      passives: [{ trigger: "on_player_hit", action: "damage", value: 3, target: "event_target", maxPerTurn: 4 }],
                      text: "Wer dich trifft, nimmt 3 Schaden." },
@@ -653,8 +662,8 @@ __exports.default = {
                      passives: [{ trigger: "on_turn_start", chance: 0.3, action: "draw", value: 1 }], text: "Zugbeginn: 30 % Chance, 1 Karte zu ziehen." },
 
     // --- selten ---
-    energiekristall: { name: "Energiekristall", rarity: "selten", tags: ["item"], stats: { energy: 1 }, maxStack: 1, text: "+1 Energie pro Zug." },
-    blutpakt:      { name: "Blutpakt", rarity: "selten", tags: ["item", "pakt"], stats: { energy: 1, maxHp: -12 }, maxStack: 1, text: "+1 Energie, -12 Max-HP." },
+    energiekristall: { name: "Energiekristall", rarity: "selten", tags: ["item"], stats: { energy: 1, handSize: -1, maxHp: -8 }, maxStack: 1, text: "+1 Energie pro Zug, aber 1 Handkarte weniger und -8 Max-HP." },
+    blutpakt:      { name: "Blutpakt", rarity: "selten", tags: ["item", "pakt"], stats: { energy: 1, maxHp: -20 }, maxStack: 1, text: "+1 Energie, -20 Max-HP." },
     glaskanone:    { name: "Glaskanone", rarity: "selten", tags: ["item", "pakt"], stats: { maxHp: -15 }, maxStack: 2,
                      passives: [{ trigger: "damage_calc", op: "pct", value: 0.4 }], text: "+40 % Schaden, -15 Max-HP." },
     goldene_waage: { name: "Goldene Waage", rarity: "selten", tags: ["item", "gold"], stats: { goldPct: 40 }, maxStack: 1, text: "+40 % Gold." },
@@ -683,7 +692,7 @@ __exports.default = {
   enemies: {
     funke: { name: "Funke", hp: 16, elements: ["feuer"], pattern: [{ type: "attack", value: 5 }] },
     elementarwandler: {
-      immune: ["aussetzen"],   // Bestechung wirkt nicht auf den Endboss
+      immune: ["aussetzen", "eingefroren"],   // Bestechung und Einfrieren wirken nicht auf den Endboss
       name: "Elementarwandler", hp: 230, elements: ["feuer"],
       mechanics: {
         rotateElement: { cycle: ["feuer", "wasser", "pflanze", "eis"], every: 2 },
@@ -785,8 +794,9 @@ __exports.default = {
 
   classes: {
     fernkaempfer: {
-      name: "Fernkämpfer", hp: 68, stats: { handSize: 1 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
+      name: "Fernkämpfer", hp: 66, stats: { handSize: 1 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
       deck: ["schnellschuss", "schnellschuss", "schnellschuss", "schnellschuss", "zielen", "praezisionsschuss", "praezisionsschuss"], shopBasics: ["rolle", "rolle"],
+      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "- Weniger Leben: 66 Max-HP"],
       weapon: "kurzbogen", starterWeapons: ["kurzbogen", "armbrust", "giftbogen"], items: [],
     },
   },
@@ -812,8 +822,8 @@ __exports.default = {
       text: "Feuerschaden: 8 + 2x Waffe.",
       play: [{ action: "damage", base: 8, weaponScale: 2 }] },
     eispfeil:      { name: "Eispfeil", cost: 2, element: "eis", pools: ["fernkaempfer"], tags: ["fernkampf", "angriff"],
-      text: "Eisschaden: 6 + 1,5x Waffe. 2 Verwundbar.",
-      play: [{ action: "damage", base: 6, weaponScale: 1.5 }, { action: "status", status: "verwundbar", stacks: 2 }] },
+      text: "Eisschaden: 6 + 1,5x Waffe. 1 Verwundbar, 1 Kälte.",
+      play: [{ action: "damage", base: 6, weaponScale: 1.5 }, { action: "status", status: "verwundbar", stacks: 1 }, { action: "status", status: "frost", stacks: 1 }] },
     nachladen:     { name: "Nachladen", cost: 0, rarity: "ungewoehnlich", pools: ["fernkaempfer"], tags: ["fernkampf", "utility"],
       text: "Ziehe 2 Karten.",
       play: [{ action: "draw", value: 2 }] },
@@ -856,7 +866,7 @@ __exports.default = {
     adlerauge: { name: "Adlerauge", rarity: "ungewoehnlich", pools: ["fernkaempfer"], tags: ["item", "fernkampf", "debuff"],
       passives: [{ trigger: "on_combat_start", action: "status_all", status: "markiert", stacks: 2 }], text: "Kampfbeginn: alle Gegner 2 Züge markiert." },
     leichtfuessig: { name: "Leichtfüßig", rarity: "ungewoehnlich", pools: ["fernkaempfer"], tags: ["item", "ausweichen"],
-      passives: [{ trigger: "on_turn_start", action: "player_status", status: "ausweichen", stacks: 1 }], text: "Zugbeginn: weiche 1 Treffer aus." },
+      passives: [{ trigger: "on_turn_start", action: "player_status", status: "ausweichen", stacks: 2, oncePerCombat: true }], text: "Erster Zug jedes Kampfes: weiche 2 Treffern aus." },
     jagdzeichen: { name: "Jagdzeichen", rarity: "selten", pools: ["fernkaempfer"], tags: ["item", "fernkampf", "debuff"],
       passives: [{ trigger: "on_card_played", cardTag: "fernkampf", chance: 0.3, action: "status", status: "markiert", stacks: 1, target: "random_enemy", maxPerTurn: 3 }],
       text: "Fernkampfkarte gespielt: 30 % Chance, einen Gegner zu markieren." },
@@ -879,8 +889,9 @@ __exports.default = {
 
   classes: {
     magier: {
-      name: "Magier", hp: 64, stats: {}, blurb: "Mischen wird belohnt: Zwei verschiedene Elemente nacheinander lösen Reaktionen aus. Wenig HP, viel Kombo.",
+      name: "Magier", hp: 70, stats: {}, blurb: "Mischen wird belohnt: Zwei verschiedene Elemente nacheinander lösen Reaktionen aus. Wenig HP, viel Kombo.",
       deck: ["funke", "funke", "tropfen", "tropfen", "ranke", "frostnadel", "arkanblitz"], shopBasics: ["manaschild", "manaschild"],
+      perks: ["+ Reaktionen: 2 Elemente nacheinander = Zusatzeffekt", "- Wenig Leben: 70 Max-HP", "- Kaum Block"],
       weapon: "zauberstab", starterWeapons: ["zauberstab", "runenstab", "flammenstab"], items: [],
     },
   },
@@ -893,7 +904,7 @@ __exports.default = {
     ranke:      { name: "Ranke", cost: 1, element: "pflanze", pools: ["magier"], tags: ["zauber", "angriff", "blut"],
       text: "Pflanzenschaden: 3 + 0,5x Waffe. 2 Blutung.", play: [{ action: "damage", base: 3, weaponScale: 0.5 }, { action: "status", status: "blutung", stacks: 2 }] },
     frostnadel: { name: "Frostnadel", cost: 2, element: "eis", pools: ["magier"], tags: ["zauber", "angriff"],
-      text: "Eisschaden: 8 + Waffe. 2 Verwundbar.", play: [{ action: "damage", base: 8, weaponScale: 1 }, { action: "status", status: "verwundbar", stacks: 2 }] },
+      text: "Eisschaden: 8 + Waffe. 2 Kälte.", play: [{ action: "damage", base: 8, weaponScale: 1 }, { action: "status", status: "frost", stacks: 2 }] },
     manaschild: { name: "Manaschild", cost: 1, pools: ["magier"], tags: ["zauber", "block"],
       text: "5 Block.", play: [{ action: "block", value: 5 }] },
     arkanblitz: { name: "Arkanblitz", cost: 2, pools: ["magier"], tags: ["zauber", "angriff"],
@@ -906,8 +917,8 @@ __exports.default = {
     dornenwall: { name: "Dornenwall", cost: 2, rarity: "ungewoehnlich", element: "pflanze", pools: ["magier"], tags: ["zauber", "block", "blut"],
       text: "Pflanze: 8 Block. 3 Blutung auf ALLE.", play: [{ action: "block", value: 8 }, { action: "status", status: "blutung", stacks: 3, target: "all" }] },
     eisregen:   { name: "Eisregen", cost: 2, rarity: "ungewoehnlich", element: "eis", pools: ["magier"], tags: ["zauber", "flaeche"],
-      text: "Eisschaden an ALLEN: 4 + 0,5x Waffe. 1 Verwundbar auf ALLE.",
-      play: [{ action: "damage", base: 4, weaponScale: 0.5, target: "all" }, { action: "status", status: "verwundbar", stacks: 1, target: "all" }] },
+      text: "Eisschaden an ALLEN: 4 + 0,5x Waffe. 1 Kälte auf ALLE.",
+      play: [{ action: "damage", base: 4, weaponScale: 0.5, target: "all" }, { action: "status", status: "frost", stacks: 1, target: "all" }] },
     meteor:     { name: "Meteor", cost: 3, rarity: "selten", element: "feuer", pools: ["magier"], tags: ["zauber", "angriff"],
       text: "Feuerschaden: 16 + 2x Waffe.", play: [{ action: "damage", base: 16, weaponScale: 2 }] },
     arkaner_sturm: { name: "Arkaner Sturm", cost: 2, rarity: "selten", pools: ["magier"], tags: ["zauber", "flaeche"],
@@ -1019,7 +1030,7 @@ __exports.default = {
     w1:    { group: "runs", name: "Der Wandler fällt",       text: "Gewinne deinen ersten Run.",            check: { stat: "wins", min: 1 },   reward: { kind: "skins", id: "nachtwache" } },
     w5:    { group: "runs", name: "Serienheld",              text: "Gewinne 5 Runs.",                       check: { stat: "wins", min: 5 },   reward: { kind: "frames", id: "flamme" } },
     w25:   { group: "runs", name: "Dungeon-Legende",         text: "Gewinne 25 Runs.",                      check: { stat: "wins", min: 25 },  reward: { kind: "weapons", id: "jagdbogen" } },
-    wklassen: { group: "runs", name: "Drei Wege",            text: "Gewinne einen Run mit jeder Klasse.",   check: { mapAll: "winsByClass", of: "classes" }, reward: { kind: "frames", id: "prisma" } },
+    wklassen: { group: "runs", name: "Alle Wege",            text: "Gewinne einen Run mit jedem Helden.",   check: { mapAll: "winsByClass", of: "classes" }, reward: { kind: "frames", id: "prisma" } },
     wwaffen:  { group: "runs", name: "Waffenmeister",        text: "Gewinne mit jeder Startwaffe.",         check: { mapAll: "winsByWeapon", of: "starterWeapons" }, reward: { kind: "items", id: "glaskanone" } },
     whart: { group: "runs", name: "Härtetest",               text: "Gewinne einen Run auf Schwer.",         check: { special: "win_hard" },      reward: { kind: "items", id: "energiekristall" } },
     walb:  { group: "runs", name: "Albtraum bezwungen",      text: "Gewinne einen Run auf Albtraum.",       check: { special: "win_nightmare" }, reward: { kind: "frames", id: "blut" } },
@@ -1119,7 +1130,7 @@ __exports.default = {
     narbenleder:   { name: "Narbenleder", tags: ["blut", "ruestung", "item"],
       passives: [{ trigger: "on_status_applied", whenStatus: "blutung", action: "block", value: 2, maxPerTurn: 3 }], text: "Blutung aufgetragen: 2 Block (max. 3x/Zug)." },
     stachelschild: { name: "Stachelschild", tags: ["dornen", "block", "item"],
-      passives: [{ trigger: "on_turn_start", action: "player_status", status: "dornen", stacks: 2 }], text: "Zugbeginn: Dornen 2 (Angreifer erleiden 2 Schaden)." },
+      passives: [{ trigger: "on_turn_start", action: "player_status", status: "dornen", stacks: 1 }], text: "Zugbeginn: Dornen 1 (Angreifer erleiden 1 Schaden)." },
     eisenfaust:    { name: "Eisenfaust", rarity: "ungewoehnlich", tags: ["block", "ruestung", "item"],
       passives: [{ trigger: "damage_calc", cardTag: "block", op: "add", value: 3 }], text: "Block-Karten: +3 Schaden." },
   },
@@ -1205,8 +1216,8 @@ __exports.default = {
       text: "Ein Gegner setzt diese Runde aus. Du zahlst sofort 15 % deines Goldes. Bosse sind unbestechlich.",
       play: [{ action: "status", status: "aussetzen", stacks: 1 }, { action: "payGoldPct", value: 0.15, ifTarget: "aussetzen" }] },
     // ---------------- Parasitärer Gärtner
-    photosynthese: { name: "Photosynthese", cost: 1, element: "pflanze", tags: ["pflanze", "heilung"],
-      text: "Heile 8 HP. Max-HP +1 bis zum Ende des Runs.",
+    photosynthese: { name: "Photosynthese", cost: 1, element: "pflanze", tags: ["pflanze", "heilung"], exhaust: true,
+      text: "Heile 8 HP. Max-HP +1 bis zum Ende des Runs. Verbrauchen.",
       play: [{ action: "heal", value: 8 }, { action: "maxHpUp", value: 1 }] },
     sporenwolke: { name: "Sporenwolke", cost: 1, element: "pflanze", tags: ["pflanze", "block"],
       text: "5 Block. Wurdest du diesen Zug schon geheilt (oder wolltest heilen): stattdessen 15 Block.",
@@ -1252,6 +1263,77 @@ __exports.default = {
 
 
 });
+__define("content/packs/helden2.js", function (__exports, __require) {
+// DREI NEUE HELDEN (Brotato-Prinzip: jeder Held hat Vor- und Nachteile, eine Signaturwaffe und eigene Karten; freischaltbar über Erfolge).
+// Klassen-Passive stehen als Daten in "passives" (wie bei Items), Vor- und Nachteile für die Anzeige in "perks".
+// cardPools: Der Held findet auch die Karten verwandter Klassen. startGold, shopDiscount, restHealPct: Wirtschafts-Eigenheiten.
+__exports.default = {
+  id: "helden2",
+  name: "Neue Helden",
+  classes: {
+    pyromant: {
+      name: "Pyromant", hp: 80, stats: { regen: 2 },
+      blurb: "Spielt mit dem Schmerz: Jeder Verlust an HP setzt Gegner in Brand, und je mehr ihm fehlt, desto härter schlägt er zu. Dafür hat er wenig Leben.",
+      perks: ["+ Schmerzensglut: HP-Verlust = 1 Verbrennung für alle", "+ Lodernder Schmerz im Startdeck", "- Pechfackel verletzt dich jeden Zug", "- Nur 80 Max-HP"],
+      passive: { id: "schmerzensglut", name: "Schmerzensglut", text: "Wenn du HP verlierst, erhalten alle Gegner 1 Verbrennung (höchstens 2x pro Zug)." },
+      passives: [{ trigger: "on_hp_lost", action: "status_all", status: "verbrennung", stacks: 1, maxPerTurn: 2 }],
+      cardPools: ["pyromant", "magier"],
+      deck: ["flammenhieb", "flammenhieb", "hieb", "hieb", "feuerball", "wuchtschlag", "lodernder_schmerz"], shopBasics: ["deckung", "deckung"],
+      weapon: "pechfackel", items: [], unlock: { type: "achievement", id: "g50" },
+    },
+    aristokrat: {
+      name: "Aristokrat", hp: 118, stats: { goldPct: 30, ernte: 2, regen: 3 }, startGold: 40, shopDiscount: 0.1, restHealPct: 0.2,
+      blurb: "Gold ist Macht: mehr Beute, billigere Händler und festes Einkommen. Dafür kämpft er schlecht und erholt sich kaum an der Rast.",
+      perks: ["+ 30 % Gold, Ernte 2, 40 Startgold", "+ Mäzen: Händlerpreise -10 %", "- Schwaches Startdeck und schwache Waffe", "- Rast heilt nur 20 %"],
+      passive: { id: "maezen", name: "Mäzen", text: "Händlerpreise -10 %." },
+      cardPools: ["aristokrat", "nahkaempfer"],
+      deck: ["hieb", "hieb", "taschendiebstahl", "taschendiebstahl", "schuldschein", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung"],
+      weapon: "stockdegen", items: [], unlock: { type: "achievement", id: "k25" },
+    },
+    gaertnerin: {
+      name: "Gärtnerin", hp: 64, stats: { regen: 3, handSize: -1 },
+      blurb: "Geduldig: Pflanzenkarten und Heilung, nach jedem Kampf erholt sie sich. Dafür hat sie wenig Leben und eine kleine Hand.",
+      perks: ["+ Nach jedem Kampf +3 HP", "+ Wurzelwerk: Pflanzenkarten +1 Schaden", "- Nur 4 Handkarten", "- Nur 64 Max-HP"],
+      passive: { id: "wurzelwerk", name: "Wurzelwerk", text: "Pflanzenkarten machen +1 Schaden." },
+      passives: [{ trigger: "damage_calc", cardTag: "pflanze", op: "add", value: 1 }],
+      cardPools: ["gaertnerin", "magier"],
+      deck: ["ranke", "ranke", "photosynthese", "hieb", "hieb", "blutsauger_ranke", "wuchtschlag"], shopBasics: ["sporenwolke", "sporenwolke"],
+      weapon: "rankenstab", items: [], unlock: { type: "achievement", id: "s10" },
+    },
+  },
+  weapons: {
+    // Signaturwaffen (gewöhnlich, frei wählbar wie alle Startwaffen)
+    pechfackel: { name: "Pechfackel", starter: true, pools: ["pyromant"], power: 2, tags: ["waffe", "nahkampf", "feuer"],
+      passives: [{ trigger: "damage_calc", cardTag: "feuer", op: "add", value: 2 }, { trigger: "on_turn_end", action: "hurt", value: 1 }] },
+    stockdegen: { name: "Stockdegen", starter: true, pools: ["aristokrat"], power: 2, tags: ["waffe", "nahkampf", "gold"],
+      passives: [{ trigger: "damage_calc", op: "baseadd", perGold: { step: 100, value: 1 }, cap: 8 }] },
+    rankenstab: { name: "Rankenstab", starter: true, pools: ["gaertnerin"], power: 1, tags: ["waffe", "zauber", "pflanze"],
+      passives: [{ trigger: "damage_calc", cardTag: "pflanze", op: "add", value: 1 }] },
+  },
+  cards: {
+    // Pyromant
+    selbstentzuendung: { name: "Selbstentzündung", cost: 1, rarity: "ungewoehnlich", element: "feuer", pools: ["pyromant"], tags: ["pakt"],
+      text: "Erleide 4 Schaden (nie unter 1 HP). Alle Gegner erhalten 4 Verbrennung.",
+      play: [{ action: "loseHp", value: 4 }, { action: "status", status: "verbrennung", stacks: 4, target: "all" }] },
+    flammenmantel: { name: "Flammenmantel", cost: 2, rarity: "ungewoehnlich", element: "feuer", pools: ["pyromant"], tags: ["pakt", "block", "dornen"],
+      text: "10 Block. Hast du diesen Zug HP verloren: Dornen 5 (Angreifer erleiden bis zu deinem Zug 5 Schaden).",
+      play: [{ action: "block", value: 10 }, { action: "playerStatus", status: "dornen", stacks: 5, ifHpLost: true }] },
+    // Aristokrat
+    schuldschein: { name: "Schuldschein", cost: 1, pools: ["aristokrat"], tags: ["gold"],
+      text: "Erhalte 20 Gold. Ziehe 1 Karte.", play: [{ action: "gainGold", value: 20 }, { action: "draw", value: 1 }] },
+    dekadenz: { name: "Dekadenz", cost: 2, rarity: "ungewoehnlich", pools: ["aristokrat"], tags: ["gold", "angriff"],
+      text: "12 Schaden an ALLEN Gegnern. Du zahlst 10 % deines Goldes.", play: [{ action: "damage", base: 12, target: "all" }, { action: "payGoldPct", value: 0.1 }] },
+    // Gärtnerin
+    rankendornen: { name: "Ranken-Dornen", cost: 1, element: "pflanze", pools: ["gaertnerin"], tags: ["pflanze", "block", "dornen"],
+      text: "4 Block. Dornen 3 (Angreifer erleiden bis zu deinem Zug 3 Schaden).", play: [{ action: "block", value: 4 }, { action: "playerStatus", status: "dornen", stacks: 3 }] },
+    wurzelgeflecht: { name: "Wurzelgeflecht", cost: 2, rarity: "ungewoehnlich", element: "pflanze", pools: ["gaertnerin"], tags: ["pflanze", "block", "heilung"],
+      text: "8 Block. Heile 4 HP.", play: [{ action: "block", value: 8 }, { action: "heal", value: 4 }] },
+  },
+};
+
+
+
+});
 __define("content/packs/story.js", function (__exports, __require) {
 // GESCHICHTE: Sprecher und Dialoge als Daten. Neue Geschichten (z. B. je Klasse, je Boss, je Schwierigkeit) = nur Einträge ergänzen.
 // lines: Text oder { perClass: { <klassen-id>: "...", default: "..." } }
@@ -1275,6 +1357,9 @@ __exports.default = {
           nahkaempfer: "Du siehst aus, als hättest du schon mal eine Tür mit dem Gesicht geöffnet. Perfekt. Unten braucht man Leute wie dich.",
           fernkaempfer: "Gute Augen, leise Schritte. Genau, was die Tiefe verlangt. Und nein, die Pfeile bezahlt dir niemand.",
           magier: "Ein Magier! Endlich jemand, der die Elemente versteht. Pass auf: Seit der Stein fort ist, vertragen die sich nicht mehr. Mischst du sie, knallt es.",
+          pyromant: "Du riechst nach Rauch und siehst aus, als wäre dir das egal. Gut. Unten brennt es ohnehin schon.",
+          aristokrat: "Ein feiner Herr! Verirrt? Nein? Dann nimm den Stock, die Geldbörse bleibt, wo sie ist. Unten kostet alles extra.",
+          gaertnerin: "Eine Gärtnerin im Dungeon? Na, Unkraut gibt es da unten genug. Und die Wände könnten etwas Grün vertragen.",
           default: "Du siehst fähig aus. Das reicht mir.",
         } },
         "Unten wimmelt es von Viechern. Sammle Karten, Beute und Gold. Und wenn dir etwas Glitzerndes über den Weg läuft: schnapp es dir. Das lohnt sich.",
@@ -1320,16 +1405,311 @@ const bollwerk = __require("content/packs/bollwerk.js").default;
 const pyro = __require("content/packs/pyro.js").default;
 const aristokratGaertner = __require("content/packs/aristokrat_gaertner.js").default;
 const waffenStufe2 = __require("content/packs/waffen_stufe2.js").default;
+const helden2 = __require("content/packs/helden2.js").default;
 const story = __require("content/packs/story.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 const problems = CONTENT.validate();
 if (problems.length) throw new Error("Content-Fehler:\n- " + problems.join("\n- "));
 
 __exports.CONTENT = CONTENT;
+
+});
+__define("ui/en_cards_items.js", function (__exports, __require) {
+// Englische Texte: Karten und Items. Format: id: [Name, Text].
+const EN_CARDS = {
+  hieb: ["Strike", "Damage: 4 + weapon."], wuchtschlag: ["Heavy Blow", "Damage: 8 + 2x weapon."], wirbel: ["Whirlwind", "Damage to ALL: 3 + weapon."],
+  deckung: ["Guard", "6 Block."], schildwall: ["Shield Wall", "13 Block."], adrenalin: ["Adrenaline", "Draw 2 cards."], schwachstelle: ["Weak Point", "2 Vulnerable (+50% damage)."],
+  wasserstrahl: ["Water Jet", "Water damage: 10 + 2x weapon."], flutwelle: ["Tidal Wave", "Water damage to ALL: 4 + 0.5x weapon."], dornenpeitsche: ["Thorn Whip", "Plant damage: 3 + 0.5x weapon. 3 Bleed."],
+  flammenhieb: ["Flame Strike", "Fire damage: 4 + weapon."], feuerball: ["Fireball", "Fire damage to ALL: 5 + 0.5x weapon."], inferno: ["Inferno", "Fire damage to ALL: 9 + weapon."],
+  phoenixschlag: ["Phoenix Strike", "Fire damage: 14 + 2x weapon. Draw 1 card."], giftklinge: ["Poison Blade", "Damage: 3 + 0.5x weapon. 4 Poison."], giftwolke: ["Poison Cloud", "3 Poison to ALL."],
+  pandemie: ["Pandemic", "Double the Poison on ALL enemies."], aufschlitzen: ["Slash Open", "Damage: 3 + 0.5x weapon. 4 Bleed."], blutrausch: ["Blood Frenzy", "Damage: 6 + 1.5x weapon, +2 per Bleed on the target."],
+  eissplitter: ["Ice Shard", "Ice damage: 8 + 1.5x weapon. 1 Vulnerable, 1 Chill."], frostnova: ["Frost Nova", "Ice damage to ALL: 3 + 0.5x weapon. 1 Vulnerable and 1 Chill to ALL."],
+  eiszeit: ["Ice Age", "Ice damage to ALL: 4 + weapon. 1 Vulnerable and 2 Chill to ALL."], schnellschuss: ["Quick Shot", "Damage: 3 + weapon, +1 per card played earlier this turn."],
+  zielen: ["Take Aim", "Mark the target (3 turns): hits deal +1 damage."], rolle: ["Dodge Roll", "Dodge 1 hit. 4 Block."], praezisionsschuss: ["Precision Shot", "Damage: 6 + 1.5x weapon, +3 per Mark on the target."],
+  giftpfeil: ["Poison Arrow", "Damage: 4 + 1.5x weapon. 6 Poison."], brandpfeil: ["Fire Arrow", "Fire damage: 8 + 2x weapon."], eispfeil: ["Ice Arrow", "Ice damage: 6 + 1.5x weapon. 1 Vulnerable, 1 Chill."],
+  nachladen: ["Reload", "Draw 2 cards."], salve: ["Volley", "3 hits: 2 + 0.5x weapon each."], pfeilhagel: ["Arrow Hail", "2 hits on ALL: 2 + 0.5x weapon each."],
+  fluchtschuss: ["Parting Shot", "Damage: 6 + 1.5x weapon. Draw 1 card. Dodge 2 hits."], scharfschuetze: ["Sniper Shot", "Damage: 12 + 2x weapon, +4 per Mark on the target."],
+  dauerfeuer: ["Rapid Fire", "6 hits: 1 + 0.5x weapon each, +1 per card played earlier."], pfeilsturm: ["Arrow Storm", "4 hits on ALL: 2 + 0.5x weapon each."],
+  funke: ["Spark", "Fire damage: 5 + 0.5x weapon."], tropfen: ["Water Drop", "Water damage: 4 + 0.5x weapon. 2 Block."], ranke: ["Vine", "Plant damage: 3 + 0.5x weapon. 2 Bleed."],
+  frostnadel: ["Frost Needle", "Ice damage: 8 + weapon. 2 Chill."], manaschild: ["Mana Shield", "5 Block."], arkanblitz: ["Arcane Bolt", "Damage: 11 + 1.5x weapon (no element)."],
+  gedankenblitz: ["Brainstorm", "Draw 1 card."], flammenwelle: ["Flame Wave", "Fire damage to ALL: 5 + 0.5x weapon."], dornenwall: ["Thorn Wall", "Plant: 8 Block. 3 Bleed to ALL."],
+  eisregen: ["Ice Rain", "Ice damage to ALL: 4 + 0.5x weapon. 1 Chill to ALL."], meteor: ["Meteor", "Fire damage: 16 + 2x weapon."], arkaner_sturm: ["Arcane Storm", "Damage to ALL: 4 + weapon. 1 Vulnerable to ALL."],
+  prismasturm: ["Prismatic Storm", "3 + 0.5x weapon damage each to ALL in Fire, Water, Plant and Ice."], schildstoss: ["Shield Bash", "Damage equal to your Block (max. 12). The Block stays."],
+  dornenpanzer: ["Thorn Armor", "8 Block. Thorns 2: attackers take 2 damage until your next turn."], eiserner_wille: ["Iron Will", "5 Block. Heal 2 HP."], bollwerk: ["Bulwark", "12 Block. Draw 1 card."],
+  festungsbau: ["Fortress", "16 Block. Thorns 4: attackers take 4 damage until your next turn."], blutopfer: ["Blood Offering", "Lose 5 HP (never below 1). +1 Energy."],
+  blutdurst: ["Bloodthirst", "Damage: 4 + weapon. If the target bleeds: heal 3 HP."], zerfleischen: ["Maul", "Damage: 4 + weapon, +4 per Bleed on the target."],
+  aderlass: ["Bloodletting", "Take 4 damage (never below 1 HP). Draw 2 cards, gain 1 Energy."], lodernder_schmerz: ["Burning Pain", "Fire damage equal to your missing HP (max. 40)."],
+  feuersturm: ["Firestorm", "12 fire damage to one enemy. If you lost HP this turn: hits ALL enemies and gives each 2 Burn."],
+  taschendiebstahl: ["Pickpocket", "2 damage. If this card kills the enemy: gain 40 Gold at once."], bestechung: ["Bribe", "One enemy skips this turn. You pay 15% of your Gold at once. Bosses can't be bribed."],
+  photosynthese: ["Photosynthesis", "Heal 8 HP. Max HP +1 until the end of the run. Exhaust."], sporenwolke: ["Spore Cloud", "5 Block. If you were already healed this turn (or tried to heal): 15 Block instead."],
+  blutsauger_ranke: ["Bloodsucker Vine", "6 damage. Heal yourself for the damage dealt."], selbstentzuendung: ["Self-Immolation", "Take 4 damage (never below 1 HP). All enemies get 4 Burn."],
+  flammenmantel: ["Flame Cloak", "10 Block. If you lost HP this turn: Thorns 5 (attackers take 5 damage until your next turn)."], schuldschein: ["IOU", "Gain 20 Gold. Draw 1 card."],
+  dekadenz: ["Decadence", "12 damage to ALL enemies. You pay 10% of your Gold."], rankendornen: ["Vine Thorns", "4 Block. Thorns 3 (attackers take 3 damage until your next turn)."], wurzelgeflecht: ["Root Tangle", "8 Block. Heal 4 HP."],
+};
+const EN_ITEMS = {
+  quellstein: ["Spring Stone", "Water cards: +2 damage."], gezeitenperle: ["Tide Pearl", "Water card played: 3 Block (max. 4/turn)."], treibholz: ["Driftwood", "First turn of every combat: 2 Block per Water tag (max. 8)."],
+  dornenring: ["Thorn Ring", "Plant cards: +2 damage."], sporenbeutel: ["Spore Pouch", "Plant card played: 1 Poison on an enemy (max. 3/turn)."], wurzelherz: ["Root Heart", "Start of turn: heal 1 HP per Plant tag (max. 2)."],
+  eisenpanzer: ["Iron Armor", "First turn of every combat: 4 Block."], vielfaltsmedaille: ["Medal of Variety", "All cards: +1 damage per different type in your build (max. +3)."],
+  kleeblatt: ["Clover", "+2 Luck (better rarities in rewards)."], glueckswuerfel: ["Lucky Dice", "+4 Luck (better rarities in rewards)."], prismalinse: ["Prism Lens", "Elemental resistances are ignored."],
+  jaegerauge: ["Hunter's Eye", "Elemental weaknesses hit harder (x1.5 becomes x1.75)."], lederweste: ["Leather Vest", "+8 Max HP."], eisenhelm: ["Iron Helmet", "First turn of every combat: 6 Block."],
+  muenzbeutel: ["Coin Purse", "+15% Gold."], feldflasche: ["Canteen", "Heal 5 HP after every combat."], hasenpfote: ["Rabbit's Foot", "+1 Luck, +10% Gold."], wetzstein: ["Whetstone", "Melee cards: +1 damage."],
+  notfallration: ["Emergency Ration", "Heal 5 HP at the start of combat."], rucksack: ["Backpack", "+1 card in hand."], ledergurt: ["Leather Belt", "+4 Max HP. First turn of every combat: 3 Block."],
+  dornenruestung: ["Spiked Mail", "Whoever hits you takes 3 damage."], kampfhorn: ["War Horn", "Start of combat: all enemies 1 Vulnerable."], adrenalinpumpe: ["Adrenaline Pump", "Enemy defeated: draw 1 card (max. 2/turn)."],
+  beutegier: ["Loot Lust", "Enemy defeated: heal 2 HP (max. 3/turn)."], kriegstrommel: ["War Drum", "Start of turn: 25% chance for +1 Energy."], echostein: ["Echo Stone", "Card played: 15% chance to draw 1 card (max. 2/turn)."],
+  meisterhammer: ["Master Hammer", "Melee cards: +20% damage."], taschenuhr: ["Pocket Watch", "Start of turn: 30% chance to draw 1 card."], energiekristall: ["Energy Crystal", "+1 Energy per turn, but 1 fewer card in hand and -8 Max HP."],
+  blutpakt: ["Blood Pact", "+1 Energy, -20 Max HP."], glaskanone: ["Glass Cannon", "+40% damage, -15 Max HP."], goldene_waage: ["Golden Scales", "+40% Gold."], kartenhaus: ["House of Cards", "+2 cards in hand, -8 Max HP."],
+  schillernder_charme: ["Shimmering Charm", "Doubles your Shiny chance (second charm: triples it)."], phoenixfeder: ["Phoenix Feather", "+10 Max HP, heal 12 HP after every combat."],
+  funkenfeuerzeug: ["Spark Lighter", "Fire card played: 30% chance for 3 damage to an enemy."], lavaruestung: ["Lava Armor", "When you are hit: 2 damage to ALL (max. 2/turn)."],
+  glutschale: ["Ember Bowl", "First turn of every combat: 2 Block per Fire tag (max. 8)."], aschemantel: ["Ash Mantle", "From 4 Fire tags: Fire cards +3 damage."], glutstein: ["Ember Stone", "Fire cards: +2 damage."],
+  schmiedeherz: ["Forge Heart", "Fire cards: +1 damage per Fire tag (max. +4)."], flammenkrone: ["Flame Crown", "From 6 Fire tags: Fire cards +25% damage."], giftzahn: ["Venom Fang", "Poison cards: +2 damage."],
+  schierlingsflasche: ["Hemlock Flask", "Start of turn: 2 Poison on a random enemy."], miasmaflasche: ["Miasma Flask", "Poison applied: 30% chance for 2 damage (max. 4/turn)."],
+  leichengift: ["Corpse Venom", "Enemy defeated: 2 Poison on ALL others (max. 3/turn)."], apothekerwaage: ["Apothecary Scales", "From 4 Poison tags: ALL cards +20% damage."],
+  seuchenkoenig: ["Plague King", "Poison applied: 1 Poison on ALL enemies (max. 2/turn)."], giftring: ["Poison Ring", "Poison card played: 1 Poison on a random enemy (max. 2/turn)."],
+  seuchenbeutel: ["Plague Pouch", "Poison applied: target becomes 1 Vulnerable (max. 2/turn)."], blutegel: ["Leech", "Bleed applied: heal 1 HP (max. 3/turn)."], rasiermesser: ["Razor", "Blood cards: +2 damage."],
+  vampirzahn: ["Vampire Fang", "Enemy defeated: heal 4 HP (max. 2/turn)."], dornenkrone: ["Crown of Thorns", "Whoever hits you bleeds (3 Bleed, max. 3/turn)."], blutmond: ["Blood Moon", "From 4 Blood tags: Blood cards +25% damage."],
+  opferdolch: ["Sacrificial Dagger", "Start of turn: -2 HP. All cards +4 damage."], blutkelch: ["Blood Chalice", "Bleed applied: 2 damage (max. 4/turn)."], raureif: ["Hoarfrost", "First turn of every combat: 2 Block per Ice tag (max. 8)."],
+  eiszapfen: ["Icicle", "Ice card played: 2 damage (max. 4/turn)."], schneekugel: ["Snow Globe", "End of turn: 50% chance to give all enemies 1 Chill."],
+  kaelteamulett: ["Chill Amulet", "Enemies freeze at just 2 Chill. From 4 Ice tags: Ice cards +25% damage."], herz_des_winters: ["Heart of Winter", "Start of combat: all enemies 2 Chill and 2 Vulnerable. Ice cards +3 damage."],
+  eiskristall: ["Ice Crystal", "Ice cards: +2 damage."], frostherz: ["Frost Heart", "Ice card played: 1 Chill on an enemy (max. 2/turn)."], koecher: ["Quiver", "Ranged cards: +1 damage."],
+  munitionsgurt: ["Ammo Belt", "Start of turn: 35% chance to draw 1 card."], adlerauge: ["Eagle Eye", "Start of combat: all enemies marked for 2 turns."], leichtfuessig: ["Light-Footed", "First turn of every combat: dodge 2 hits."],
+  jagdzeichen: ["Hunter's Mark", "Ranged card played: 30% chance to mark an enemy."], zielfernrohr: ["Scope", "From 6 Ranged tags: Ranged cards +25% damage."], grimoire: ["Grimoire", "Spell cards: +1 damage."],
+  funkenschlag: ["Spark Strike", "Reaction: 2 damage to ALL (max. 3/turn)."], gedankenstein: ["Mind Stone", "Reaction: draw 1 card (max. 2/turn)."], resonanzkristall: ["Resonance Crystal", "Reactions are 50% stronger."],
+  manaquelle: ["Mana Spring", "Reaction: +1 Energy (once per turn)."], elementarlinse: ["Elemental Lens", "Reactions +30%. Reaction: 3 Block (max. 2/turn). For all classes!"],
+  feuerflasche: ["Fire Flask", "Active (1 Energy, once per combat): 6 fire damage to ALL."], heiltrank: ["Healing Potion", "Active (1 Energy, once per combat): heal 12 HP."],
+  rauchbombe: ["Smoke Bomb", "Active (1 Energy, once per combat): dodge 3 hits. 4 Block."], giftphiole: ["Poison Vial", "Active (1 Energy, once per combat): 6 Poison on ALL enemies."],
+  frostphiole: ["Frost Vial", "Active (1 Energy, once per combat): 4 ice damage and 2 Vulnerable to ALL."], blutampulle: ["Blood Ampoule", "Active (1 Energy, once per combat): 10 damage and 5 Bleed on one target."],
+  schlachtrufrolle: ["Battle Cry Scroll", "Active (1 Energy, once per combat): all enemies marked for 3 turns and 1 Vulnerable."],
+  prismasplitter: ["Prism Shard", "Active (2 Energy, once per combat): 4 damage each to ALL in Fire, Water, Plant and Ice."], phoenixasche: ["Phoenix Ash", "Active (2 Energy, once per combat): heal 20 HP, 10 Block and +1 Energy."],
+  narbenleder: ["Scar Leather", "Bleed applied: 2 Block (max. 3x/turn)."], stachelschild: ["Spiked Shield", "Start of turn: Thorns 1 (attackers take 1 damage)."], eisenfaust: ["Iron Fist", "Block cards: +3 damage."],
+  pech_raeucherstaebchen: ["Pitch Incense", "Fire cards: +3 damage. End of turn: you take 1 damage."], asche_lunge: ["Ash Lung", "When you lose HP: all foes get 3 Burn. Healing on you is reduced by 50%."],
+  krone_des_maertyrers: ["Martyr's Crown", "Damage x0.1 per 5 HP you are missing from your maximum (cap x3). -10 Max HP."], erntesichel: ["Harvest Sickle", "Harvest 2: +2 Gold after every combat."],
+  vorratskammer: ["Pantry", "Harvest 4: +4 Gold after every combat."], boerse_des_geizkragens: ["Miser's Purse", "All cards: +1 base damage per 50 Gold you own (max. +15)."],
+  midas_fluch: ["Midas Curse", "Doubles all Gold you receive (loot, overkill, harvest, card gold). Item locking in the shop is permanently disabled."],
+  nekromanten_pakt: ["Necromancer's Pact", "All healing becomes 0. Instead, a random enemy takes double the amount as damage (outside combat it fizzles)."], wuchernde_wurzeln: ["Overgrown Roots", "End of turn: heal 1 HP per card in hand. Hand size -2."],
+};
+
+__exports.EN_CARDS = EN_CARDS;
+__exports.EN_ITEMS = EN_ITEMS;
+
+});
+__define("ui/en_world.js", function (__exports, __require) {
+// Englische Texte: Waffen, Gegner, Begegnungen, Helden, Farbvarianten, Rahmen, Ereignisse, Erfolge, Geschichte.
+const EN_WEAPONS = { rostiges_schwert: "Rusty Sword", flammenschwert: "Flame Sword", giftdolch: "Poison Dagger", frostklinge: "Frost Blade", kurzbogen: "Shortbow", armbrust: "Crossbow", giftbogen: "Poison Bow", jagdbogen: "Hunting Bow", zauberstab: "Magic Wand", flammenstab: "Flame Staff", runenstab: "Rune Staff", kristallstab: "Crystal Staff", stahlschwert: "Steel Sword", glutschwert: "Ember Sword", natterndolch: "Viper Dagger", langbogen: "Longbow", brandbogen: "Fire Bow", wundbogen: "Wound Bow", arkanstab: "Arcane Staff", glutzepter: "Ember Scepter", frostzepter: "Frost Scepter", pechfackel: "Pitch Torch", stockdegen: "Cane Sword", rankenstab: "Vine Staff" };
+const EN_ENEMIES = { ratte: "Rat", goblin: "Goblin", skelett: "Skeleton", bandit: "Bandit", steingolem: "Stone Golem", knochenhauptmann: "Bone Captain", glutgeist: "Ember Spirit", frostwolf: "Frost Wolf", dornenranke: "Thornvine", flussgeist: "River Spirit", sumpfgeist: "Swamp Spirit", funke: "Spark", elementarwandler: "Elemental Wanderer" };
+const EN_ENCOUNTERS = { kellerratten: "Cellar Rats (first fight)", rattenschwarm: "Rat Swarm (big wave, weak enemies)", wachposten: "Guard Post (mixed)", steinwaechter: "Stone Guardian (one tanky enemy)", banditenbande: "Bandit Gang (5 mini-bosses)", knochenhauptmann: "Bone Captain (mini-boss alone)", gluthoehle: "Ember Cave (fire spirits)", frostmeute: "Frost Pack (wolf pack)", eliterudel: "Ice Pack (elite)", pflanzenhain: "Plant Grove (vines + swamp spirit)", sumpfwacht: "Swamp Watch (elite)", flussufer: "Riverbank (water spirits)", boss_wandler: "Elemental Wanderer (final boss)" };
+const EN_SKINS = { rotgardist: "Red Guard", nachtwache: "Night Watch", herbstlaeufer: "Autumn Runner", schneejaeger: "Snow Hunter", feuerrobe: "Fire Robe", mondrobe: "Moon Robe" };
+const EN_FRAMES = { bronze: "Bronze", eisen: "Iron", efeu: "Ivy", frost: "Frost", gold: "Gold", flamme: "Flame", prisma: "Prism", blut: "Blood", chrom: "Chrome" };
+const EN_CLASSES = {
+  nahkaempfer: { name: "Warrior", blurb: "Sturdy and straightforward: Block, weapon power and Bleed. Forgives mistakes.", perks: ["+ Lots of life: 90 Max HP", "+ Unyielding: 25% of Block becomes damage (max. 2)", "- No ranged or spell bonus"], passive: { name: "Unyielding", text: "At the end of your turn, 25% of your remaining Block is dealt as damage to the first enemy (at most 2)." } },
+  fernkaempfer: { name: "Ranger", blurb: "Fast and fragile: the more cards you play, the stronger each hit. Marking, multi-hits, dodging.", perks: ["+ One more card in hand (6)", "+ Multi-hits and Marking", "- Less life: 66 Max HP"] },
+  magier: { name: "Mage", blurb: "Mixing is rewarded: two different elements in a row trigger Reactions. Low HP, lots of combos.", perks: ["+ Reactions: 2 elements in a row = bonus effect", "- Low life: 70 Max HP", "- Hardly any Block"] },
+  pyromant: { name: "Pyromancer", blurb: "Plays with pain: every loss of HP sets enemies on fire, and the more he is missing, the harder he hits. In return he has little life.", perks: ["+ Pain Glow: losing HP = 1 Burn on all", "+ Burning Pain in the starting deck", "- Pitch Torch hurts you every turn", "- Only 80 Max HP"], passive: { name: "Pain Glow", text: "When you lose HP, all enemies get 1 Burn (at most 2x per turn)." } },
+  aristokrat: { name: "Aristocrat", blurb: "Gold is power: more loot, cheaper merchants and fixed income. In return he fights poorly and hardly recovers at rests.", perks: ["+ 30% Gold, Harvest 2, 40 starting Gold", "+ Patron: merchant prices -10%", "- Weak starting deck and weak weapon", "- Rest heals only 20%"], passive: { name: "Patron", text: "Patron: merchant prices -10%." } },
+  gaertnerin: { name: "Gardener", blurb: "Patient: plant cards and healing, she recovers after every combat. In return she has little life and a small hand.", perks: ["+ +3 HP after every combat", "+ Rootwork: plant cards +1 damage", "- Only 4 cards in hand", "- Only 64 Max HP"], passive: { name: "Rootwork", text: "Plant cards deal +1 damage." } },
+};
+const EN_EVENTS = {
+  gluecksspieler: { name: "The Gambler", text: "A man with three cups challenges you.", choices: ["Bet 40 Gold (50%: 120 Gold)", "Walk on"] },
+  altar: { name: "Abandoned Altar", text: "A blood-stained altar. It seems to demand something.", choices: ["Sacrifice blood (-10 HP): random item (at least uncommon)", "Pray: heal 12 HP", "Ignore"] },
+  haendler_mo: { name: "Wandering Merchant Mo", text: "Mo offers to 'declutter' your deck.", choices: ["Remove a random card (40 Gold)", "No thanks"] },
+  quelle: { name: "Holy Spring", text: "Clear water bubbles from the rock.", choices: ["Drink (60%: +20 HP, 40%: -8 HP)", "Just fill a flask: +3 Max HP"] },
+  hinterhalt: { name: "Ambush!", text: "Shadows detach from the walls.", choices: ["Fight (normal combat with reward)", "Flee (-15 Gold)"] },
+  truhe: { name: "Suspicious Chest", text: "A chest stands in the middle of the corridor. Too much in the middle.", choices: ["Open (60%: item, 40%: trap -10 HP, +30 Gold)", "Leave it"] },
+  kleeblattfeld: { name: "Clover Field", text: "A field full of clovers. One has four leaves.", choices: ["Pick the four-leaf one", "Rest: heal 8 HP"] },
+  alchemistin: { name: "The Alchemist", text: "She swirls a steaming potion.", choices: ["Drink potion (-6 HP): +6 Max HP", "Swap a random card: 30 Gold", "Decline"] },
+};
+const EN_ACH = {
+  g10: ["First Loot", "Defeat 10 enemies."], g50: ["Exterminator", "Defeat 50 enemies."], g100: ["Hundred-Strong", "Defeat 100 enemies."], g250: ["Terror of the Depths", "Defeat 250 enemies."], g500: ["Legend of the Cellar", "Defeat 500 enemies."], g1000: ["Thousand Foes", "Defeat 1000 enemies."],
+  gtypen: ["Bestiary", "Defeat every enemy type at least once."], k25: ["Battle-Tested", "Win 25 combats."], k100: ["Frontliner", "Win 100 combats."], kelite: ["Elite Hunter", "Win 10 elite encounters."], kmini: ["Boss Breaker", "Defeat 10 mini-bosses."],
+  s10: ["Curious", "Find 10 different items."], s25: ["Collector", "Find 25 different items."], s50: ["Hoarder", "Find 50 different items."], salle: ["Treasurer", "Find all items."], c25: ["Card Friend", "Find 25 different cards."], calle: ["Card Master", "Find all cards."],
+  w6: ["Weapon Collector", "Find 6 different weapons."], walle: ["Arsenal", "Find all weapons."], ralle: ["Alchemist", "Trigger all elemental reactions."], r1: ["Departure", "Finish your first run."], r10: ["Regular", "Finish 10 runs."], r50: ["Frequent Guest", "Finish 50 runs."],
+  w1: ["The Wanderer Falls", "Win your first run."], w5: ["Serial Hero", "Win 5 runs."], w25: ["Dungeon Legend", "Win 25 runs."], wklassen: ["All Paths", "Win a run with every hero."], wwaffen: ["Weapon Master", "Win with every starting weapon."],
+  whart: ["Stress Test", "Win a run on Hard."], walb: ["Nightmare Conquered", "Win a run on Nightmare."],
+  x_shiny1: ["Glint", "You defeated a Chrome enemy."], x_shiny5: ["Glint Hunter", "You defeated 5 Chrome enemies."], x_dex5: ["Chrome Collector", "Five different Chrome finds are in your collection."], x_heroshiny: ["Chrome-Born", "You started a run as a Chrome hero."],
+  x_herowin: ["Double Gleam", "You won a run as a Chrome hero."], x_untouched: ["Untouchable", "You defeated an elite or final enemy without taking damage."], x_oneturn: ["Blitzkrieg", "You won a combat against at least 3 enemies in a single turn."],
+  x_bighit: ["Heavy Hitter", "You dealt at least 40 damage with one card at once."], x_chain: ["Chain Reaction", "You triggered 3 reactions in one turn."], x_flurry: ["Card Flurry", "You played 10 cards in one turn."],
+  x_poison: ["Plague Hotspot", "An enemy had 25 Poison at the same time."], x_nobuy: ["Skinflint", "You won a run without buying anything in the shop."], x_minideck: ["Less Is More", "You won a run with at most 11 cards in your deck."],
+  x_stack3: ["Third Time's the Charm", "You owned the same item three times."], x_lowhp: ["Close Call", "You won a run with at most 5 HP."], x_rich: ["Scrooge", "You owned 500 Gold at the same time."],
+};
+const EN_SPEAKERS = { brumm: { name: "Brumm", title: "Innkeeper of the Broken Shield" }, mira: { name: "Princess Mira", title: "Keeper of the Heartstone" } };
+const EN_STORIES = {
+  intro: [
+    "Psst! You there! Yes, you. Come in before the rain gets you. If that is rain. Today it was fire rain.",
+    "The Elemental Wanderer broke into the castle last night. He stole the Heartstone, which keeps fire, water, plants and ice in balance.",
+    "And he dragged Princess Mira along. She was the only one who could make the stone sing.",
+    { perClass: {
+      nahkaempfer: "You look like you've opened a door with your face before. Perfect. Down there they need people like you.",
+      fernkaempfer: "Good eyes, quiet steps. Exactly what the depths demand. And no, nobody pays for your arrows.",
+      magier: "A mage! Finally someone who understands the elements. Listen: since the stone is gone, they don't get along anymore. Mix them and it goes boom.",
+      pyromant: "You smell of smoke and look like you don't care. Good. It's burning down there anyway.",
+      aristokrat: "A fine gentleman! Lost? No? Then take the cane, the purse stays where it is. Everything costs extra down there.",
+      gaertnerin: "A gardener in the dungeon? Well, there are plenty of weeds down there. And the walls could use some green.",
+      default: "You look capable. That's enough for me.",
+    } },
+    "Down there it's crawling with critters. Collect cards, loot and gold. And if something glittering crosses your path: grab it. It pays off.",
+    "The first cellar is right here. Go! And bring me the princess back safe!",
+  ],
+  startladen: ["You survived the rats. Look around, half price, because I like you."],
+  outro: ["You did it! The Wanderer is defeated, and the Heartstone sings again.", "By the way, Brumm claims he planned all of this. Don't believe a word."],
+};
+
+__exports.EN_WEAPONS = EN_WEAPONS;
+__exports.EN_ENEMIES = EN_ENEMIES;
+__exports.EN_ENCOUNTERS = EN_ENCOUNTERS;
+__exports.EN_SKINS = EN_SKINS;
+__exports.EN_FRAMES = EN_FRAMES;
+__exports.EN_CLASSES = EN_CLASSES;
+__exports.EN_EVENTS = EN_EVENTS;
+__exports.EN_ACH = EN_ACH;
+__exports.EN_SPEAKERS = EN_SPEAKERS;
+__exports.EN_STORIES = EN_STORIES;
+
+});
+__define("ui/en_ui.js", function (__exports, __require) {
+// Englische Texte der Oberfläche. EN_UI: genauer deutscher Text -> englisch. EN_PATTERNS: [Muster, (t, ...Gruppen) => Text] für Texte mit Zahlen oder Inhalten (t übersetzt Teile).
+const P = (o) => Object.entries(o);
+const EN_UI = {
+  "Abbrechen": "Cancel", "Ablagestapel": "Discard pile", "Albtraum": "Nightmare", "Aufbrechen": "Set out", "Ausrüstung": "Equipment", "Aussehen": "Appearance", "Beute": "Loot",
+  "Bitte drehe dein Gerät ins Querformat.": "Please rotate your device to landscape.", "Rogue-Deck wird quer gespielt.": "Rogue-Deck is played in landscape.", "Chrom-Item": "Chrome item", "Chrom-Waffe": "Chrome weapon",
+  "Dein Gold:": "Your Gold:", "Dein Held": "Your hero", "Der Run ist zu Ende.": "The run is over.", "Dungeon-Karte": "Dungeon map", "Ein Deckbuilder-Roguelite": "A deckbuilder roguelite",
+  "Ein Feuer knistert. Du hast Zeit für genau eine Sache.": "A fire crackles. You have time for exactly one thing.", "Eine Karte aus dem Deck entfernen": "Remove a card from your deck", "Einstellungen": "Settings",
+  "Endboss": "Final boss", "Ereignis": "Event", "Erfolg freigeschaltet": "Achievement unlocked", "Erfolge": "Achievements", "Farben der Helden": "Hero colors", "Farbvariante": "Color variant", "Freischaltungen": "Unlocks",
+  "Gegner": "Enemies", "Geschichte": "Story", "Gesperrt": "Locked", "Gewöhnlich": "Common", "Ungewöhnlich": "Uncommon", "Selten": "Rare", "Legendär": "Legendary", "Gift": "Poison", "Helden": "Heroes", "Händler": "Merchant",
+  "Item für die nächste Runde sperren": "Lock item for the next merchant visit", "Sperre aufheben": "Remove lock", "Midas-Fluch: Sperren ist dauerhaft deaktiviert": "Midas Curse: locking is permanently disabled", "Items": "Items", "Waffen": "Weapons", "Waffe": "Weapon", "Karte": "Card", "Karten": "Cards",
+  "Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Bessere Waffen findest du später, zum Beispiel nach dem Mini-Boss.": "Every weapon is free to choose and suits one hero best. You'll find better weapons later, for example after the mini-boss.",
+  "Kampf": "Combat", "Kampfszene": "Combat scene", "Karte wählen (oder überspringen)": "Choose a card (or skip)", "Klasse:": "Class:", "Kämpfe": "Combats", "Kämpfe:": "Combats:", "Leuchtende Orte sind erreichbar.": "Glowing places are reachable.",
+  "Manche Erfolge zeigen sich erst, wenn du sie erreichst.": "Some achievements only appear once you reach them.", "Mehr": "More", "Menü": "Menu", "Mini-Boss": "Mini-boss", "Nachziehstapel": "Draw pile", "Nehmen": "Take", "Gewählt": "Chosen",
+  "Neu freigeschaltet:": "Newly unlocked:", "Neue Erfolge:": "New achievements:", "Neue Varianten und Rahmen schaltest du über Erfolge frei.": "Unlock new variants and frames through achievements.", "Neuer Run": "New run", "Noch keine Items.": "No items yet.",
+  "Normal": "Normal", "Schwer": "Hard", "Groß": "Large", "Sehr groß": "Extra large", "Rahmen": "Frames", "Rast": "Rest", "Rastplatz": "Campsite", "Run aufgeben": "Abandon run", "Runs und Siege": "Runs and wins", "Sammlung": "Collection", "Schließen": "Close",
+  "Schwierigkeit": "Difficulty", "Shiny-Sammlung": "Shiny collection", "Shinys gesehen:": "Shinies seen:", "Sieg! Der Wandler ist gefallen.": "Victory! The Wanderer has fallen.", "Standard": "Default", "Startladen": "Starter shop", "Tippe einen Gegner an": "Tap an enemy",
+  "Weiter": "Continue", "Weiterspielen": "Resume", "Wohin als Nächstes?": "Where next?", "Der Weg beginnt": "The journey begins", "Wähle deine Waffe": "Choose your weapon", "Wähle deinen Helden": "Choose your hero", "Zug beenden": "End turn",
+  "Zum Titel (speichert)": "To title (saves)", "Zurück": "Back", "Zurück zum Titel": "Back to title", "Überspringen": "Skip", "· Deckgröße:": "· Deck size:", "· Gold verdient:": "· Gold earned:", "· Orte:": "· Places:", "leer = Zufall": "empty = random",
+  "Preise: Grundpreis": "Prices: base price", "Neu würfeln": "Reroll", "Schredder": "Shredder", "Welche Karte entfernen?": "Which card to remove?", "Wirklich alles löschen?": "Really delete everything?", "Ja, löschen": "Yes, delete", "Spielstand löschen": "Delete save",
+  "Etwas Verborgenes wartet noch.": "Something hidden is still waiting.", "Aufbrechen ": "Set out", "(für Freunde: gleiche Karte)": "(for friends: same map)", "Chrom-Held:": "Chrome hero:", "Verkauft": "Sold", "Gewählt ": "Chosen",
+  "Im Kampf wird nicht gespeichert. Beendest du jetzt, beginnt der Kampf beim nächsten Mal von vorn.": "Progress is not saved during combat. If you quit now, the combat starts over next time.",
+  "Karte entfernt": "Card removed", "Eine Karte wurde entfernt.": "A card was removed.", "Angebot neu gewürfelt": "Offer rerolled", "Item gesperrt: wartet auf den nächsten Händler": "Item locked: waits for the next merchant", "Sperre aufgehoben": "Lock removed",
+  "Zu wenig Gold": "Not enough gold", "Nicht verfügbar": "Not available", "Bereits gewählt": "Already chosen", "Ungültige Wahl": "Invalid choice", "Nicht auf der Karte": "Not on the map", "Knoten nicht erreichbar": "Place not reachable", "Kampf läuft noch": "Combat still running",
+  "Karte kann nicht entfernt werden": "Card can't be removed", "Spielstand gelöscht": "Save deleted", "Freischaltungen und Shinys bleiben erhalten.": "Unlocks and Shinies are kept.", "Glück gehabt!": "Lucky!", "Hier ist alles Shiny: Held, Gegner, Beute.": "Everything here is Shiny: hero, enemies, loot.",
+  "Das Spiel wurde aktualisiert. Dein angefangener Run passt nicht mehr dazu und wurde verworfen.": "The game was updated. Your run in progress no longer fits and was discarded.", "Spielstand war beschädigt": "Save was corrupted", "Spielstand passt nicht zur neuen Version und wurde verworfen": "Save doesn't match the new version and was discarded",
+  "Nichts davon wird gespeichert oder zählt für deinen Fortschritt.": "None of this is saved or counts toward your progress.", "Über das Menü kommst du zurück.": "Use the menu to get back.",
+  "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel.": "One tap plays the card. Tapping an enemy makes it the main target.", "Erst Karte wählen, dann Gegner antippen.": "Choose a card first, then tap an enemy.",
+  "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
+  "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet, sobald du keine Karte mehr spielen kannst.": "Automatic: your turn ends as soon as you can't play a card.",
+  "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
+  // Heldenwahl / Sammlung
+  "Gesperrt ": "Locked", "Erfolg": "Achievement", "Neue Schwierigkeit freigeschaltet": "New difficulty unlocked",
+  // Begriffserklärungen (ui/glossary.js)
+  "Gift ": "Poison", "Blutung": "Bleed", "Verwundbar": "Vulnerable", "Markiert": "Marked", "Ausweichen": "Dodge", "Dornen": "Thorns", "Verbrennung": "Burn", "Kälte": "Chill", "Eingefroren": "Frozen", "Aussetzen": "Skip", "Lebensraub": "Lifesteal", "Kopfgeld": "Bounty",
+  "Max-HP": "Max HP", "Geheilt": "Healed", "Verbrauchen": "Exhaust", "Schaden aus Block": "Damage from Block", "HP verlieren": "Lose HP", "Reaktion": "Reaction", "Block": "Block", "Fehlende HP": "Missing HP", "HP verloren": "HP lost",
+  "Am Ende der Gegnerrunde Schaden in Höhe der Stapel (ignoriert Block), danach 1 Stapel weniger.": "At the end of the enemy round, damage equal to the stacks (ignores Block), then 1 stack less.",
+  "Am Ende der Gegnerrunde Schaden in Höhe der Stapel (ignoriert Block), danach halbieren sich die Stapel.": "At the end of the enemy round, damage equal to the stacks (ignores Block), then the stacks are halved.",
+  "Das Ziel erleidet 50 % mehr Schaden. Jede Runde 1 Stapel weniger.": "The target takes 50% more damage. 1 stack less each round.", "Jeder Treffer macht 1 Schaden mehr. Jede Runde 1 Stapel weniger.": "Every hit deals 1 more damage. 1 stack less each round.",
+  "Pro Stapel geht ein Angriff daneben. Endet mit deinem nächsten Zug.": "Each stack makes one attack miss. Ends with your next turn.", "Jeder Angreifer erleidet Schaden, auch wenn dein Block alles abfängt. Endet mit deinem nächsten Zug.": "Every attacker takes damage, even if your Block absorbs everything. Ends with your next turn.",
+  "Der Schaden hängt davon ab, wie viele Lebenspunkte dir zum Maximum fehlen.": "The damage depends on how many hit points you are missing from your maximum.", "Zählt alle HP, die seit Beginn deines Zuges verloren gingen, auch durch eigene Karten und Items.": "Counts all HP lost since the start of your turn, including through your own cards and items.",
+  "Sammelt sich beim Gegner. Bei 3 Stapeln friert er ein und überspringt seine nächste Aktion (der Endboss und Feuerwesen sind immun).": "Builds up on the enemy. At 3 stacks it freezes and skips its next action (the final boss and fire creatures are immune).",
+  "Der Gegner überspringt diese Runde seine Aktion. Bosse sind unbestechlich.": "The enemy skips its action this round. Bosses can't be bribed.", "Du heilst dich um den tatsächlich verursachten Schaden (Block des Ziels zählt nicht).": "You heal for the damage actually dealt (the target's Block doesn't count).",
+  "Tötet genau diese Karte den Gegner, erhältst du sofort das Gold.": "If exactly this card kills the enemy, you get the Gold at once.", "Dauerhaft bis zum Ende des Runs; die aktuellen HP steigen mit.": "Permanent until the end of the run; current HP rises with it.",
+  "Zählt auch, wenn die Heilung durch einen Effekt (z. B. Nekromanten-Pakt) verhindert wurde.": "Also counts if the healing was prevented by an effect (e.g. Necromancer's Pact).", "Nach dem Spielen ist die Karte für den Rest dieses Kampfes weg. Im nächsten Kampf ist sie wieder da.": "After playing, the card is gone for the rest of this combat. It is back in the next combat.",
+  "Der Schaden hängt von deinem aktuellen Block ab. Der Block bleibt erhalten.": "The damage depends on your current Block. The Block is kept.", "Kostet HP, aber nie die letzte: mindestens 1 HP bleibt. Zählt nicht als erlittener Schaden.": "Costs HP, but never the last one: at least 1 HP remains. Doesn't count as damage taken.",
+  "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
+};
+const EN_PATTERNS = [
+  [/^Tempo x(\d)$/, (t, n) => `Speed x${n}`], [/^Siege (\d+) · Runs (\d+) · Shinys (\d+)$/, (t, a, b, c) => `Wins ${a} · Runs ${b} · Shinies ${c}`],
+  [/^Items: (\d+) von (\d+) als Shiny gefunden$/, (t, a, b) => `Items: ${a} of ${b} found as Shiny`], [/^(Helden|Karten|Waffen|Gegner): (\d+) von (\d+) als Shiny gefunden$/, (t, k, a, b) => `${t(k)}: ${a} of ${b} found as Shiny`],
+  [/^(\d+) von (\d+)$/, (t, a, b) => `${a} of ${b}`], [/^Platten (\d+)$/, (t, n) => `Plates ${n}`], [/^Preise: \+(\d+) % Inflation$/, (t, n) => `Prices: +${n}% inflation`],
+  [/^Ausruhen \(\+(\d+) HP\)$/, (t, n) => `Rest (+${n} HP)`], [/^Schredder \((\d+)\)$/, (t, n) => `Shredder (${n})`], [/^Neu würfeln \((\d+)\)$/, (t, n) => `Reroll (${n})`], [/^Details zu (.+)$/, (t, n) => `Details for ${n}`],
+  [/^Dein Deck \((\d+)\)$/, (t, n) => `Your deck (${n})`], [/^\(\+(\d+) Chrom\)$/, (t, n) => `(+${n} Chrome)`], [/^Chrom-Fund: (Item|Waffe) \(wähle (\d+)\)$/, (t, k, n) => `Chrome find: ${t(k).toLowerCase()} (choose ${n})`],
+  [/^Belohnung: (.+) \((Item|Waffe|Karte)\)$/, (t, n, k) => `Reward: ${n} (${t(k).toLowerCase()})`], [/^Erfolg: (.+)$/, (t, n) => `Achievement: ${n}`], [/^(.+): Erfolg: (.+)$/, (t, a, n) => `${a}: Achievement: ${n}`],
+  [/^Neue Schwierigkeit freigeschaltet: (.+)$/, (t, n) => `New difficulty unlocked: ${t(n)}`], [/^(.+) · (Normal|Schwer|Albtraum) · Ebene (\d+)\/(\d+)$/, (t, c, d, l, m) => `${c} · ${t(d)} · Level ${l}/${m}`],
+  [/^Kosten (\d+) · (Gewöhnlich|Ungewöhnlich|Selten|Legendär)(?: · (.+))?$/, (t, c, r, e) => `Cost ${c} · ${t(r)}${e ? ` · ${t(e)}` : ""}`], [/^(Gewöhnlich|Ungewöhnlich|Selten|Legendär) · Waffe$/, (t, r) => `${t(r)} · Weapon`],
+  [/^(Gewöhnlich|Ungewöhnlich|Selten|Legendär) · Signatur: (.+)$/, (t, r, c) => `${t(r)} · Signature: ${c}`], [/^(Gewöhnlich|Ungewöhnlich|Selten|Legendär) · (Item|Karte)$/, (t, r, k) => `${t(r)} · ${t(k)}`],
+  [/^(.+) ✦ Werte \+(\d+) ?%$/, (t, x, n) => `${x} ✦ Stats +${n}%`], [/^✦ Werte \+(\d+) ?%$/, (t, n) => `✦ Stats +${n}%`], [/^(\d+) von (\d+) Erfolgen$/, (t, a, b) => `${a} of ${b} achievements`],
+  [/^Max-HP ([+-]?\d+)$/, (t, n) => `Max HP ${n}`], [/^([+-]?\d+) HP$/, (t, n) => `${n} HP`], [/^Kein Ort vom Typ (.+) auf dieser Karte$/, (t, n) => `No place of type ${n} on this map`],
+  [/^Bonus für diesen Run: \+(\d+) Glück\.$/, (t, n) => `Bonus for this run: +${n} Luck.`], [/^Chance beim Start: 1 zu (\d+)\.$/, (t, n) => `Chance at start: 1 in ${n}.`],
+  [/^Seed: (\d+) \(für Freunde: gleiche Karte\)$/, (t, n) => `Seed: ${n} (for friends: same map)`], [/^Stärke (\d+)\.(.*)$/, (t, n, r) => `Power ${n}.${r}`],
+  [/^ und (\d+) weitere$/, (t, n) => ` and ${n} more`], [/^(.+)-Tag$/, (t, n) => `${n} tag`],
+];
+
+__exports.EN_UI = EN_UI;
+__exports.EN_PATTERNS = EN_PATTERNS;
+
+});
+__define("ui/i18n_en.js", function (__exports, __require) {
+// Englische Texte. EN_UI: genauer deutscher Text -> englisch (Oberfläche, ui/en_ui.js). EN_PATTERNS: Texte mit Zahlen. EN_CONTENT: Inhalte nach Art und ID (ui/en_cards_items.js, ui/en_world.js).
+const { EN_CARDS, EN_ITEMS } = __require("ui/en_cards_items.js");
+const { EN_WEAPONS, EN_ENEMIES, EN_ENCOUNTERS, EN_SKINS, EN_FRAMES, EN_CLASSES, EN_EVENTS, EN_ACH, EN_SPEAKERS, EN_STORIES } = __require("ui/en_world.js");
+const { EN_UI, EN_PATTERNS } = __require("ui/en_ui.js");
+
+const obj = (src, names) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, Object.fromEntries(names.map((n, i) => [n, v[i]]))]));
+const named = (src) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, { name: v }]));
+const EN_CONTENT = {
+  cards: obj(EN_CARDS, ["name", "text"]), items: obj(EN_ITEMS, ["name", "text"]), weapons: named(EN_WEAPONS), enemies: named(EN_ENEMIES), encounters: named(EN_ENCOUNTERS),
+  skins: named(EN_SKINS), frames: named(EN_FRAMES), classes: EN_CLASSES, achievements: obj(EN_ACH, ["name", "text"]), events: EN_EVENTS, speakers: EN_SPEAKERS, stories: EN_STORIES,
+};
+
+__exports.EN_UI = EN_UI;
+__exports.EN_PATTERNS = EN_PATTERNS;
+__exports.EN_CONTENT = EN_CONTENT;
+
+});
+__define("ui/i18n.js", function (__exports, __require) {
+// Sprachumschaltung Deutsch / Englisch.
+// Inhalte (Karten, Items, Waffen, Gegner, Helden, Ereignisse, Erfolge, Geschichte ...): applyContentLanguage tauscht die Textfelder der Definitionen, die deutschen Originale bleiben gemerkt.
+// Oberfläche: translateDom übersetzt nach jedem Zeichnen alle Textknoten und Beschriftungen über ein Wörterbuch (genaue Texte) und Muster (Texte mit Zahlen).
+// Neue Texte: deutsch ins Spiel schreiben, die englische Fassung in ui/i18n_en.js eintragen; node tools/i18n-check.mjs meldet fehlende Übersetzungen.
+const { EN_UI, EN_PATTERNS, EN_CONTENT } = __require("ui/i18n_en.js");
+
+let lang = "de";
+const orig = new WeakMap();                       // Definition -> deutsche Originaltexte
+const LANGS = { de: "Deutsch", en: "English" };
+const getLang = () => lang;
+
+// Einzelner Text (für Meldungen und Texte, die nicht im DOM landen)
+function t(s) {
+  if (lang !== "en" || typeof s !== "string") return s;
+  const trimmed = s.trim();
+  if (!trimmed) return s;
+  const lead = s.slice(0, s.indexOf(trimmed)), tail = s.slice(s.indexOf(trimmed) + trimmed.length);
+  if (EN_UI[trimmed] !== undefined) return lead + EN_UI[trimmed] + tail;
+  for (const [re, fn] of EN_PATTERNS) { const m = trimmed.match(re); if (m) return lead + fn(t, ...m.slice(1)) + tail; }
+  return s;
+}
+
+// Alle Texte in einem Teilbaum übersetzen (Textknoten und Beschriftungen)
+const ATTRS = ["title", "aria-label", "placeholder", "alt"];
+function translateDom(root) {
+  if (lang !== "en" || !root) return;
+  const walker = (root.ownerDocument ?? document).createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+  const nodes = []; for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
+  for (const n of nodes) { const v = t(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; }
+  for (const el of root.querySelectorAll("[" + ATTRS.join("],[") + "]")) for (const a of ATTRS) if (el.hasAttribute(a)) { const v = t(el.getAttribute(a)); if (v !== el.getAttribute(a)) el.setAttribute(a, v); }
+}
+
+// Inhalte: je Art die Felder, die übersetzt werden. Die deutschen Originale werden beim ersten Tausch gemerkt.
+const FIELDS = { cards: ["name", "text"], items: ["name", "text"], weapons: ["name"], enemies: ["name"], encounters: ["name"], classes: ["name", "blurb", "perks"], skins: ["name"], frames: ["name"], achievements: ["name", "text"], events: ["name", "text"], speakers: ["name", "title"] };
+function swap(obj, fields, en) {
+  if (!orig.has(obj)) orig.set(obj, Object.fromEntries(fields.map((f) => [f, structuredClone(obj[f])])));
+  const o = orig.get(obj);
+  for (const f of fields) if (o[f] !== undefined) obj[f] = lang === "en" && en?.[f] !== undefined ? structuredClone(en[f]) : structuredClone(o[f]);
+}
+function applyContentLanguage(CONTENT, to) {
+  lang = to === "en" ? "en" : "de";
+  CONTENT.clearShinyCache?.();
+  for (const [kind, fields] of Object.entries(FIELDS)) for (const [id, def] of Object.entries(CONTENT[kind] ?? {})) swap(def, fields, EN_CONTENT[kind]?.[id]);
+  for (const [id, def] of Object.entries(CONTENT.classes ?? {})) if (def.passive) swap(def.passive, ["name", "text"], EN_CONTENT.classes?.[id]?.passive);   // Klassen-Passiv
+  for (const def of Object.values(CONTENT.events ?? {})) (def.choices ?? []).forEach((c, i) => swap(c, ["label"], { label: EN_CONTENT.events?.[def.id]?.choices?.[i] }));
+  for (const [id, story] of Object.entries(CONTENT.stories ?? {})) swap(story, ["lines"], { lines: EN_CONTENT.stories?.[id] });
+  if (typeof document !== "undefined" && document.documentElement) document.documentElement.lang = lang;
+}
+
+__exports.LANGS = LANGS;
+__exports.getLang = getLang;
+__exports.t = t;
+__exports.translateDom = translateDom;
+__exports.applyContentLanguage = applyContentLanguage;
 
 });
 __define("engine/rng.js", function (__exports, __require) {
@@ -1424,12 +1804,14 @@ function generateMap(rng) {
       if (l === 0) node.type = "kampf";
       else if (l === M.minibossLayer) node.type = "miniboss";
       else if (l === L - 1) node.type = "rast";
+      else if (M.restBeforeMiniboss && l === M.minibossLayer - 1) node.type = "rast";          // Rast vor dem Mini-Boss (dort starben die meisten Läufe)
       else {
         const parentTypes = new Set(parentsOf(node).map((p) => p.type));
         const entries = Object.entries(M.nodeWeights)
           .filter(([type]) => l >= (M.minLayer[type] ?? 0))
           .filter(([type]) => !(["rast", "haendler", "elite"].includes(type) && parentTypes.has(type)))
           .filter(([type]) => !(type === "rast" && l === L - 2))
+          .filter(([type]) => !(type === "rast" && M.restBeforeMiniboss && l === M.minibossLayer - 2))      // keine zwei Rasten hintereinander
           .map(([value, weight]) => ({ value, weight }));
         node.type = rng.weighted(entries);
       }
@@ -1471,11 +1853,14 @@ const get = (kind, id) => {
 };
 
 // Alle Werte, die Items über "stats" verändern können (werden über alle Items summiert, auch gestapelt).
-const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
+const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
 function resolveBuild(spec) {
-  const items = (spec.items ?? []).map((id) => get("items", id));
+  const cls = spec.classId ? CONTENT.classes[spec.classId] : null;
+  // Klassen-Passive (cls.passives, Daten wie bei Items) zählen wie ein verstecktes Item: sie erscheinen nicht in der Ausrüstung, wirken aber in allen Trigger-Ketten
+  const classSrc = cls?.passives?.length ? [{ id: `klasse_${cls.id}`, name: cls.passive?.name ?? cls.name, tags: [], stats: {}, passives: cls.passives }] : [];
+  const items = [...(spec.items ?? []).map((id) => get("items", id)), ...classSrc];
   return {
     cards: spec.deck.map((id) => get("cards", id)),
     weapon: get("weapons", spec.weapon),
@@ -1622,13 +2007,13 @@ function createCombat({ spec, encounterId, seed = 1, playerHp, verbose = false, 
     diff: CONFIG.difficulty[difficulty] ?? CONFIG.difficulty[0],
     encounter: CONTENT.encounters[encounterId], waveIndex: -1, turn: 0,
     player: { hp: Math.min(playerHp ?? maxHp, maxHp), maxHp, block: 0, energy: 0, statuses: {} },
-    lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null, overkill: 0, hpLostThisTurn: false, healTriedThisTurn: false,
+    lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null, once: {}, overkill: 0, hpLostThisTurn: false, healTriedThisTurn: false,
     gold: spec.gold ?? 0, goldStart: spec.gold ?? 0, goldGained: 0, maxHpGain: 0,    // Gold im Kampf (Börse, Taschendiebstahl, Bestechung) und dauerhafte Max-HP (Photosynthese)
     // Zähler für Erfolge: höchster Einzeltreffer, erlittener Schaden, Karten/Reaktionen pro Zug, höchster Status-Stapel
     metrics: { plays: 0, reactions: 0, reactionIds: [], maxHit: 0, damageTaken: 0, maxPlaysTurn: 0, reactionsTurn: 0, maxReactionsTurn: 0, maxStatus: {} },
     piles: {
       draw: rng.shuffle(build.cards.map((def, uid) => ({ uid, def }))),
-      hand: [], discard: [],
+      hand: [], discard: [], exhaust: [],        // exhaust: verbrauchte Karten (weg bis zum Kampfende)
     },
     enemies: [], counters: {}, playsThisTurn: 0, result: null,
   };
@@ -1662,6 +2047,7 @@ function makeEnemy(s, id, uid, shiny) {
 
 // Angekündigte Aktion, Schaden mit Schwierigkeit skaliert
 function intentOf(s, e) {
+  if ((e.statuses.eingefroren ?? 0) > 0) return { type: "skip", value: 0, frozen: true };   // eingefroren: überspringt die nächste Aktion
   if ((e.statuses.aussetzen ?? 0) > 0) return { type: "skip", value: 0 };       // bestochen: setzt diese Runde aus
   const i = getIntent(e);
   return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult)) } : i;
@@ -1723,6 +2109,7 @@ function startPlayerTurn(s) {
   log(s, `=== Zug ${s.turn} (HP ${s.player.hp}/${s.player.maxHp})`);
   fx(s, { t: "turn", n: s.turn });
   emit(s, "on_turn_start", {}, 0);
+  s.player.block = Math.min(s.player.block, CONFIG.balance.maxTurnStartBlock);          // Gratis-Block pro Zug ist gedeckelt (Block aus Karten nicht)
   draw(s, Math.max(1, CONFIG.player.handSize + s.build.stats.handSize));
 }
 
@@ -1824,6 +2211,19 @@ function applyStatus(s, enemy, status, stacks, depth) {
   log(s, `  ${enemy.name} +${stacks} ${status}`);
   fx(s, { t: "status", uid: enemy.uid, status, stacks });
   emit(s, "on_status_applied", { target: enemy, status, stacks }, depth + 1);
+  if (status === "frost") freezeCheck(s, enemy);
+}
+// Eis-Mechanik: Kälte sammelt sich; ab freezeThreshold Stapeln friert der Gegner ein und überspringt seine nächste Aktion (Bosse und Feuerwesen sind immun)
+const freezeThreshold = (stats) => Math.max(2, CONFIG.balance.freezeAt - (stats.freezeEase ?? 0));
+function freezeCheck(s, enemy) {
+  const th = freezeThreshold(s.build.stats);
+  if ((enemy.statuses.frost ?? 0) < th) return;
+  enemy.statuses.frost -= th;
+  if (CONTENT.enemies[enemy.id].immune?.includes("eingefroren")) { log(s, `  ${enemy.name} ist immun gegen Kälte`); return; }
+  enemy.statuses.eingefroren = 1;
+  s.metrics.freezes = (s.metrics.freezes ?? 0) + 1;
+  log(s, `  ${enemy.name} friert ein!`);
+  fx(s, { t: "status", uid: enemy.uid, status: "eingefroren", stacks: 1 });
 }
 
 // ---------------------------------------------------------------- Trigger-Ketten
@@ -1836,7 +2236,9 @@ function emit(s, event, payload, depth) {
     if (eff.whenStatus && payload.status !== eff.whenStatus) continue;
     const used = s.counters[eff.key] ?? 0;
     if (eff.maxPerTurn !== undefined && used >= eff.maxPerTurn) continue;
+    if (eff.everyN && (s.turn - 1) % eff.everyN !== 0) continue;                       // everyN: nur jeden N-ten Zug (1., N+1., ...)
     if (eff.chance !== undefined && s.rng.next() >= eff.chance) continue;
+    if (eff.oncePerCombat) { if (s.once[eff.key]) continue; s.once[eff.key] = true; }       // oncePerCombat: nur einmal pro Kampf (z. B. "Erster Zug: 8 Block")
     s.counters[eff.key] = used + 1;
     runPassive(s, eff, payload, depth);
   }
@@ -1942,12 +2344,16 @@ function runActions(s, def, chosen) {
       draw(s, action.value);
     } else if (action.action === "energy") {
       s.player.energy += action.value;
+    } else if (action.action === "gainGold") {                    // Schuldschein: Gold (Midas-Fluch verdoppelt es)
+      gainGold(s, action.value);
     } else if (action.action === "payGoldPct") {                // Bestechung: Anteil des aktuellen Goldes zahlen
       const pay = Math.floor(s.gold * action.value);
       if (pay > 0) { log(s, `  Bestechung kostet ${pay} Gold`); loseGold(s, pay); }
-    } else if (action.action === "maxHpUp") {                   // Photosynthese: Max-HP dauerhaft (der Lauf übernimmt es nach dem Kampf), die aktuelle HP steigen mit
-      s.player.maxHp += action.value; s.player.hp += action.value; s.maxHpGain += action.value;
-      log(s, `  Max-HP +${action.value}`);
+    } else if (action.action === "maxHpUp") {                   // Photosynthese: Max-HP dauerhaft (der Lauf übernimmt es nach dem Kampf), die aktuelle HP steigen mit; pro Kampf gedeckelt
+      if (s.maxHpGain + action.value <= CONFIG.balance.maxHpGainPerCombat) {
+        s.player.maxHp += action.value; s.player.hp += action.value; s.maxHpGain += action.value;
+        log(s, `  Max-HP +${action.value}`);
+      }
     } else if (action.action === "loseHp") {                   // Pakt-Kosten: nie tödlich, zählt nicht als erlittener Schaden
       loseHp(s, action.value);
     } else if (action.action === "heal") {
@@ -2005,7 +2411,7 @@ function playCard(s, handIndex, targetUid) {
   s.metrics.plays++;
   s.metrics.maxPlaysTurn = Math.max(s.metrics.maxPlaysTurn, s.playsThisTurn);
   s.piles.hand.splice(handIndex, 1);
-  s.piles.discard.push(inst);
+  (inst.def.exhaust ? s.piles.exhaust : s.piles.discard).push(inst);       // "Verbrauchen": die Karte ist für den Rest des Kampfes weg
   log(s, `> ${def.name}`);
 
   const alive = aliveEnemies(s);
@@ -2073,10 +2479,11 @@ function enemyPhase(s) {
     e.block = 0;
     tickStatuses(s, e);
     if (e.hp <= 0) continue;
-    if ((e.statuses.aussetzen ?? 0) > 0) {                 // Bestechung: Aktion entfällt, das Muster rückt nicht weiter
-      e.statuses.aussetzen = 0;
-      log(s, `  ${e.name} setzt aus`);
-      fx(s, { t: "eact", uid: e.uid, kind: "skip", value: 0, hits: 1 });
+    if ((e.statuses.aussetzen ?? 0) > 0 || (e.statuses.eingefroren ?? 0) > 0) {        // Bestechung oder Einfrieren: Aktion entfällt, das Muster rückt nicht weiter
+      const frozen = (e.statuses.eingefroren ?? 0) > 0;
+      e.statuses.aussetzen = 0; e.statuses.eingefroren = 0;
+      log(s, `  ${e.name} ${frozen ? "ist eingefroren" : "setzt aus"}`);
+      fx(s, { t: "eact", uid: e.uid, kind: "skip", value: 0, hits: 1, frozen });
       if (e.hp > 0) tickMechanics(s, e);
       continue;
     }
@@ -2103,6 +2510,7 @@ __exports.createCombat = createCombat;
 __exports.intentOf = intentOf;
 __exports.healAmount = healAmount;
 __exports.goldMult = goldMult;
+__exports.freezeThreshold = freezeThreshold;
 __exports.effectiveAction = effectiveAction;
 __exports.actionAllowed = actionAllowed;
 __exports.activeDef = activeDef;
@@ -2156,7 +2564,7 @@ const createMeta = () => ({
   discovered: { items: {}, cards: {}, weapons: {}, enemies: {}, reactions: {} },
   achievements: {},                                   // id -> { at }
   cosmetics: { skin: {}, frame: "default" },          // gewählte Farbvariante je Held und Kartenrahmen
-  settings: { speed: 1, manual: false, autoEnd: true, size: "gross" }, // Kampf-Bedienung: Tempo, manuelles Zielen, Zug automatisch beenden
+  settings: { speed: 1, manual: false, autoEnd: true, size: "gross", lang: "de" }, // Kampf-Bedienung: Tempo, manuelles Zielen, Zug automatisch beenden
 });
 
 // Ergänzt bei älteren Spielständen fehlende Felder (neue Funktionen, alter Fortschritt bleibt erhalten)
@@ -2222,7 +2630,7 @@ function describeUnlock(c) {
 // Prüft alle Bedingungen, gibt neu Freigeschaltetes zurück
 function evaluateUnlocks(meta) {
   const fresh = [];
-  for (const kind of ["cards", "weapons", "items", "skins", "frames"]) {
+  for (const kind of ["cards", "weapons", "items", "skins", "frames", "classes"]) {
     for (const d of Object.values(CONTENT[kind])) {
       const key = `${kind}/${d.id}`;
       if (d.unlock && !meta.unlocked[key] && conditionMet(meta, d.unlock)) { meta.unlocked[key] = true; fresh.push({ kind, id: d.id, name: d.name }); }
@@ -2402,7 +2810,7 @@ function maxedItems(build) {
 function candidates(kind, ctx, rarity, exclude) {
   return Object.values(CONTENT[kind]).filter((d) =>
     d.rarity === rarity && !exclude.has(d.id) && !d.noReward && isUnlocked(ctx.meta, kind, d) &&
-    (d.pools.includes("alle") || d.pools.includes(ctx.classId)));
+    (d.pools.includes("alle") || (CONTENT.classes[ctx.classId]?.cardPools ?? [ctx.classId]).some((p) => d.pools.includes(p))));
 }
 
 // Würfelt Seltenheit, dann ein Element aus dem passenden Pool. Gibt es keins, eine Stufe tiefer.
@@ -2627,7 +3035,7 @@ function createRun({ classId = "nahkaempfer", seed = (Date.now() >>> 0), difficu
   const run = {
     seed, classId, difficulty, meta, rng, shinyHero: Boolean(shinyHero),
     phase: "intro", map: generateMap(rng), nodeId: null,
-    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold, removedCards: 0, frozenItems: [], flags: {},
+    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold + (cls.startGold ?? 0), removedCards: 0, frozenItems: [], flags: {},
     deck: [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
@@ -2677,7 +3085,7 @@ const currentLayer = (run) => (run.nodeId ? findNode(run.map, run.nodeId).layer 
 const ctxOf = (run) => {
   const build = buildOf(run);
   return { rng: run.rng, build, classId: run.classId, depth: currentLayer(run), luck: build.stats.luck, meta: run.meta,
-    inflation: 1 + CONFIG.shop.inflationPerFight * run.stats.fights, removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [] };
+    inflation: (1 + CONFIG.shop.inflationPerFight * run.stats.fights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [] };
 };
 
 // Neue Max-HP-Boni heilen um den Zuwachs (wie bei Slay the Spire)
@@ -2853,12 +3261,14 @@ function finishReward(run) {
 
 // ---------------------------------------------------------------- Rast
 // Heilung außerhalb des Kampfes, gemindert durch den Stat healLoss (z. B. Asche-Lunge)
+// Anteil der Max-HP, den eine Rast heilt (Klassen können abweichen, z. B. der Aristokrat nur 20 %)
+const restPct = (run) => CONTENT.classes[run.classId].restHealPct ?? CONFIG.run.restHealPct;
 const healRun = (run, amount) => { run.hp = Math.min(run.maxHp, run.hp + restHealAmount(run, amount)); };
 // Wie viel eine Heilung außerhalb des Kampfes wirklich bringt: gemindert durch healLoss, mit Nekromanten-Pakt immer 0
 const restHealAmount = (run, amount) => { const st = buildOf(run).stats; return (st.healToDamage ?? 0) > 0 ? 0 : Math.floor(amount * (1 - Math.min(0.9, st.healLoss ?? 0))); };
 function restHeal(run) {
   if (run.phase !== "rest") return fail("Nicht an einer Rast");
-  healRun(run, Math.ceil(run.maxHp * CONFIG.run.restHealPct));
+  healRun(run, Math.ceil(run.maxHp * restPct(run)));
   backToMap(run);
   return ok();
 }
@@ -3041,6 +3451,7 @@ __exports.takeWeapon = takeWeapon;
 __exports.takeShinyItem = takeShinyItem;
 __exports.takeShinyWeapon = takeShinyWeapon;
 __exports.finishReward = finishReward;
+__exports.restPct = restPct;
 __exports.restHealAmount = restHealAmount;
 __exports.restHeal = restHeal;
 __exports.restRemove = restRemove;
@@ -3062,7 +3473,7 @@ __define("engine/autoplay.js", function (__exports, __require) {
 // Keine feste Reihenfolge, sondern eine Bewertung: erwarteter Schaden (inkl. Kill-Bonus), nötiger Block, Debuffs, Reaktionen, Kartenzug.
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
-const { aliveEnemies, intentOf, activeItems, effectiveAction, actionAllowed } = __require("engine/combat.js");
+const { aliveEnemies, intentOf, activeItems, effectiveAction, actionAllowed, freezeThreshold } = __require("engine/combat.js");
 const { computeDamage } = __require("engine/modifiers.js");
 
 // Braucht die Karte ein einzelnes Ziel? (Flächen-, Block- und Zieh-Karten nicht)
@@ -3090,6 +3501,7 @@ function statusValue(status, stacks, t, s) {
     case "verwundbar": return have > 1 ? 1 : 4 + stacks;
     case "markiert": return have > 1 ? 0.5 : 3.5;
     case "verbrennung": return stacks * 1.6;
+    case "frost": { const need = freezeThreshold(s.build.stats), have = t.statuses.frost ?? 0, i = intentOf(s, t); return have + stacks >= need ? (i.type === "attack" ? i.value * (i.hits ?? 1) + 2 : 3) : stacks * 1.2; }     // friert der Gegner dadurch ein, zählt sein nächster Angriff
     case "aussetzen": { const i = s ? intentOf(s, t) : null; return i && i.type === "attack" ? i.value * (i.hits ?? 1) : 0.5; }     // Bestechung lohnt, wenn der Gegner angreifen würde
     default: return 1;
   }
@@ -3120,11 +3532,13 @@ function cardValue(s, def, target, th) {
     else if (a.action === "status") for (const t of a.target === "all" ? alive : [target]) v += statusValue(a.status, a.stacks, t, s);
     else if (a.action === "multiplyStatus") for (const t of a.target === "all" ? alive : [target]) v += (t.statuses[a.status] ?? 0) * 0.9;
     else if (a.action === "draw") v += s.piles.hand.length < 5 ? 2.6 * a.value : a.value;
+    if (a.action === "draw" && s.playsThisTurn >= 8) v -= 50;                // keine endlosen Ziehketten: ab der 9. Karte pro Zug lohnt Ziehen nicht mehr
     else if (a.action === "energy") v += 3;
     else if (a.action === "loseHp") v -= (s.player.hp - a.value < s.player.maxHp * 0.3 ? 50 : a.value * 0.35);      // Pakt-Kosten: der Autopilot opfert nie so viele HP, dass er unter 30 % fällt      // Pakt-Kosten: teuer, wenn man wenig HP hat
     else if (a.action === "heal") v += (s.build.stats.healToDamage ?? 0) > 0 ? a.value * s.build.stats.healToDamage * 0.5 : Math.min(a.value, s.player.maxHp - s.player.hp) * (s.player.hp < s.player.maxHp * 0.6 ? 1.3 : 0.15);
     else if (a.action === "payGoldPct") v -= Math.floor(s.gold * a.value) / 10;           // Bestechung kostet Gold
-    else if (a.action === "maxHpUp") v += 2;                                              // dauerhaft mehr Max-HP
+    else if (a.action === "maxHpUp") v += 2;
+    else if (a.action === "gainGold") v += a.value / 8;                                              // Gold ist etwas wert
   }
   if (def.element && s.lastElement && s.lastElement !== def.element && CONTENT.reactionFor(s.lastElement, def.element)) v += 6;   // Reaktion
   if (def.element && s.lastElement === def.element) v -= 0.3;
@@ -3193,6 +3607,7 @@ __exports.nextAction = nextAction;
 __define("ui/util.js", function (__exports, __require) {
 // Kleine Helfer für die Oberfläche (kein DOM nötig, daher in Node testbar).
 const { CONTENT } = __require("content/index.js");
+const { getLang } = __require("ui/i18n.js");
 
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "");
@@ -3211,35 +3626,47 @@ function nameAny(id) {
 // ---- Automatische Beschreibung für Passive (Fallback, wenn kein "text" gepflegt ist)
 const TRIGGER = {
   on_combat_start: "Kampfbeginn", on_turn_start: "Zugbeginn", on_turn_end: "Zugende", on_card_played: "Karte gespielt",
-  on_status_applied: "Status aufgetragen", on_kill: "Gegner besiegt", on_player_hit: "Du wirst getroffen", on_reaction: "Reaktion",
+  on_status_applied: "Status aufgetragen", on_kill: "Gegner besiegt", on_player_hit: "Du wirst getroffen", on_reaction: "Reaktion", on_hp_lost: "Du verlierst HP",
 };
+const TRIGGER_EN = { on_combat_start: "Combat start", on_turn_start: "Start of turn", on_turn_end: "End of turn", on_card_played: "Card played", on_status_applied: "Status applied", on_kill: "Enemy defeated", on_player_hit: "You are hit", on_reaction: "Reaction", on_hp_lost: "You lose HP" };
+const TAG_EN = { feuer: "Fire", wasser: "Water", pflanze: "Plant", eis: "Ice", gift: "Poison", blut: "Blood", fernkampf: "Ranged", nahkampf: "Melee", zauber: "Spell", block: "Block", angriff: "Attack", flaeche: "Area", item: "Item", waffe: "Weapon" };
+const STATUS_EN = { gift: "Poison", markiert: "Marked", blutung: "Bleed", verwundbar: "Vulnerable", verbrennung: "Burn", frost: "Chill", ausweichen: "Dodge", dornen: "Thorns", aussetzen: "Skip" };
+const en = () => getLang() === "en";
+const tagName = (tg) => (en() ? TAG_EN[tg] ?? cap(tg) : cap(tg));
+const stName = (s) => (en() ? STATUS_EN[s] ?? s : s);
 function actionText(p) {
-  const v = p.value;
+  const v = p.value, E = en();
   switch (p.action) {
     case "block": return `${v} Block`;
-    case "heal": return `heile ${v} HP`;
-    case "hurt": return `verliere ${v} HP`;
-    case "draw": return `ziehe ${v} Karte(n)`;
-    case "energy": return `+${v} Energie`;
-    case "damage": return `${v} Schaden`;
-    case "damage_all": return `${v} Schaden an ALLE`;
-    case "status": return `${p.stacks}x ${p.status}`;
-    case "status_all": return `${p.stacks}x ${p.status} auf ALLE`;
-    case "player_status": return `${p.stacks}x ${p.status}`;
+    case "heal": return E ? `heal ${v} HP` : `heile ${v} HP`;
+    case "hurt": return E ? `lose ${v} HP` : `verliere ${v} HP`;
+    case "draw": return E ? `draw ${v} card(s)` : `ziehe ${v} Karte(n)`;
+    case "energy": return E ? `+${v} Energy` : `+${v} Energie`;
+    case "damage": return E ? `${v} damage` : `${v} Schaden`;
+    case "damage_all": return E ? `${v} damage to ALL` : `${v} Schaden an ALLE`;
+    case "status": return `${p.stacks}x ${stName(p.status)}`;
+    case "status_all": return E ? `${p.stacks}x ${stName(p.status)} to ALL` : `${p.stacks}x ${p.status} auf ALLE`;
+    case "player_status": return `${p.stacks}x ${stName(p.status)}`;
     default: return "";
   }
 }
 function describePassive(p) {
+  const E = en();
+  if (p.trigger === "damage_calc" && p.op === "baseadd" && p.perGold) return E ? `All cards: +${p.perGold.value} base damage per ${p.perGold.step} Gold${p.cap ? ` (max. +${p.cap})` : ""}` : `Alle Karten: +${p.perGold.value} Grundschaden je ${p.perGold.step} Gold${p.cap ? ` (max. +${p.cap})` : ""}`;
+  if (p.trigger === "damage_calc" && p.op === "xmult") return p.perMissingHp ? (E ? `Damage x${p.perMissingHp.value} per ${p.perMissingHp.step} missing HP` : `Schaden x${String(p.perMissingHp.value).replace(".", ",")} je ${p.perMissingHp.step} fehlende HP`) : `${E ? "Damage" : "Schaden"} x${1 + (p.value ?? 0)}`;
   if (p.trigger === "damage_calc") {
-    const who = p.cardTag ? `${cap(p.cardTag)}-Karten` : "Alle Karten";
-    const what = p.op === "add" ? `+${p.value} Schaden` : p.op === "pct" ? `+${Math.round(p.value * 100)} % Schaden`
-      : p.op === "ignore_resist" ? "ignorieren Resistenzen" : "Schwächen +" + p.value;
-    return `${who}: ${what}${p.perTag ? ` pro ${p.perTag}-Tag` : ""}${p.cap ? ` (max. ${p.cap})` : ""}${p.requires ? ` ab ${p.requires.count} ${p.requires.tag}-Tags` : ""}`;
+    const who = p.cardTag ? (E ? `${tagName(p.cardTag)} cards` : `${cap(p.cardTag)}-Karten`) : (E ? "All cards" : "Alle Karten");
+    const what = p.op === "add" ? (E ? `+${p.value} damage` : `+${p.value} Schaden`) : p.op === "pct" ? (E ? `+${Math.round(p.value * 100)}% damage` : `+${Math.round(p.value * 100)} % Schaden`)
+      : p.op === "ignore_resist" ? (E ? "ignore resistances" : "ignorieren Resistenzen") : (E ? "Weaknesses +" : "Schwächen +") + (p.value ?? "");
+    return E ? `${who}: ${what}${p.perTag ? ` per ${tagName(p.perTag)} tag` : ""}${p.cap ? ` (max. ${p.cap})` : ""}${p.requires ? ` from ${p.requires.count} ${tagName(p.requires.tag)} tags` : ""}`
+      : `${who}: ${what}${p.perTag ? ` pro ${p.perTag}-Tag` : ""}${p.cap ? ` (max. ${p.cap})` : ""}${p.requires ? ` ab ${p.requires.count} ${p.requires.tag}-Tags` : ""}`;
   }
-  return `${TRIGGER[p.trigger] ?? p.trigger}: ${actionText(p)}${p.chance ? ` (${Math.round(p.chance * 100)} %)` : ""}${p.maxPerTurn ? `, max. ${p.maxPerTurn}/Zug` : ""}`;
+  const trig = (E ? TRIGGER_EN : TRIGGER)[p.trigger] ?? p.trigger;
+  return E ? `${trig}: ${actionText(p)}${p.chance ? ` (${Math.round(p.chance * 100)}%)` : ""}${p.maxPerTurn ? `, max. ${p.maxPerTurn}/turn` : ""}`
+    : `${trig}: ${actionText(p)}${p.chance ? ` (${Math.round(p.chance * 100)} %)` : ""}${p.maxPerTurn ? `, max. ${p.maxPerTurn}/Zug` : ""}`;
 }
 function describeWeapon(def) {
-  const parts = [`Stärke ${def.power}`, ...def.passives.map(describePassive)];
+  const parts = [`${en() ? "Power" : "Stärke"} ${def.power}`, ...def.passives.map(describePassive)];
   return parts.join(". ") + ".";
 }
 const describeItem = (def) => def.text ?? def.passives.map(describePassive).join(". ");
@@ -3396,7 +3823,18 @@ function pixels(def, opts = {}) {
 // ---------------- Animation der Figuren (Rig)
 // spec = { regions: [{ id, parent?, box: [x0,y0,x1,y1], seq: [[dx,dy], ...], dur, phase? }], blink: [{ cells, color, every, at }], glow: [{ letters, box?, color, max, dur }] }
 // Koordinaten wie im Raster (ohne Rahmen). Bereiche bewegen sich in GANZEN Pixelschritten (Pixel-Art-typisch), verschachtelte Bereiche addieren ihre Bewegung.
-function resolveRig(spec, { grid, pal, W, H, shiny }) {
+// spec.rel = true: Boxen, Zellen und Glühbereiche sind ANTEILE (0 bis 1) von Breite und Höhe des Rasters statt Pixel, die Animation passt dann auf jede Figurengröße.
+function relSpec(spec, W, H) {
+  const gw = W - 2, gh = H - 2;                                       // Raster ohne den Rahmen (Kontur)
+  const X = (f) => Math.round(f * (gw - 1)), Y = (f) => Math.round(f * (gh - 1));
+  const box = ([a, b, c, d]) => [X(a), Y(b), X(c), Y(d)];
+  return { ...spec, rel: false,
+    regions: spec.regions.map((r) => ({ ...r, box: box(r.box) })),
+    blink: (spec.blink ?? []).map((b) => ({ ...b, cells: b.cells.map(([x, y]) => [X(x), Y(y)]) })),
+    glow: (spec.glow ?? []).map((g) => ({ ...g, ...(g.box ? { box: box(g.box) } : {}) })) };
+}
+function resolveRig(spec0, { grid, pal, W, H, shiny }) {
+  const spec = spec0.rel ? relSpec(spec0, W, H) : spec0;
   const edge = (v, max) => (v <= 0 ? 0 : v >= max - 3 ? max - 1 : v + 1);
   const bx = ([x0, y0, x1, y1]) => [edge(x0, W), edge(y0, H), edge(x1, W), edge(y1, H)];
   const regions = spec.regions.map((r) => ({ ...r, box: bx(r.box) }));
@@ -3659,6 +4097,8 @@ const WEAPON_SHAPES = {
   dagger: S(["....","....","....","....","...c","..bc","..bc","..bc","..bc","..bc","dddd","...n","...N","...n","..yY","...."]),
   staff: S(["..bb",".bcc",".bcc","..bb","...n","...N","...n","...N","...n","...N","...n","...N","...n","...N","...n","..dd"]),
   wand: S(["..cc",".cbb",".cbb","..aa","...n","..cN","...n","...N","..cn","...N","...n","..cN","...n","...N","...n","..dd"]),
+  torch: S(["..oo",".ooO",".oOY",".oOY","..oo","...n","...N","...n","...N","...n","...N","...n","...N","...n","..dd","...."]),
+  rapier: S(["...c","...c","...c","...c","...c","...c","...c","...c","...c","...c","..yy","...n","...N","...n","..yY","...."]),
   crystalstaff: S(["...b","..bc",".bcc",".bcw",".bcc","..bc","...b","...n","...N","...n","...N","...n","...N","...n","...N","..dd"]),
 };
 // Bögen und Armbrust sind nicht symmetrisch
@@ -3679,6 +4119,7 @@ const WEAPON_ART = {
   runenstab: { shape: "wand", pal: "wasser" },
   kristallstab: { shape: "crystalstaff", pal: "prisma" },
   flammenstab: { shape: "staff", pal: "feuer" },
+  pechfackel: { shape: "torch", pal: "feuer" }, stockdegen: { shape: "rapier", pal: "eisen" }, rankenstab: { shape: "wand", pal: "pflanze" },
   stahlschwert: { shape: "sword", pal: "eisen" }, glutschwert: { shape: "sword", pal: "blut" }, natterndolch: { shape: "dagger", pal: "pflanze" },
   langbogen: { asym: "bow", pal: "eisen" }, brandbogen: { asym: "bow", pal: "feuer" }, wundbogen: { asym: "bow", pal: "blut" },
   arkanstab: { shape: "wand", pal: "arkan" }, glutzepter: { shape: "wand", pal: "feuer" }, frostzepter: { shape: "wand", pal: "eis" },
@@ -3689,7 +4130,251 @@ __exports.WEAPON_ASYM = WEAPON_ASYM;
 __exports.WEAPON_ART = WEAPON_ART;
 
 });
+__define("ui/art/weapons2.js", function (__exports, __require) {
+// ERZEUGT von tools/figures/weapons.mjs (nicht von Hand ändern). Waffen im detaillierten Stil: 12x32 Pixel, Pixelgröße wie bei den Helden (1,65).
+const R = (rows) => rows.map((r) => [...r]);
+const WEAPONS2 = {
+  rostiges_schwert: { w: 12, h: 32, cells: R(["............","............","............","............",".....mD.....","....mmD.....","....mBD.....","....mBBD....","....mmBD....","....mmBn....","....nmBD....","....mmBD....","....mmBD....","....mmBD....","....mmBD....","....mmBn....","....mmBD....","....mmBD....","....mmBD....","....nmBD....","....mmBD....","....mmBD....","....mBBD....",".N..DDDD..N.",".MMMMMMMMMn.",".nnnnnnnnnn.",".....Mn.....",".....nn.....",".....Mn.....",".....mD.....","....mmBD....","....DDDD...."]), px: 1.65, grip: [6,27] },
+  flammenschwert: { w: 12, h: 32, cells: R(["............","............","............","............",".....YY.....","....OOr.....","....Oor.....","....Ooor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....OOor....","....Ooor....",".Y..rrrr..Y.",".zzzzRRzzzy.",".yyyyyyyyyy.",".....Mn.....",".....nn.....",".....Mn.....",".....zy.....","....zzYy....","....yyyy...."]), px: 1.65, grip: [6,27] },
+  frostklinge: { w: 12, h: 32, cells: R(["............","............","............","............",".....ww.....","....JJu.....","....JVu.....","....JVVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JJVu....","....JVVu....",".J..uuuu..J.",".wwwwwwwwwU.",".UUUUUUUUUU.",".....Vu.....",".....uu.....",".....Vu.....",".....wU.....","....wwJU....","....UUUU...."]), px: 1.65, grip: [6,27] },
+  giftdolch: { w: 12, h: 32, cells: R(["............","............","............","............","............","............","............","............","............","............","............",".....Gf.....",".....Gf.....","....GGf.....","....GFf.....","....GGf.....","....GGf.....","....GGFf....","....GGFf....","....GGFf....","....GGFf....","....GGFf....","....GGFf....","....ffff....","..PPPGGPPq..","..qqqqqqqq..",".....Mn.....",".....Mn.....",".....Mn.....",".....Pq.....","....PPQq....","....qqqq...."]), px: 1.65, grip: [6,27] },
+  stahlschwert: { w: 12, h: 32, cells: R(["............","............","............",".....wh.....","....wwh.....","...wwih.....","...wiiih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiwih....","...wiiih....",".Y.hhhhh..Y.",".zzzzzzzzzy.",".yyyyyyyyyy.",".....Mn.....",".....nn.....",".....Mn.....",".....zy.....","....zzYy....","....yyyy...."]), px: 1.65, grip: [6,27] },
+  glutschwert: { w: 12, h: 32, cells: R(["............","............","............","............",".....YY.....","....OOr.....","....ORr.....","....ORRr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....OORr....","....ORRr....",".n..rrrr..n.",".NNNNYYNNNx.",".xxxxxxxxxx.",".....Nx.....",".....xx.....",".....Nx.....",".....Or.....","....OORr....","....rrrr...."]), px: 1.65, grip: [6,27] },
+  natterndolch: { w: 12, h: 32, cells: R(["............","............","............","............","............","............","............","............","............","............","............",".....Gf.....",".....Gf.....","....GGf.....","....GFf.....","....GGf.....","....GGf.....","....GGFf....","....GGFf....","....GGFf....","....GGFf....","....GGFf....","....GGFf....","....ffff....","..zzzRRzzy..","..yyyyyyyy..",".....Pq.....",".....Pq.....",".....Pq.....",".....zy.....","....zzYy....","....yyyy...."]), px: 1.65, grip: [6,27] },
+  kurzbogen: { w: 12, h: 32, cells: R([".........zYn","........zwn.",".......zYnw.",".......MNnw.","......MNn.w.","......MNn.w.",".....MNn..w.",".....MNn..w.","....MNn...w.","....MNn...w.","....MNn...w.","....MNn...w.","...MNn....w.","...nnx....w.","...nnx....w.","...nnx....w.","...nnx....w.","...nnx....w.","...nnx....w.","...MNn....w.","....MNn...w.","....MNn...w.","....MNn...w.","....MNn...w.",".....MNn..w.",".....MNn..w.","......MNn.w.","......MNn.w.",".......MNnw.",".......zYnw.","........zwn.",".........zYn"]), px: 1.65, grip: [4,16] },
+  jagdbogen: { w: 12, h: 32, cells: R([".........MNy","........Mwy.",".......MNyw.","......zYy.w.","......zYy.w.",".....zYy..w.",".....zYy..w.","....zYy...w.","....zYy...w.","...zYy....w.","...zYy....w.","...zYy....w.","..zYy.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..zYy.....w.","...zYy....w.","...zYy....w.","...zYy....w.","....zYy...w.","....zYy...w.",".....zYy..w.",".....zYy..w.","......zYy.w.","......zYy.w.",".......MNyw.","........Mwy.",".........MNy"]), px: 1.65, grip: [4,16] },
+  giftbogen: { w: 12, h: 32, cells: R([".........PQf","........Pwf.",".......PQfw.","......GFf.w.","......GFf.w.",".....GFf..w.",".....GFf..w.","....GFf...w.","....GFf...w.","...GFf....w.","...GFf....w.","...GFf....w.","..GFf.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..GFf.....w.","...GFf....w.","...GFf....w.","...GFf....w.","....GFf...w.","....GFf...w.",".....GFf..w.",".....GFf..w.","......GFf.w.","......GFf.w.",".......PQfw.","........Pwf.",".........PQf"]), px: 1.65, grip: [4,16] },
+  langbogen: { w: 12, h: 32, cells: R([".........ihn","........iwn.",".......ihnw.","......MNn.w.",".....MNn..w.",".....MNn..w.","....MNn...w.","...MNn....w.","...MNn....w.","..MNn.....w.","..MNn.....w.","..MNn.....w.",".MNn......w.",".nnx......w.",".nnx......w.",".nnx......w.",".nnx......w.",".nnx......w.",".nnx......w.",".MNn......w.","..MNn.....w.","..MNn.....w.","..MNn.....w.","...MNn....w.","...MNn....w.","....MNn...w.",".....MNn..w.",".....MNn..w.","......MNn.w.",".......ihnw.","........iwn.",".........ihn"]), px: 1.65, grip: [4,16] },
+  brandbogen: { w: 12, h: 32, cells: R([".........zYr","........zwr.",".......zYrw.","......Oor.w.","......Oor.w.",".....Oor..w.",".....Oor..w.","....Oor...w.","....Oor...w.","...Oor....w.","...Oor....w.","...Oor....w.","..Oor.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..Oor.....w.","...Oor....w.","...Oor....w.","...Oor....w.","....Oor...w.","....Oor...w.",".....Oor..w.",".....Oor..w.","......Oor.w.","......Oor.w.",".......zYrw.","........zwr.",".........zYr"]), px: 1.65, grip: [4,16] },
+  wundbogen: { w: 12, h: 32, cells: R([".........Nnr","........Nwr.",".......Nnrw.","......ORr.w.","......ORr.w.",".....ORr..w.",".....ORr..w.","....ORr...w.","....ORr...w.","...ORr....w.","...ORr....w.","...ORr....w.","..ORr.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..nnx.....w.","..ORr.....w.","...ORr....w.","...ORr....w.","...ORr....w.","....ORr...w.","....ORr...w.",".....ORr..w.",".....ORr..w.","......ORr.w.","......ORr.w.",".......Nnrw.","........Nwr.",".........Nnr"]), px: 1.65, grip: [4,16] },
+  armbrust: { w: 12, h: 32, cells: R(["............",".....ii.....",".....ii.....",".....NN.....",".....NN....g","w....NN...iw","iw...NN..iwg","gwiiiNNiigwg",".gwhhNNhgw..","..wggNNggw..","...w.NN.w...","...w.RN.w...","....wNRw....","....wMnw....",".....ww.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....","....MMNn....","....MNNn....","....MNNn....","....MNNn....","....MNNn....","....nnnn...."]), px: 1.65, grip: [6,24] },
+  zauberstab: { w: 12, h: 32, cells: R(["............","...PPPPPq...","..PPQQQQQq..","..PQwQQQQq..",".PPQwQQQQQq.",".PQQQwwQQQq.",".qQQQwwQQqq.","..PQQQQQQq..","..qQQQQQqq..","..YqqqqqqY..","...Y.Mn.Y...",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....nn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....nn.....",".....Mn.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+  runenstab: { w: 12, h: 32, cells: R([".....u......","....VVu.....","....Vwu.....","...VwUUu....","..VVwUUUu...",".uVUUUUUuu..","..uUUUUuu...","...VUUUu....","...uUUuu....","....uuu.....","...Y.u..Y...","....YMnY....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....nn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....nn.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+  kristallstab: { w: 12, h: 32, cells: R([".....U......","....wwU.....","....wwU.....","...wwJJU....","..wwwJJJU...",".UwJJJJJUU..","..UJJJJUU...","...wJJJU....","...UJJUU....","....UUU.....","...Y.U..Y...","....YmDY....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....DD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....DD.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+  flammenstab: { w: 12, h: 32, cells: R([".....o......",".....o......","....YYo.....","....YOOo....","...YYOOOo...","..YYYYYYo...","..YOYzzYOo..",".oYYYzzYYo..","..YOYzzYo...","..oOYYYYo...","...ooooo....","..y..Mn..y..","...y.Mn.y...",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....nn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....nn.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+  arkanstab: { w: 12, h: 32, cells: R(["............",".....Pq.....","...PPPQPq...","..PPwQQQQq..","..PQwQQQQq..","..PQQPPQQq..","..PQQPPQQq..","..qQQQQQqq..","...qqQqqq...","..Y..qq..Y..","...Y.gx.Y...",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....xx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....xx.....",".....gx.....",".....gx.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+  glutzepter: { w: 12, h: 32, cells: R(["............",".....Yo.....","...YYYOYo...","..YYwOOOOo..","..YOwOOOOo..","..YOOzzOOo..","..YOOzzOOo..","..oOOOOOoo..","...ooOooo...","..Y..oo..Y..","...Y.gx.Y...",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....xx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....gx.....",".....xx.....",".....gx.....",".....gx.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+  frostzepter: { w: 12, h: 32, cells: R(["............",".....JU.....","...JJJVJU...","..JJwVVVVU..","..JVwVVVVU..","..JVVwwVVU..","..JVVwwVVU..","..UVVVVVUU..","...UUVUUU...","..Y..UU..Y..","...Y.mD.Y...",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....DD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....mD.....",".....DD.....",".....mD.....",".....mD.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+  pechfackel: { w: 12, h: 32, cells: R([".....o......",".....o......","....YYo.....","....YOOo....","...YYOOOo...","...YOYYOo...","..YYYYzYo...","..YOYzzYo...","..oOYzYYoo..","...ooYYok...","...gxxxxk...","..kgxxxxkk..","...gxxxxo...","...kxxxkk...","....kkkk....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....nn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....Mn.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,24] },
+  stockdegen: { w: 12, h: 32, cells: R(["............","............","....zzzy....","...zzYYYy...","..zzwYYYYy..","..zYwYYYYy..","..zYYYYYYy..","..yYYYYYyy..","...yYYYyy...","....yyyy....","...zzzzzy...","...yyyyyy...",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....xk.....",".....ii.....",".....ii.....",".....ii....."]), px: 1.65, grip: [6,22] },
+  rankenstab: { w: 12, h: 32, cells: R(["............","............","..f..Or.f...",".GGfOORrGf..",".fFFOYYrff..","..fFrRrrf...","...Gfrrf....","...ff.ff....","....f.f.....",".....Mn.....",".....Mn.....",".....Mn.....","....FMn.....","....FMn.....",".....Fn.....",".....nn.....",".....Mn.....",".....MnF....",".....MnF....",".....MF.....",".....Mn.....",".....Mn.....","....FMn.....","....FMn.....",".....Fn.....",".....Mn.....",".....MnF....",".....nnF....",".....Mn.....",".....Mn.....",".....yy.....",".....yy....."]), px: 1.65, grip: [6,22] },
+};
+
+__exports.WEAPONS2 = WEAPONS2;
+
+});
+__define("ui/art/cards2.js", function (__exports, __require) {
+// ERZEUGT von tools/figures/cards.mjs (nicht von Hand ändern). Kartenmotive, 32x32 Pixel, je Karte ein eigenes Bild.
+const R = (rows) => rows.map((r) => [...r]);
+const CARDS2 = {
+  hieb: { w: 32, h: 32, cells: R(["................................","................................","................................","........................w.......","............................i...",".........................i.i....",".........i..............i.hhh.w.",".......................i.hhhh...","......................i.hhhhh...","......i..............i.hhhhhwg..","....................i.hhhhh.g...","...................i.hhhhh.g....","..................i.hhhhh.g..w..",".................i.hhhhh.g......","................i.hhhhh.g.......","...............i.hhhhh.g........","..........YY..i.hhhhh.g.........","..........YYYi.hhhhh.g..........","...........YYYhhhhh.g...........","............YYYhhh.g............",".............YYYh.g.............","............NNYYYg..............","...........NNN.YYY..............","..........NNN...YYY.............",".........NNN.....YY.............","........NNN.....................","........NN......................","......YY........................","................................","................................","................................","................................"]) },
+  wuchtschlag: { w: 32, h: 32, cells: R(["................................","................ii..............","..............iiiiig............","..............iiiiig............","..............ihihhg............","..............ihihhg............","..z...........ihihhg..........z.","...zz.........ihihhg.........z..",".....zz.......ihihhg.......zz...",".......z......ihihhg......z.....",".............iihihhhg...........",".............ihhihhhg...........",".............ihhihhhg...........",".............ihhihhhg...........",".............ihhihhhg...........",".............ihhihhhg...........",".............ihhihhhg...........",".............gggggggg...........","........zzzzzzzzzzzzzzzzzy......","........zYYYYYYYYYYYYYYYYy......",".......zyyyyyyyyyyyyyyyyyy......",".....zz........MMMn.......z.....","...zz..........MNNn........zz...","...............MNNn..........zz.","...............MNNn.............","...............MNNn.............","...............MNNn.............","...............MNNn.............","...............zzzy.............","..............zzYYYy............","..............yYYYyy............","...............yyyy............."]) },
+  wirbel: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................",".............iiiiiiii.....i.....","...........iii......iii..i.hh...",".........iii..........iii.hhh...","........iii..hhhhhhh...iihhh.g..",".......iii..hh.....hhhi.hhh.g...",".......ii.hh........iihhhhig....","......ii.hh........i.hhhh.gw....","......ii.h........i.hhhh.gii....",".....ii.hh.......i.hhh.gg.......",".....ii.........i.hhh.g.h.w.....",".....ii........i.hhh.g..h.......",".....ii.......i.YYh.g...h.......",".....ii......i.hYY.g....h.......",".....ii.....i.hhh.g.....h.......",".....iw..h.i.hhh.g.....hh.......","......ii.ii.hhh.g......h..ii....","......iii.hhhh.g......hh..ii....",".....w.iihhhh.g......hh..ii.....","......iihhhhgg.....hh...iii.....",".....i.hhhig.hhhhhhh...iii......","....i.hhhigi..........iii.......",".....hhh.g.iii......iii.........",".....hh.g....iiiiiiii...........",".......g........................","................................","................................","................................"]) },
+  deckung: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","......iiiiiiiiiiiiiiiiiigg......","......ihhhhhhhhhhhhhhhhhgg......","......ihhhhhhhhhhhhhhhhhgg......","......ihhhhhhhhhhhhhhhhhgg......","......ihhhhhhhhYYhhhhhhhgg......","......ihhhhhhhhYYhhhhhhhgg......","......ihhhhhhhhYYhhhhhhhgg......","......ihhhhhhhhYYhhhhhhhgg......","......ihhhhhhhhYYhhhhhhhgg......","......ihhhhYYYYYYYYYYhhhgg......","......ihhhhYYYYYYYYYYhhhgg......","......ihhhhhhhhYYhhhhhhhgg......","......ihhhhhhhhYYhhhhhhhgg......","......ghhhhhhhhYYhhhhhhggg......",".......ghhhhhhhYYhhhhhggg.......","........ghhhhhhYYhhhhggg........",".........ghhhhhYYhhhggg.........","..........ihhhhYYhhhgg..........","..........ghhhhYYhhggg..........","...........ghhhhhhggg...........","............ghhhhggg............",".............ghhggg.............","..............gggg..............","...............gg...............","................................","................................","................................","................................"]) },
+  schildwall: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","........iiiiiiiiiiiiiigg........","........ihhhhhhhhhhhhhgg........","........ihhhhhhhhhhhhhgg........","........ihhhhhhhhhhhhhgg........","..hhhhhhihhhhhhhhhhhhhgghhhhxx..","..hgggggihhhhhhhhhhhhhggggggxx..","..hgggggihhhhhhhOOhhhhggggggxx..","..hgggggihhhhhhOOOOhhhggggggxx..","..hgggggihhhhhJOOOOUhhggggggxx..","..hgggggihhhhJJJwwUUUhggggggxx..","..hgggggihhhhJJJwwUUUhggggggxx..","..hgggggihhhhhJFFFFUhhggggggxx..","..hgggggghhhhhhFFFFhhgggggggxx..","..hgYYYYYghhhhhhFFhhhggYYYYYxx..","..xgYYYYYYihhhhhhhhhggYYYYYYxx..","...xggggYYghhhhhhhhgggYYggxxx...","....xgggYYgghhhhhhggggYYggxx....",".....xgggggxghhhhhgggggggxx.....","......hgggxx.ghhhgg.hgggxx......","......xggxxx..ihgg..xggxxx......",".......xxxx...gggg...xxxx.......","........xx.....gg.....xx........","................................","................................","................................","................................","................................","................................"]) },
+  adrenalin: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","................................","..................y.............","...........OOr...zyOOr..........",".........OOORROr.yyORROr........","........OORRRRRRzyRRRRRRr.......","........ORRwRRRRzYzzyRRRr.......","........ORRRRRRzzYYyyRRRr.......","........ORRRRRyyyYyyRRRRr.......","........ORRRRRRRRzyRRRRRr.......","........rRRRRRRRRyyRRRRrr.......",".........rRRRRRRyyRRRRrr........","..........rRRRRRyRRRrrr.........","...........rRRRRyRRrr...........","............rRRyRRrr............",".............rRRRrr.............","..............ORRr..............","..............rRrr..............","...............rr...............","................................","................................","................................","................................","................................","................................","................................","................................"]) },
+  schwachstelle: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................R...............","................R...............","................R...............",".............RRRRRRR............","...........RRk..R..RRR..........","..........RR.k..R....RR.........",".........RR...k.R.....RR........","........RR....k.R......RR.......","........R......kR.......R.......",".......RR......kR.......RR......",".......R.......kR........R......",".......R........k........R......","....RRRRRRRRRRR.k.RRRRRRRRRRR...",".......R........kkk......R......",".......R......kkkk.......R......",".......RR..kkk..Rk......RR......","........Rkk.....R.k.....R.......","........RR......R.k....RR.......",".........RR.....R.k...RR........","..........RR....R..k.RR.........","...........RRR..R.kkRR..........",".............RRRkkRR............","..............kkR...............","................R...............","................R...............","................................","................................","................................"]) },
+  wasserstrahl: { w: 32, h: 32, cells: R(["................................","...........................JU...","...JU......................JU...","...JU..................JU..wU...","...wU..................JU.......",".......................wU.......","................................","................................","................................",".....JU....................u....",".....JU..................VVu....",".....wU.................VVUUu...",".......................VVUUUu...",".....................VVVUUUuu...","..........VVVVVVVVVVVVUUUUuu....",".........VVUUUUUUUUUUUUUUuu.....",".......VVVUUUUUUUUUUUUUuuu......","......VVUUUUUUUUUUUUUUuu.....JU.",".....VVUUUUUUUUUUUUUUuu......JU.","...VVVUUUUuuuuuuuuuuuu.......wU.","..VVUUUUUuu.....................","..VUUUUuuu......................","..VUUUuu........................","..uUUuu.........................","...uuu..........................","...u............................","................................","................................","................................","................................","................................","................................"]) },
+  flutwelle: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","................................","................................","................................","...........VVuu.................","........VVVVUUuu................","......VVVUwwUUUUuu..............",".....VVUUwUUUuuuuuu.............",".....VUUUUUUuuuuu...............","....VVUUUUUUuu..................","....VUUUUUUUuu..................","...VVUUUUUUUUuu.................","...VUUUUUUUUUuu.................","..VVUUUUUUUUUUuu................","..VUUUUUUUUUUUUUVwVVVVVVuu......",".VVUUUUUUUUUUUUUUUUUUUUUUuu.....",".VUUUUUUUUUUUUUUUUUUUUUUwUUuu...",".VUUUUUUUUUUUUUUUUUUwUUUUUUUuu..",".VUUUUUUUUUUUUUUUUUUUUUUUUUUuu..",".VUUUUUUUUUUUUUUUUUUUUUUUUUUuu..",".VVVVVVVVVVVVVVVVVVVVVVVVVVVVVu.",".VUUUUUUUUUUUUUUUUUUUUUUUUUUUUu.",".VUUUUUUUUUUUUUUUUUUUUUUUUUUUUu.",".VUUUUUUUUUUUUUUUUUUUUUUUUUUUUu.",".VUUUUUUUUUUUUUUUUUUUUUUUUUUUUu.",".uuuuuuuuuuuuuuuuuuuuuuuuuuuuuu.","................................"]) },
+  tropfen: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","...............Vu...............","...............Vu...............","..............VVUu..............","..............VUUu..............",".............VVUUUu.............",".............VUUUUu.............","............VVUUUUUu............","............VUUUUUUu............","...........VVUUUUUUUu...........","...........VUUUUUUUUu...........","..........VVUUUUUUUUUu..........","..........VUUUUwUUUUUu..........","..........VUUUUUUUUUUu..........","..........VUUUUUUUUUUu..........","..........uUUUUUUUUUuu..........","...........VUUUUUUUUu...........","...........uUUUUUUUuu...........","............uuuuuuuu............","................................","................................","................................","................................","................................","................................","................................","................................"]) },
+  dornenpeitsche: { w: 32, h: 32, cells: R(["................................","................................","..........................Gf....","........................y.GFGf..",".........................GGFFff.","........................GGFfff..",".......................fGffFff..","...........y............ffFff...",".......................FFFff....",".............FFF......FFF.......","...........FFFFFFFFF.FFF........",".........FFFFF.yFFFFFFF.........",".......FFFFF.......FFF..........","......FFFF......................","......FF........................","......FFF.......................",".......FF.......................",".......FF.......................","......yFF.......................",".......FFF......................","........FF......................",".......FFF......................",".......FF.y.....................","......FFF.......................",".....FFF........................","....FFF.........................","....FF..........................","...FFF..........................","...FF...........................","................................","................................","................................"]) },
+  ranke: { w: 32, h: 32, cells: R(["................................","................................","................................","....................Gf..........","....................GFGf........","...................GGFFFf.......","..................GGFFFfff......",".................GGFFffFf.......","................FGFffFFff.......","..............FFfffFFFff........",".............FFFF.fffff.........",".......Gf...FFF......f..........",".......GFGf.FF..................","......GGFFffFF..................",".....GGFfffFF...................","....fGffFffF....................",".....ffFffF.....................",".......ffFFF....Gf..............","..........FF....GFGf............","..........FFF..GGFFff...........","...........FF.GGFfff............","...........FFfGffFff............","............FFffFff.............","...........FFF..ff..............","...........FF...................","..........FFF...................","..........FF....................",".........FFF....................",".........FF.....................","........FFF.....................","........FF......................","................................"]) },
+  dornenwall: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","................................","................................","......Gf.....Gf.....Gf.....Gf...","......Gf.....Gf.....Gf.....Gf...","......Gy.....Gy.....Gy.....Gy...","......Gf.....Gf.....Gf.....Gf...","......Gf.....Gf.....Gf.....Gf...","......Gf.....Gf.....Gf.....Gf...","......Gf.....Gf.....Gf.....Gf...","......Gf.....Gf.....Gf.....Gf...",".....GGFf...GGFf...GGFf...GGFf..",".....GFyf...GFyf...GFyf...GFyf..",".....GFFf...GFFf...GFFf...GFFf..",".....GFFf...GFFf...GFFf...GFFf..",".....GFFf...GFFf...GFFf...GFFf..",".....GFFf...GFFf...GFFf...GFFf..",".....GFFf...GFFf...GFFf...GFFf..",".....GFFf...GFFf...GFFf...GFFf..","....GGFFFf.GGFFFf.GGFFFf.GGFFFf.","....GFFFFf.GFFFFf.GFFFFf.GFFFFf.","..MMMMMMMMMMMMMMMMMMMMMMMMMMMnf.","..MNNNNNNNNNNNNNNNNNNNNNNNNNNnf.","..MNNNNNNNNNNNNNNNNNNNNNNNNNNn..","..nnnnnnnnnnnnnnnnnnnnnnnnnnnn..","................................","................................"]) },
+  photosynthese: { w: 32, h: 32, cells: R([".........Y......................","..Y......Y......Y...............","...Y...........Y................","....Y..zzzzy..Y.................","......zzYYYYy...................",".....zzYYYYYYy..................","....zzYYYYYYYYy.................","....zYYYYYYYYYy.................","YYY.zYYYYYYYYYy.YYYY............","....zYYYYYYYYYy.................","....yYYYYYYYYyy.................",".....yYYYYYYyy..................","......yYYYYyy...................","....Y..yyyyy..Y.....Gf..........","...Y...........Y....GFGf........","..Y......Y......Y..GGFFFf.......",".........Y........GGFFFFFf......",".........Y.......GGFFFFFFFf.....",".........Y.......GFFFFFFFFfff...","................GGFFFFFFffFff...","...............GGFFFFfffFFff....","...............GFFFffFFFFff.....","..............GGffffFFFFFf......",".............fffFFfFFFFFff......","...............fffFFFFFff.......",".................fffFFff........","................f...fff.........","...............f......f.........","..............f.................","................................","................................","................................"]) },
+  sporenwolke: { w: 32, h: 32, cells: R(["................................","................................","...............GGF..............","..............GGGGF.............",".......GGF....GGGGF.............","......GGGGF...FGGFF.....GGF.....","......GGGGF....FFFmm...GGGGF....","......FGGFF..wwwBBBBmm.GGGGF....",".......FFF..wwBBBBBBBmmFGGFF....","...........wwBBBBBBBBBmmFFF.....","...........wBBBBBBBBBBmm........","..........wwBBBGfBBBBBBmm.......","........wwwBBBBGFGfBBBBBmm......","......wwwBBBBBGGFFffBBBBBBmm....",".....wwBBBBBBGGFfffBBBBBBBBmm...","....wwBBBBBBfGffFffBBBBBBBBBmm..","....wBBBBBBBBffFffBBBBBBBBBBmm..","....wBBBBBBBBBBffBBBBBBBBBBBmm..","....wBBBBBBBBBBBBBBBBBBBBBBBmm..","....mBBBBBBBBBBBBBBBBBBBBBBmmm..",".....mmBBBBBBBBBBBBBBBBBBmmmm...","......mmmmmmmmmmmmmmmmmmmmmm....","........mmmmmmmmmmmmmmmmmm......","................................",".....GGF...............GGF......","....GGGGF....GGF......GGGGF.....","....GGGGF...GGGGF.....GGGGF.....","....FGGFF...GGGGF.....FGGFF.....",".....FFF....FGGFF......FFF......",".............FFF................","................................","................................"]) },
+  blutsauger_ranke: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","................................","................................","....FF..........................","....FFFF........................",".....FFFy.......................",".......FFFF.....................","........FFFF..........w.w.......","..........FF....................",".........FFFy..........w........",".........FF.....................",".........FF.....................",".........FF...........FF........","........FFF..........FFFOr......","........FFF.........FFF.Or......","........FFFFF.y...FFFF.OORr.....","..........FFFFFF.FFFF..ORRr.....","............FFFFFFF...OORRRr....","...............FFF....ORwRRr....","..................y...rRRRrr....",".......................rrrr.....","................................","................................","................................","................................","................................","................................"]) },
+  rankendornen: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................",".......GGGGGGGGGGGGGGGGff.......",".......GFFFFFFFFFFFFFFFff.......","..y....GFFFFFFFFFFFFFFFff.y.....",".......GFFFFFFFFFFFFFFFff.......","....FF.GFFFFFFFYYFFFFFFff...FF..","....FFFGFFFFFFFYYFFFFFFff..FFF..",".....FyFFFFFFFFYYFFFFFFff.FFF.y.","......FFFFFFFFFYYFFFFFFff.FF....","......FFFFFFFFFYYFFFFFFffFFF....",".......FFFFYYYYYYYYYYFFfFFF.....",".......GFFFYYYYYYYYYYFFfFF......",".......GFFFFFFFYYFFFFFFfFF......",".......fFFFFFFFYYFFFFFffFF......","........FFFFFFFYYFFFFffFFF......",".......y.FFFFFFYYFFFfyfFF.......",".........FFFFFFYYFFFff.FF.......",".........FFGFFFYYFFff..FF.......",".......FFFFfFFFFFFfff..FFFF.....","......FFFF.yfFFFFfff....FyFF....","....FFFF.....fFFfff.......FFFF..","...FFFF.......ffff.........FFFF.","...FF..........ff............FF.","................................","................................","................................","................................","................................"]) },
+  wurzelgeflecht: { w: 32, h: 32, cells: R(["...............Gf...............","...............GFGf.............","..............GGFFff............",".............GGFfff.............","............fGffFff.............",".............ffFff..............","...............ffN..............","................NN..............","................NN..............","................NN..............","................NN..............","................NN..............","................NN..............","................NN..............","................MM..............","...............NNNN.............","..............NNNNNN............",".............NNN..NNN...........","...........NNNN....NNNN.........","..........NNNN......NNNN........",".........NNN..........NNN.......","........NNN............NNN......",".......NNN..............NNN.....","......NNNN..............NNNN....","......NNNN..............NNNN....",".....NNNNNN............NNNNNN...",".....NN..NNN..........NNN..NN...","....NNN...NNN........NNN...NNN..","....NN.....NN........NN.....NN..","...NNN.....NNN......NNN.....NNN.","...NN.......NN......NN.......NN.","................................"]) },
+  flammenhieb: { w: 32, h: 32, cells: R(["................................","................................","................................",".......oo.......................","......YYoo..................O...","......YOoo.........O.....O.O....",".....YYOOoo.........OOO.O.ooo...","....YYOOYOoo...........OOoooo...","....YOOYYYoo..........O.OOooo...","....YOYYYYYo.........O.ooOOo.r..","....YOYYYYYo........O.ooooOOr...","....ooYYYYYo.......O.ooooo.O....",".....ooYYYo.......O.ooooo.rOO...",".......YYY.......O.ooooo.r..O...","................O.ooooo.r...O...","...............O.ooooo.r.....O..","..........YY..O.ooooo.r......O..","..........YYYO.ooooo.r.......O..","...........YYYooooo.r........O..","............YYYooo.r............",".............YYYo.r.............","............NNYYYr..............","...........NNN.YYY..............","..........NNN...YYY.............",".........NNN.....YY.............","........NNN.....................","........NN......................","......YY........................","................................","................................","................................","................................"]) },
+  feuerball: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................",".................YYYYYoo........","...............YYYOOOOOOoo......","..............YYOOOOOOOOOoo.....",".............YYOOOOOOOOOOOoo....","............YYOOOzzzzzOOOOOoo...","............YOOOzzzzzzzOOOOoo...","...........YYOOzzzzzzzzzOOOOoo..","...........YOOOzzzzzzzzzOOOOoo..","...........YOOOzzzzzzzzzOOOOoo..","...........YOOOzzzzzzzzzOOOOoo..","...........YOOOzzzzzzzzzOOOOoo..","...........YOOOOzzzzzzzOOOOOoo..","...........oOOOOOzzzzzOOOOOooo..","............YOOOOOOOOOOOOOOoo...","............oOOOOOOOOOOOOOooo...","...........OOoOOOOOOOOOOOooo....","..........OOooooOOOOOOOoooo.....",".........OOooooooooooooooo......","........OOooorrr.ooooooo........","........Ooorrr..................",".......Orrrr....................","......rrr.......................",".....rr.........................","....r...........................","................................","................................","................................"]) },
+  inferno: { w: 32, h: 32, cells: R(["................................","................................","................................","...............rr...............","...............rr...............","..............OOrr..............","..............Oorr..............",".............OOoorr.............",".............Ooooorr............","............OOoooorr............","............Ooooooorr..oo.......","...........OOoooooorr..oo.......",".......oo.OOoooooooorrYYoo......",".......oo.OooooooooorrYOOoo.....","......YYooOooooOOOoorrYOOoo.....",".....YYOOoOoooOOOOOorrOOOOoo....",".....YOOOOOoooOooOOoorrOOOoo....","....YYOOOOOooOOooOOOorrOOOOoo...","...YYOOOOOoooOYYooOOorrYYYOoo...","...YOOOYYOoooOYOooOOorrYYYYoo...","...YOOYYYOoooYYOOooOorrYYYYoo...","...YOOYYYOoooYOOYooOorrYYYYOoo..","..YYOOYYYOoooYOYYYooorrYYYYOoo..","..YOOOYYYrooYYOYYYoorrrYYYYOoo..","..oOOOYYYYOoYOYYYYYorrYYYYYooo..","...YOOYYYYrooOYYYYYorrYYYYYoo...","...oooYYYYYrrooYYYorroYYYYYoo...","....oooYYYorrooYYYorrooYYYoo....","........Y.......Y...............","................................","................................","................................"]) },
+  phoenixschlag: { w: 32, h: 32, cells: R(["................................","................................","................................","...oo......................oo...","....YYo..................YYo....","....YOOYYo............YYYYOo....","....YOOOOOYo........YYYOOOOo....","....oOOOOOOOYo.OOrYYYOOOOOoo....",".....YOOOOOOOOOOoorOOOOOOOo.....",".....YOOOOOOOOOkokorOOOOOOo.....",".....oOOOOOOOOooooorOOOOOoo.....","......YOOOOOOOooYooorOOOOo......","......YOOOOOOooooooorOOOOo......",".....YYOOOOOOooooooorOOOOOo.....","....YYOOOOOOOooooooorOOOOOOo....","....YOOOOOOOroooooorrOOOOOOo....","...ooooooooOOOooooorooooooooo...","...........ooroooorro...........",".............oroorr.............","..............orrr..............","...............Or...............","...............Or...............","..............OOor..............","..............Ooor..............",".............OOooor.............",".............Orrror.............","............Orr..ror............","............rr....rr............","...........r........r...........","................................","................................","................................"]) },
+  funke: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","...............Yo...............","...............Yo...............","...............Yo...............","..............YYOo..............","..............YOOo..............","..............YOOo..............","..............YOOo..............",".............YYzzzo.............","..........YYYYzzzzzYYo..........",".......YYYYOOzzzzzzzOOYYo.......","....oooYOOOOOzzzzzzzOOOOoooo....",".......oooOOOzzzzzzzOoooo.......","..........oooOzzzzzooo..........",".............oOzzzo.............","..............YOOo..............","..............YOOo..............","..............YOOo..............","..............oOoo..............","...............Yo...............","...............Yo...............","...............oo...............","................................","................................","................................","................................","................................"]) },
+  flammenwelle: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","................................","................................","................................","................................",".....................oo.........",".........oo..........oo.........",".........oo.........YYoo........","........YYoo........YOoo........","........YOoo.......YYOOoo.......",".......YYOOoo..oo..YOOOoo.......",".......YOOOoo..oo..YOOOOoo......","...oo..YOOOOooYYooYYOYYYoo.oo...","...YooYYOYYYoYYOOoYOOYYYooYYoo..","..YYooYOOYYYoYOOOoYOYYYYYoYOoo..",".YYOOoYOYYYYYYOOYOYOYYYYYYYOOoo.","YYOOYOYOYYYYYOOYYYYOYYYYYYOOYOoo","YOOYYYYOYYYYYOYYYoYOYYYYYOOYYYoo","YOYYYYYOYYYYYOYYYYYOYYYYYOYYYYYo","YOYYYYYOYYYYYOYYYYoOYYYYYOYYYYYo","ooYYYYoooYYYooYYYYYooYYYooYYYYYo",".OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOr",".Oooooooooooooooooooooooooooooor",".Oooooooooooooooooooooooooooooor",".Oooooooooooooooooooooooooooooor",".rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr","................................"]) },
+  meteor: { w: 32, h: 32, cells: R(["................................","................................","................................","................................",".......oo.......................","...rr...Yo......................","....Or..oOYo....................","....roOr.YOOo...................",".....rooroOOOo..................","......OooOYOOOYo................","......rooooOOOOOo...............",".......OooooOOOOOYo.............",".......rooooYOOOOOoo............","........OooooOOOOoohhhxx........","........rooooYOOOhhhggggxx......",".........rooooOhhhggggggggxx....","..........OoooYhggOgggggggxx....","..........roorhhgOgggggggggxx...","...........Orrhggggxgggggggxx...","...........rrhhgggggggggggggxx..",".............hggggggggggggggxx..",".............hggggggggggggggxx..",".............hggggggggggxgggxx..",".............xgggggggggggggxxx..","..............hggggggggggggxx...","..............xgggggxgggggxxx...","...............xgggggggggxxx....","...............xxxgggggxxxxx....",".................xxxxxxxxx......","...................xxxxx........","................................","................................"]) },
+  feuersturm: { w: 32, h: 32, cells: R(["................................","................................","................................","................................",".............OOOOOOOOO..........","...........OOOO.....OOOO........",".........OOOO.........OOO.......","........OOO.....................",".......OOOO..ooooooooo..........","......OOO...oooo...ooooo........","......OOO.oooo.......oooo.......",".....OOO.oooo.........ooo.......",".....OOO.ooo..YYYYYY...ooo......","....OOO.oooo.YYoo.YYY..oooo.....","....OOO.....YYYoo..YY...ooo.....","....OOO.....YYYYoo......ooo.....","....OOO.....YYYOYoo.....ooo.....","....OOO.....YYOYYYo.YY..ooo.....","....OOO.....YYOYYYoYYY..ooo.....","....OOO.....oooYYYooY..oooo.....",".....OOO.....ooYYYoY...ooo......",".....OOO.......YYY....oooo......","......OOO............oooo.OOO...","......OOO..........oooo...OOO...",".......OOOO..ooooooooo..OOOO....","........OOO.............OOO.....",".........OOOO.........OOOO......","...........OOOO.....OOOO........",".............OOOOOOOOO..........","................................","................................","................................"]) },
+  lodernder_schmerz: { w: 32, h: 32, cells: R(["...............oo...............","...............Yoo..............","..............YYoo..............",".............YYOOoo.............","............YYOOOOoo............","............YOOOOOoo............","...........YYOOYYYOoo...........","...........YOOYYYYYoo...........","...........YOOYYYYYoo...........","...........YOOYYYYYoor..........","........OOOYOOYYYYYooOOOr.......",".......OORRoooYYYYYooRRRRr......","......OORRRRoooYYYooRRRRRRr.....","......ORRRwRRRRYYYRRRRRRRRr.....","......ORRRRRRRRRRRRRRRRRRRr.....",".....rORRRRRRRRRRRRRRRRRRRrr....","......ORRRRRRRRRRRRRRRRRRRr.....",".....rORRRRRRRRRRRRRRRRRRRr.....","......rRRRRRRRRRRRRRRRRRRrr.....",".......rRRRRRRRRRRRRRRRRrr......","........rRRRRRRRRRRRRRrrr.......",".........rRRRRRRRRRRRrr.........","..........rRRRRRRRRRrr..........","...........rRRRRRRRrr...........","............ORRRRRRr............","............rRRRRRrr............",".............rRRRrr.............","..............rRrr..............","...............rr...............","................................","................................","................................"]) },
+  selbstentzuendung: { w: 32, h: 32, cells: R(["................................","...............oo...............","..............YYoo..............",".............YYOOoo.............","............YYOOOOoo............","............YOOYYYoo............","............YOYYYYYoo...........",".....oo....YYOYYYYYoo....oo.....",".....oo....oooYYYYYoo....oo.....","....YYoo....ooYYYYYos...YYoo....","...YYOOoo...tSSYYYSSs..YYOOoo...","...YOOYoo...tSSSSSSSs..YOOYoo...","...YOYYYoo..sSSSSSSss..YOYYYoo..","..YYOYYYoo...sSSSSss..YYOYYYoo..","..YOYYYYYo....sssss...YOYYYYYo..","..ooYYYYYo.VVVVVVVVVu.ooYYYYYo..","...ooYYYo..VUUUUUUUUu..ooYYYo...",".....YYYu..VUUUUUUUUu..VUYYY....","......VUu..VUUUUUUUUu..VUu......","......VUu.VVUUUUUUUUUu.VUu......","......VUu.VUUUUUUUUUUu.VUu......","......VUu.VUUUUUUUUUUu.VUu......","......VUu.VUUUUUUUUUUu.VUu......","......VUu.VUUUUUUUUUUu.VUu......","......VUu.VUUUUUUUUUUu.VUu......","......uuu.VUUUUUUUUUUu.uuu......",".........VVUUUUUUUUUUUu.........",".........VUUUUUUUUUUUUu.........",".........uuuuuuuuuuuuuu.........","................................","................................","................................"]) },
+  flammenmantel: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","............zzzzzzzy............","............zYYYYYYy............",".........OOOzYYYYYYyOrr.........",".........ORRzYYYYYYyRrr.........","........OORRyyyyyyyyRRrr........","........ORRRRRRRRRRRRRrr........","........ORRRRRRRRRRRRRrr........","........ORRRRRRRRRRRRRrr........",".......OORRRRRRRRRRRRRRrr.......",".......ORRRRRRRRRRRRRRRrr.......",".......ORRRRRRRRRRRRRRRrr.......",".......ORRRRRRRooRRRRRRrr.......","......OORRRRRRRooRRRRRRRrr......",".....ooRRRRRRRYYooRRRRRRroo.....",".....ooRRRRRRYYOOooRRRRRroo.....","....YYooRRRRRYOOOooRRRRRYYoo....","...YYOOooRRRYYOOYOooRRRYYOOoo...","...YOOYooRRRYOOYYYooRRRYOOYoo...","...YOYYYooRRYOYYYYYoRRRYOYYYoo..","..YYOYYYooRRYOYYYYYoRRYYOYYYoo..","..YOYYYYYoRRYOYYYYYoRRYOYYYYYo..","..ooYYYYYoRRooYYYYYoRRooYYYYYo..","...ooYYYorrrrooYYYorrrrooYYYo...","...rrYYYrrrrrrrrYrrrrrrrrYYYr...","................................","................................","................................","................................"]) },
+  giftklinge: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","............................G...",".........................G.G....","........................G.FFF...",".......................G.FFFF...","......................G.FFFFF...","........Pq...........G.FFFFF.f..","........Pq..........G.FFFFF.f...",".......PPQq........G.FFFFF.f....",".......PQQq.......G.FFFFF.f.....","......qPwQqq.....G.FFFFF.f......",".......PQQq.....G.FFFFF.f.......",".......qqqq....G.FFFFF.f........","..........YY..G.FFFFF.f.........","..........YYYG.FFFFF.f..........","...........YYYFFFFF.f...........","............YYYFFF.f............",".............YYYF.f.............","............NNYYYf..............","...........NNN.YYY......Gf......","..........NNN...YYY.....Gf......",".........NNN.....YY....GGFf.....","........NNN............GwFf.....","........NN.............ffff.....","......YY........................","................................","................................","................................","................................"]) },
+  giftwolke: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","...............GGGff............",".............GGGFFFFff..........","............GGFFFFFFFff.........","...........GGFFFFFFFFFff........","...........GFFFFFFFFFFff........","..........GGFFwwwwBFFFFff.......","........GGGFFwwmmmmBFFFFff......","......GGGFFFwwmmmmmmBFFFFFff....",".....GGFFFFFwmmmmmmmBFFFFFFff...","....GGFFFFFFwmkkmkkmBFFFFFFFff..","....GFFFFFFFwmmmmmmmBFFFFFFFff..","....GFFFFFFFBmmmkmmBBFFFFFFFff..","....GFFFFFFFFBwwwwBBFFFFFFFFff..","....fFFFFFFFFFwmkmBFFFFFFFFfff..",".....ffFFFFFFFBBBBBFFFFFFffff...","......ffffffffffffffffffffff....","........ffffffffffffffffff......","................................","................................","................................","................................",".....Gf.................Gf......",".....Gf.................Gf......",".....wf.................wf......","................................","................................","................................"]) },
+  pandemie: { w: 32, h: 32, cells: R(["................................","................................","................................","...............PPPqq............",".............PPPQQQQqq..........","............PPQQQQQQQqq.........","...........PPQQQQQQQQQqq........","...........PQQQQQQQQQQqq........","..........PPQQQQQQQQQQQqq.......","........PPPQQQQGGGffQQQQqq......","......PPPQQQQGGGFFFFffQQQQqq....",".....PPQQQQQGGFFFFFFFffQQQQqq...","....PPQQQQQGGFFFFFFFFFffQQQQqq..","....PQQQQQQGFFwwwwBFFFffQQQQqq..","....PQQQQQGGFwwmmmmBFFFffQQQqq..","....PQQQGGGFwwmmmmmmBFFFffQQqq..","....qQGGGFFFwmmmmmmmBFFFFFffqq..",".....GGFFFFFwmkkmkkmBFFFFFFff...","....GGFFFFFFwmmmmmmmBFFFFFFFff..","....GFFFFFFFBmmmkmmBBFFFFFFFff..","....GFFFFFFFFBwwwwBBFFFFFFFFff..","....GFFFFFFFFFwmkmBFFFFFFFFFff..","....fFFFFFFFFFBBBBBFFFFFFFFfff..",".....ffFFFFFFFFFFFFFFFFFFffff...","......ffffffffffffffffffffff....","........ffffffffffffffffff......","....Gf....................Gf....","....Gf.............Gf.....Gf....","....wf.....Gf......Gf.....wf....","...........Gf......wf...........","...........wf...................","................................"]) },
+  aufschlitzen: { w: 32, h: 32, cells: R(["................................","................................","................................","................................",".............rOOOr..............","......rOOOr...ORRr..rOOOr.......",".......ORRr...ORRRr..ORRr.......",".......ORRRr..ORRRr..ORRRr......",".......ORRRr..rRRRr..ORRRr......",".......rRRRr...ORRRr.rRRRr......","........ORRRr..ORRRr..ORRRr.....","........ORRRr..rRRRr..ORRRr.....","........rRRRr...ORRr..rRRRr.....",".........ORRr...ORRRr..ORRr.....",".........ORRRr..ORRRr..ORRRr....",".........ORRRr..rRRRr..ORRRr....",".........rRRRr...ORRRr.rRRRr....","..........ORRRr..ORRRr..ORRRr...","..........ORRRr..ORRRr..ORRRr...","..........ORRRr..rRRRRr.OROrr...","..........rRRRRr..ORRRr.rROrRr..","...........ORRRr..ORRRr..OwrRr..","...........ORRRr..rRRRr..ORRRr..","...........rRRRr...ORRRr.rRRRr..","............ORRRr..ORRRr..ORRRr.","............ORRRr..ORRRr..ORRRr.","............ORRRr..rRRRRr.ORRRr.","............rRRRRr..rrrrr.rRRRRr","........r....rrrrr.....r...rrrrr","................r...............","................................","................................"]) },
+  blutrausch: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","...............rr...............","..............OOrr..............",".............OORRrr.............","............OORRRRrr............","...........OORRRRRRrr...........",".........OOORRRRRRRRRrr.........","........OORRRRRRRRRRRRrr........",".......OORRRRRRRRRRRRRRrr.......","......OORRRRRRRRRRRRRRRRrr......",".....OORRRRRRRRRRRRRRRRRRrr.....","....OORRRRYYRRRRRRRRRYYRRRrr....","....ORRRRRRRYRRRRRRRYRRRRRrr....","....ORRRRRRRRRRRRRRRRRRRRRrr....","....rRRRRRRRRRRRRRRRRRRRRrrr....",".....ORRRRRRRRRRRRRRRRRRRrr.....",".....ORRRRRRRRRRRRRRRRRRRrr.....",".....ORRRRRRRRRRRRRRRRRRRrr.....",".....ORRRRRRRRRRRRRRRRRRRrr.....",".....ORRRRRRwwwwwwwwwRRRRrr.....",".....rRRRRRRwwwwwwwwRRRRrrr.....","......ORRRRRRwwRRwwRRRRRrr......","......rRRRRRRwwRRwwRRRRrrr......","......rrrrRRRwwRRwwRrrrrrr......","........rrrrRRRRRRrrrrrr........","...........rrrrrrrrrr...........",".............rrrrrr.............","................................","................................"]) },
+  blutopfer: { w: 32, h: 32, cells: R(["................................","................................","..............iiig..............","..............ihhg..............","..............ihhg..............","..............ihhg..............","..............ihhg..............","..............ihhg..............","..............ihhg..............","..............ghgg..............","...............ig...............","...............ig...............","...............ig...............","...............ig...............","...............ig...............","...............ig...............","...........zzzzzzzzzzy..........","...........zYYYYYYYYYy..........","...........yyyyyRyyyyy..........","................R...............","...............Or...............","...............Or...............","..............OORr..............","..............ORRr..............",".............OORRRr.............",".............ORRRRr.............","............OORwRRRr............","............rRRRRRrr............",".............rRRRrr.............","..............rrrr..............","................................","................................"]) },
+  blutdurst: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................",".............wwwwwwm............","..........wwwwBBBBBBwwm.........",".........wwBBBBBBBBBBBBm........","........wwBBBBBBBBBBBBBBm.......",".......wwBBBBBBBBBBBBBBBBm......","......wwBBBRRBBBBBBBRRBBBBm.....","......wBBBBBBBBBBBBBBBBBBBm.....",".....wwBBBBBBBBBBBBBBBBBBBBm....",".....wBBBBBBBBBBBBBBBBBBBBBm....",".....wBBBBBBBBBBBBBBBBBBBBBm....",".....wBBBwwwwBBBBBBwwwwBBBBm....",".....mBBBwwwwBBBBBBwwwwBBBmm....","......wBBwwwwBBBBBBwwwwBBBm.....","......mBBBwwBBBBBBBBwwBBBmm.....",".......mBBwwBBBBBBBBwwBBmm......","........mBwwBBBBBBBBwwBmm.......",".........mwwBBBBBBBBwwmm........","..........wwmBBBBBBmwwm.........",".............mmmmmmm............","...............Or...............","...............Or...............","..............OORr..............","..............OwRr..............","..............rrrr..............","................................","................................","................................"]) },
+  zerfleischen: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","..........rOOOr..xhhhx..........","...rOOOr..xhhhx..rhggx..xhhhx...","....ORRr...hggxr..hgggx..hggx...","....ORRRr..hgggx..hgggx..hgggx..","....ORRRr..hgggx..xgggx..hgggx..","....rRRRr..xgggxr.rhgggx.xgggx..",".....ORRRr..hgggx..hgggx..hgggx.",".....ORRRr..hgggx..xgggx..hgggx.",".....rRRRr..xgggx..rhggx..xgggx.","......ORRr...hggxr..hgggx..hggx.","......ORRRr..hgggx..hgggx..hgggx","......ORRRr..hgggx..xgggx..hgggx","......rRRRr..xgggxr.rhgggx.xgggx",".......ORRRr..hgggx..hgggx..hggx",".......ORRRr..hgggx..hgggx..hggx",".......ORRRr..hgggxr.xggggx.hggx",".......rRRRRr.xggggx.rhgggx.xggx","........ORRRr..hgggx..hgggx..hgx","........ORRRr..hgggx..xgggx..hgx","........rRRRr..xgggxr.rhgggx.xgx",".........ORRRr..hgggx..hgggx..hx",".........wwRRr.wwgggxwwhgggww.hx",".........wwRRr.wwgggxwwxgggww.hx","........wwwwRRwwwwggwwwwxxwwwwxx","..........rrrrr..xxxxx..rrrrr..x","................................","................................","................................"]) },
+  aderlass: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","............................i...","...........................i....","....................iiiiiii.....","....................ihhhhig.....","....................ihhhihg.....","..................OOOOrihhg.....","..................ORRRrhhhg.....",".......Or.........ORRRrhhhg.....",".......Or.........ORRRrgggg.....","......OORr........ORRRrh........","......ORRr........ORRRr.........",".....rOwRrr......hrrrrr.........","......ORRr......hhhhh...........","......rrrr.....hhhhh............","..............hhhhh.............",".............hhhhh..............","............hhhhh...............","...........hhhhh................","..........hhhhh.................",".........hhhhh..................","........hhhhh...................",".......hhhhh....................","......hhhhh.....................",".....ihhhh......................","....i.hhh.......................","................................","................................","................................"]) },
+  eissplitter: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","...............JU...............","...............JU...............","..............JJVU..............","..............JJVU..............",".............JJJVVU.....w.......",".............JVJVVU.............","............JJVJVVVU............","............JVVJVVVU............","...........JJVVJVVVVU...........","...........JVVVJVVVVU......w....","..........JJVVVJVVVVVU..........","..........JVVVVJVVVVVU..........","..........JVVVVJVVVVVU..........","..........UVVVVJVVVVUU..........","...........JVVVJVVVVU...........","...........JVVVJVVVVU...........","...........JVVVJVVVVU...........","...........UVVVJVVVUU...........","............JVVJVVVU............","......w.....JVVJVVVU............","............JVVJVVVU............","............UVVJVVUU............",".............JVVVVU.............",".............UUUUUU.............","................................","................................","................................"]) },
+  frostnova: { w: 32, h: 32, cells: R(["................................","................................","............VVVVVVVVV...........","..........VVV.......VVV.........","........VVV...........VVV.......",".......VV...............VV......","......VV..J...........J..VV.....",".....VV....J..J...J..J....VV....","....VV.....J.J.....J.J.....VV...","....V.......JJ.....JJ.......V...","...VV...JJJJJ.......JJJJJ...VV..","...V.........J.....J.........V..","..VV..........J...J..........VV.","..V....J......J...J......J....V.","..V.....J......J.J......J.....V.","..V.....J......J.J......J.....V.","..V.JJJJJJJJJJJJwwJJJJJJJJJJJ.V.","..V.....J......J.J......J.....V.","..V.....J......J.J......J.....V.","..V....J......J...J......J....V.","..VV..........J...J..........VV.","...V.........J.....J.........V..","...VV...JJJJJ.......JJJJJ...VV..","....V.......JJ.....JJ.......V...","....VV.....J.J.....J.J.....VV...",".....VV....J..J...J..J....VV....","......VV..J...........J..VV.....",".......VV...............VV......","........VVV...........VVV.......","..........VVV.......VVV.........","............VVVVVVVVV...........","................................"]) },
+  eiszeit: { w: 32, h: 32, cells: R(["................................","................................",".............J.J.J.J............","..............JJ..J.............","............JJJ...JJJ...........","...........J...J.J...J..........","............J..J.J...J..........","..........JJJJJJwwJJJJJ.........","............J..J.J...J..........","...........J...J.J...J..........","............JJJ...JJJ...........","..............JJ..J.............",".............J.J.J.J............",".....................ww.........",".....................ww.........","....................wwww........",".......ww..........Vwwww........",".......ww..........wwwwww.......","......wwww........Vwwwwww.......","......wwwwu......VVUUUUUu.......",".....VVUUUu......VUUUUUUUu......",".....VUUUUUu....VVUUUUUUUu......","....VVUUUUUUu..VVUUUUUUUUUu.....","....VUUUUUUUu..VUUUUUUUUUUu.....","...VVUUUUUUUUVVVUUUUUUUUUUUu....","...VUUUUUUUUUUUUUUUUUUUUUUUu....","..VVUUUUUUUUUUUUUUUUUUUUUUUUu...","..VUUUUUUUUUUUUUUUUUUUUUUUUUu...",".VVUUUUUUUUUUUUUUUUUUUUUUUUUUu..",".VUUUUUUUUUUUUUUUUUUUUUUUUUUUu..","uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu.","................................"]) },
+  frostnadel: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","..........................wU....",".........................wJUU...","........................JJUU....",".......................JJUU.....","......................JJUU......",".....................JJUU.......","....................JJUU........","...................JJUU.........","..................JJUU..........","................JJJUU...........","...............JJVUU............","..............JJVUU.............",".............JJVUU..............","............JJVUU...............","...........JJVUU................","..........JJVUU.................",".........JJVUU..................","........JJVUU...................","....JJJJJJUU....................","....JVVVVVU.....................","....JVVVVVU.....................","....JVVVVVU.....................","....JVVVVVU.....................","....JVVVVVU.....................","....UUUUUUU.....................","................................","................................","................................"]) },
+  eisregen: { w: 32, h: 32, cells: R(["...........hhhhhhhhhhhxx........","..........hhgggggggggggxx.......","........hhhgggggggggggggxx......","......hhhgggggggggggggggggxx....",".....hhggggggggggggggggggggxx...","....hhggggggggggggggggggggggxx..","....hgggggggggggggggggggggggxx..","....hgggggggggggggggggggggggxx..","....hgggggggggggggggggggggggxx..","....xggggggggggggggggggggggxxx..",".....xxggggggggggggggggggxxxx...","......xxxxxxxxxxxxxxxxxxxxxx....","........xxxxxxxxxxxxxxxxxx......","................................","................................","................................","................................","....................JU..........","......JU............JU..........","......JU...........JJVU.........",".....JJVU..........UVUU.........",".....UVUU...........JU..........","......JU.....JU.....UU..........","......UU.....JU.................","............JJVU................","............UVUU................",".............JU..........JU.....",".........JU..UU..........JU.....",".........JU.............JJVU....","........JJVU............UVUU....","........UVUU.............JU.....",".........UU..............UU....."]) },
+  schnellschuss: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","................................","................................","..JJJJJJJJJ.................ig..",".........................iiigg..",".....iiiiiiiiii..........ghgg...",".........................oig....",".......................ooogg....",".....................ooo........","JJJJJJJJJ..........ooo..........",".................ooo............","...iiiiiiiiii..ooo..............",".............oooo...............","...........oooo.................",".........oooo...................",".......oooo.....................","......ooR.......................","......R.........................",".....R.R........................","................................","................................",".JJJJJJJJJ......................","................................","....iiiiiiiiii..................","................................","................................","................................"]) },
+  zielen: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................R...............","................R...............","................R...............",".............RRRRRRR............","...........RRR..R..RRR..........","..........RR....R....RR.........",".........RR.....R.....RR........","........RR......R......RR.......","........R.......R.......R.......",".......RR.......R.......RR......",".......R........R........R......",".......R.................R......","....RRRRRRRRRRR.w.RRRRRRRRRRR...",".......R.................R......",".......R........R........R......",".......RR.......R.......RR......","........R.......R.......R.......","........RR......R......RR.......",".........RR.....R.....RR........","..........RR....R....RR.........","...........RRR..R..RRR..........",".............RRRRRRR............","................R...............","................R...............","................R...............","................................","................................","................................"]) },
+  rolle: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................",".............JJJJJJJJJ..........","...........JJJJJ...JJJJJ........",".........JJJJJ..................",".........JJJ....................",".....JJJJJJ.....................","......JJJJJJJJ..................","......JJJJJJJ...................","......JJJJJJ....................","......JJJJJJ....MMMMMn..........","......JJJJJ.....MNNNNn..........","......JJJJ......MNNNNn..........","......JJJ.......MNNNNn..........","......JJJ.......MNNNNn..........","......JJJJ......MNNNNn..........",".......JJJ......MNNNNn..........",".......JJJJ.....MNNNNn..........","........JJJ.....MNNNNn..JJJ.....","........JJJJ....MNNNNNMMMMMn....","..........JJJ...MNNNNNNNNNNn....","...........JJJJJMNNNNNNNNNNn....",".............JJJxxxxxxxxxxxxx...","................xxxxxxxxxxxxx...","................................","................................","................................","................................"]) },
+  praezisionsschuss: { w: 32, h: 32, cells: R(["................................","................................","................................","..........................ig....",".......................iiigg....",".......................ghgg.....","...............R........ig......","...............R........gg......","...............R.......oo.......",".............RRRRR....oo........","...........RR..R..RR.oo.........",".........RR....R....Roo.........",".........R.....R....oo..........","........R......R...oo.R.........","........R......R..oo..R.........",".......R.......R..oo...R........",".......R.........oo....R........","....RRRRRRRRRR.wooRRRRRRRRR.....",".......R.......oo......R........",".......R.......oo......R........","........R.....oo......R.........","........R....ooR......R.........",".........R..oo.R.....R..........",".........RR.oo.R....RR..........","...........oo..R..RR............","..........oo.RRRRR..............",".........oo....R................",".........oo....R................","........ooR....R................","........R.......................",".......R.R......................","................................"]) },
+  giftpfeil: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","..........................Gf....",".......................GGGff....",".......................fFff.....","........................Gf......",".......................off......","......................oo........",".......Gf............oo.........",".......Gf...........oo..........","......GGFf.........oo...........","......GwFf........oo............","......ffff.......oo.............","................oo..............","...............oo...............","..............oo................",".............oo.................","............oo..................","...........oo...................","..........oo....................",".........oo.....................","........oo..............Pq......",".......oo...............Pq......","......oo................wq......",".....ooG........................",".....G..........................","....G.G.........................","................................","................................","................................"]) },
+  brandpfeil: { w: 32, h: 32, cells: R(["................................","........................oo......","........................Yoo.....",".......................YYoo.....","......................YYOOoo....","......................YOYYYo....",".....................YYOYYYoo...",".....................YOYYYYYo...",".....................ooYYYYYo...","......................ooYYYo....",".....................oo.YYY.....","....................oo..........","...................oo...........","..................oo............",".................oo.............","................oo..............","...............oo...............","..............oo................",".............oo.................","............oo..................","...........oo...................","..........oo....................",".........oo.....................","........oo......................",".......oo.......................","......oo........................",".....ooo........................",".....o..........................","....o.o.........................","................................","................................","................................"]) },
+  eispfeil: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","..........................JU....",".......................JJJUU....",".......................UVUU.....","........................JU......",".......................oUU......","......................oo........",".....................oo.........","....................oo..........","...................oo...........","..................oo............",".................oo.............","................oo..............","...............oo...............","..............oo................",".............oo.................","............oo..................","...........oo........J.J.J.J....","..........oo........JJJ...JJJ...",".........oo............J..J.....","........oo..........J..J.J..J...",".......oo..........JJJJJwwJJJJ..","......oo............J...JJ..J...",".....ooJ...............J..J.....",".....J..............JJJJ..JJJ...","....J.J...............JJ.J.J....","................................","................................","................................"]) },
+  nachladen: { w: 32, h: 32, cells: R(["................................","................................","................................","...........gg..gg..gg...........","............M...M...M...........","............M...M...M...........","............M...M...M...........","............M...M...M...........","...........RM..RM..RM...........","............R...R...R...........","............M...M...M...........","............M...M...M...........",".........YYYMYYYMYYYMYYY........",".........YYYYYYYYYYYYYYY........","...........MNNNNNNNNn...........","...........MNNNNNNNNn...........","...........MNNNNNNNNn...........","..........MMNNNNNNNNNn..........","..........MNNNNNNNNNNn..........","..........MNNNNNNNNNNn..........","..........MNNNNNNNNNNn..........","..........MNNNNNNNNNNn..........","..........MNNNNNNNNNNn..........","..........MNNNNNNNNNNn..........","..........MNNNNNNNNNNn..........",".........MMNNNNNNNNNNNn.........",".........MNNNNNNNNNNNNn.........",".........MNNNNNNNNNNNNn.........",".........nnnnnnnnnnnnnn.........","................................","................................","................................"]) },
+  salve: { w: 32, h: 32, cells: R(["................................","................................","................................","...............ig...............","...............ig...............",".......ig.....gggg.....ig.......",".......ig.......N......ig.......","......gggg......N.....gggg......","........N.......N.......N.......","........N.......N.......N.......",".......N........N........N......",".......N........N........N......",".......N........N........N......",".......N........N........N......",".......N........N........N......",".......N........N........N......","......N.........N.........N.....","......N.........N.........N.....","......N.........N.........N.....","......N.........N.........N.....","......N.........N.........N.....",".....N..........N..........N....",".....N..........N..........N....",".....N..........N..........N....",".....N..........N..........N....",".....N..........N..........N....",".....N..........N..........N....","....N...........N...........N...","....R...........R...........R...","....R...........R...........R...","................................","................................"]) },
+  pfeilhagel: { w: 32, h: 32, cells: R(["................................","....RNR.........................","....RNR...........RNR...........",".....N............RNR...........",".....N.............N............",".....N.............N............",".....N.............N............",".....N.....RNR.....N............",".....N.....RNR.....N.....RNR....",".....N......N......N.....RNR....","...iiig.....N......N......N.....","...ghgg.....N....iiig.....N.....","....ig......N....ghgg.....N.....","....gg......N.....ig......N.....","............N.....gg......N.....","............N.............N.....","..........iiigRNR.........N.....",".......RNRghggRNR.......iiig....",".......RNR.ig..N........ghgg....","........N..gg..N.....RNR.ig.....","........N......N.....RNR.gg.....","........N......N......N.........","........N......N......N.........","........N......N......N.........","........N......N......N.........","........N....iiig.....N.........","......iiig...ghgg.....N.........","......ghgg....ig......N.........",".......ig.....gg....iiig........",".......gg...........ghgg........",".....................ig.........",".....................gg........."]) },
+  fluchtschuss: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","..............................ig","...........................iiigg","...........................ghgg.","............................ig..","...........................ogg..","..........................oo....","........................ooo.....",".......................oo.......","......................oo........",".....................oo.........","..MMMMMn............oo..........","..MNNNNn...........oo...........","..MNNNNn..........oo............","..MNNNNn........ooo.............","..MNNNNn.......ooo..............","..MNNNNn......oo................","..MNNNNn.....oo.................","..MNNNNn....ooR.................","..MNNNNn....R...................","..MNNNNNMMMMMn..................","..MNNNNNNNNNNn..................","..MNNNNNNNNNNn..................","..xxxxJJJJJJJJJJJJJ.............","..xxxxxxxxxxxxx.................",".........iiiiiiiiiiiiii.........","................................"]) },
+  scharfschuetze: { w: 32, h: 32, cells: R(["................................","................................","................................","................................",".............hhhhhxx............","...........hhhggggggxx..........",".........hhhggggggggggxx........","........hhgggxxxRxxxgggxx.......",".......hhggxxxxxRxxxxxggxx......","......hhggxxxxxxRxxxxxxggxx.....","......hggxwwxxRRRRRxxxxxgxx.....",".....hhgxxwxRRRxRxRRRxxxxgxx....",".....hggxxxRRxxxRxxxRRxxxgxx....","....hhgxxxxRxxxxRxxxxRxxxxgxx...","....hggxxxRRxxxxRxxxxRRxxxgxx...","....hggxxxRxxxxxxxxxxxRxxxgxx...","....hggRRRRRRRRxwxRRRRRRRRgxx...","....hggxxxRxxxxxxxxxxxRxxxgxx...","....hggxxxRRxxxxRxxxxRRxxxgxx...","....xggxxxxRxxxxRxxxxRxxxxxxx...",".....hggxxxRRxxxRxxxRRxxxgxx....",".....xggxxxxRRRxRxRRRxxxxxxx....","......hggxxxxxRRRRRxxxxxgxx.....","......xgggxxxxxxRxxxxxxgxxx.....",".......xgggxxxxxRxxxxxgxxx......","........xxgggxxxRxxxgxxxx.......",".........xxxgggggggxxxxx........","...........xxxxxxxxxxx..........",".............xxxxxxx............","................................","................................","................................"]) },
+  dauerfeuer: { w: 32, h: 32, cells: R(["................................","................................","................................",".......................ig.......","......R................ihg......","......NNNNNNNNNNNNNNNNNihggg....","......R................igg......",".......................gg.......","................................","...................ig...........","..R................ihg..........","..NNNNNNNNNNNNNNNNNihggg........","..R................igg..........","...................gg...........","................................",".........................ig.....","........R................ihg....","........NNNNNNNNNNNNNNNNNihggg..","........R................igg....",".........................gg.....","................................","....................ig..........","...R................ihg.........","...NNNNNNNNNNNNNNNNNihggg.......","...R................igg.........","....................gg..........","................................","................................","................................","................................","................................","................................"]) },
+  pfeilsturm: { w: 32, h: 32, cells: R(["................................","................................","................................","...........................gg...","...........ggJJJJJJJJ.....ig....","..........igJJ......JJJ.giig....","........giig..........JJJggg....","........Jggg............NJg.....",".......JNJg...........NNJJJ.....","......NN.............Nig..JJ....",".....NJJ...........iiigg..JJ....","....NJJ............ghgg.........","...N.JJ.............ig..........","....JJ.............ogg..........","....JJ............oo............","....JJ...........oo.............","....JJ..........oo..........JJ..","....JJ.........oo...........Jgg.","....JJ........oo............ig..","....JJ.......oo...........giig..",".....JJ..gg.oo.............ggg..",".....JJ.ig.ooR............NJg...","......giig.R............NNJJ....","......JgggR.R..........N..JJ....","......NJgJ............N.JJJ.....","....NN..JJ...........N..JJ......","...N.....JJJ..........JJJ.......","..N........JJJ......JJJ.........",".N...........JJJJJJJJ...........","................................","................................","................................"]) },
+  manaschild: { w: 32, h: 32, cells: R(["................................","................................","................................","................................",".............VVVVVuu............","...........VVVUUUUUUuu..........",".........VVVUUUUUUUUUUuu........","........VVUUUUUUUUUUUUUuu.......",".......VVUUUUUUUUUUUUUUUuu......","......VVUUUPPPPPPPPqqUUUUuu.....","......VUUUUPQQQQQQQqqUUUUuu.....",".....VVUUUUPQQQQQQQqqUUUUUuu....",".....VUUUUUPQQQQQQQqqUUUUUuu....","....VVUUUUUPQQQQQQQqqUUUUUUuu...","....VUUUUUUPQQQQQQQqqUUUUUUuu...","....VUUUUUUPQQQQQQQqqUUUUUUuu...","....VUUUUUUqQQQQQQQqqUUUUUUuu...","....VUUUUUUUqQQQQQqqUUUUUUUuu...","....VUUUUUUUUPQQQqqUUUUUUUUuu...","....uUUUUUUUUqQQqqqUUUUUUUuuu...",".....VUUUUUUUUqqqqUUUUUUUUuu....",".....uUUUUUUUUUqqUUUUUUUUuuu....","......VUUUUUUUUUUUUUUUUUUuu.....","......uUUUUUUUUUUUUUUUUUuuu.....",".......uUUUUUUUUUUUUUUUuuu......","........uuUUUUUUUUUUUuuuu.......",".........uuuUUUUUUUuuuuu........","...........uuuuuuuuuuu..........",".............uuuuuuu............","................................","................................","................................"]) },
+  arkanblitz: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","...................q............","...................q............",".....P............q.............",".................Pq.............",".................Pq.............","................PPq.............","...............PPqq.............","...............PQq..............","..............PPQq.........P....","..............PQQQPPPqq.........",".............PPQQQQQQq..........","............PPQQQQQQqq..........","............qqqqQQQqq...........","................PQQq............","................PQqq............","...............PPqq.............","...............PQq..............","...............Pqq..............","......P.......PPq...............","..............Pqq...............","..............qq................","..............q.................",".............qq...........P.....",".............q..................","................................","............q...................","................................","................................"]) },
+  gedankenblitz: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","............tttts........y......","..........tttSSSSts.....zy......","........tttSSSSSSSSts...yy......",".......ttSSSSSSSSSSSSs.zy.......",".......tSSSSSSSSSSSSSs.zYzzy....","......ttSSSSSSSSSSSSSSzzYYyy....","......tSSSSSSSSSSSSSSyyyYyy.....",".....ttSSSSSSSSSSSSSSSSszy......",".....tSSSSSSkSSSkSSSSSSsyy......",".....tSSSSSSSSSSSSSSSSSyy.......",".....tSSSSSSSSSSSSSSSSSy........",".....tSSSSSSSSSSSSSSSSSy........",".....tSSSSSSSSSSSSSSSSys........",".....sSSSSSSSSSSSSSSSSss........","......tSSSSSSSSSSSSSSSs.........","......sSSSSSSSSSSSSSSss.........",".......tSSSSSSSSSSSSSs..........",".......sSSSSSSSSSSSSss..........","........ssttttttttsss...........","..........tSSSSSSSs.............","..........tSSSSSSSs.............","..........tSSSSSSSs.............","..........tSSSSSSSs.............","..........tSSSSSSSs.............","..........sssssssss.............","................................","................................","................................"]) },
+  arkaner_sturm: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","...............Pq...............","...............Pq...............","...............Pq...............",".......q.......Pq.......q.......",".......qq.....PPQq.....qq.......","........PPq...PQQq...PPq........","........qQQPq.PQQq.PPPqq........",".........PQQQPPwPQPPQQq.........",".........qQQPQQwPQQPQqq.........","..........PQPPQwPQPPQq..........",".........PPQQwwwPwPQQQq.........","......PPPPQQQwPPPPPQQQQPPq......","..qqqqPQQPPPPwPPPPPPPPPQQqqqqq..","......qqqQQQQwPPPPPQQQqqqq......",".........qQQQPPPPPPQQqq.........","..........PQPPQwPQPPQq..........",".........PPQPQQwPQQPQQq.........",".........PQQqqQPPqqQQQq.........","........PPqqq.PQQq.qqQQq........","........qqq...PQQq...qqq........",".......qq.....qQqq.....qq.......",".......q.......Pq.......q.......","...............Pq...............","...............Pq...............","...............qq...............","................................","................................","................................"]) },
+  prismasturm: { w: 32, h: 32, cells: R(["................................","................................","................................","...............JU...............","...............JU...............","..............JJVU..............","..............JVVU..............",".............JJVVVU.............",".............JVVVVU.............","............JJVwwVVU............","............JVVwwVVU............","...........JJVwwwwVVU...........","...........JVVwwwwVVU.........Y.","..........JJVwwwwwwVVU.......Y..","..........JVVwwwwwwVVU.....YY...",".........JJVwwwwwwwwVVU...Y.....","..RRR....JVVwwwwwwwwVVU..Y......",".....RRRRRVwwwwwwwwwwVVUY.......","........JVRRRwwwwwwwwVYY.....GG.",".......JJVwwwwwwwwwwwYVVU..GG...",".......JVVwwwwwwwwwwYwVVUGG.....","......JJVwwwwwwwwwwwwwwGGU......","......JVVwwwwwwwwwwwwGGVVU......",".....JJVwwwwwwwwwwwwwwwwVVU.....",".....JVVVVVVVVVVVVVVUUUUUVU.....","....JJVVVVVVVVVVVVVVVVVVVUUUUUU.","....UUUUUUUUUUUUUUUUUUUUUUUU....","................................","................................","................................","................................","................................"]) },
+  eiserner_wille: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","......iiiiiiiiiiiiiiiiiigg......","......ihhhhhhhhhhhhhhhhhgg......","......ihhhhhhhhhhhhhhhhhgg......","......ihhhhhhhhhhhhhhhhhgg......","......ihhhhhhhhhhhhhhhhhgg......","......ihhhhOOOOrhOOOOrhhgg......","......ihhhOORRRROORRRRrhgg......","......ihhhORwRRRRRRRRRrhgg......","......ihhhORRRRRRRRRRRrhgg......","......ihhhORRRRRRRRRRRrhgg......","......ihhhrRRRRRRRRRRrrhgg......","......ihhhhrRRRRRRRrrrhhgg......","......ihhhhhrRRRRRrrhhhhgg......","......ghhhhhhrRRRrrhhhhggg......",".......ghhhhhhrRrrhhhhggg.......","........ghhhhhhOrhhhhggg........",".........ghhhhhrrhhhggg.........","..........ihhhhhhhhhgg..........","..........ghhhhhhhhggg..........","...........ghhhhhhggg...........","............ghhhhggg............",".............ghhggg.............","..............gggg..............","...............gg...............","................................","................................","................................","................................"]) },
+  schildstoss: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","......iiiiiiiiiiiiiigg..........","......ihhhhhhhhhhhhhgg.......ww.","......ihhhhhhhhhhhhhgg.....ww...","......ihhhhhhhhhhhhhgg...ww.....","......ihhhhhhYYhhhhhgg..........","......ihhhhhhYYhhhhhgg..........","......ihhhhhhYYhhhhhgg..iiiiiiw.","......ihhhhhhYYhhhhhgg.....ww...","......ihhhhhhYYhhhhhgg...ww.....","......ihhYYYYYYYYYYhgg..........","......ihhYYYYYYYYYYhgg..........","......ghhhhhhYYhhhhggg.......ww.",".......ghhhhhYYhhhggg......ww...","........ghhhhYYhhggg.....ww.....",".........ghhhYYhhgg.............","..........ihhhhhgg..............","..........ghhhhggg..............","...........ghhggg...............","............gggg................",".............gg.................","................................","................................","................................","................................","................................","................................"]) },
+  dornenpanzer: { w: 32, h: 32, cells: R(["................................","................................","................................","...............ig...............","...............ig...............","...............ig...............",".......iiiiiiiggggiiiiigg.......","....g..ihhhhhhhhhhhhhhhgg..g....",".....g.ihhhhhhhhhhhhhhhgg.g.....",".....gighhhhhhhhhhhhhhhgigg.....","......ggghhhhhhhhhhhhhhggg......",".......ihhhhhhhhhhhhhhhgg.......",".......ihhhhhhhhOOhhhhhgg.......",".......ihhhhhhhOOOOhhhhgg.......",".......ihhhhhhJOOOOUhhhgg.......",".......ihhhhhJJJwwUUUhhgg.......",".......ihhhhhJJJwwUUUhhgg.......",".......ihhhhhhJFFFFUhhhgg.......",".......ghhhhhhhFFFFhhhggg.......","........ghhhhhhhFFhhhggg........",".........ghhhhhhhhhhggg.........","..........ghhhhhhhhhgg..........","...........ihhhhhhhgg...........","...........ghhhhhhggg...........","............ghhhhggg............",".............ghhggg.............","..............gggg..............","...............gg...............","................................","................................","................................","................................"]) },
+  bollwerk: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","................................","....iiig...iiig...iiig...iiig...","....ihhg...ihhg...ihhg...ihhg...","....ihhg...ihhg...ihhg...ihhg...","....ihhg...ihhg...ihhg...ihhg...","....ihhg...ihhg...ihhg...ihhg...","....ggggiiiggggiiiggggiiigggg...","....ihhhhhhhhhhhhhhhhhhhhhgg....","....ihhhhhhhhhhhhhhhhhhhhhgg....","....ihhhhhhhhhhhhhhhhhhhhhgg....","....ihhhhhhhhhhhhhhhhhhhhhgg....","....ihhhxhhhhhhgkhhhhhhxhhgg....","....ihhhhhhhhhggxkhhhhhhhhgg....","....ihhhhhhhhggxxxkhhhhhhhgg....","....ihhhhhhhggxxxxxkhhhhhhgg....","....ihhhhhhhgxxxxxxkhhhhhhgg....","....ihhhhhhhgxxxxxxkhhhhhhgg....","....ihhhhhhhgxxxxxxkhhhhhhgg....","....ihhhhhhhgxxxxxxkhhhhhhgg....","....ihhhhhhhgxxxxxxkhhhhhhgg....","....ihhhhhhhgxxxxxxkhhhhhhgg....","....ihhhhhhhgxxxxxxkhhhhhhgg....","....ggggggggkkkkkkkkgggggggg....","....gggggggggggggggggggggggg....","................................","................................"]) },
+  festungsbau: { w: 32, h: 32, cells: R(["...........ig..ig..ig...........","...........ig..iOOrig...........","...........ig..iORrrrr..........","...........ggiigrrrgg...........","...........ihhhhhhhgg...........","...........ihhhhhhhgg...........","...........ihhhhhhhgg...........","...........ihhhhhhhgg...........","...........ihhhxxhhgg...........","..iiig..iiiihhhxxhhggiiig.iiig..","..ihhg..ihhihhhxxhhggihhg.ihhg..","..ihhg..ihhihhhxxhhggihhg.ihhg..","..ihhg..ihhihhhhhhhggihhg.ihhg..","..ihhg..ihhihhhhhhhggihhg.ihhg..","..ggggiigggihhhhhhhggggggigggg..","..ihhhhhhhhgggggggggghhhhhhhgg..","..ihhhhhhhhgggggggggghhhhhhhgg..","..ihhhhhhhhhhhhhhhhhhhhhhhhhgg..","..ihhhhhhhhhhhhhhhhhhhhhhhhhgg..","..ihhhhhhhhhhhhhhhhhhhhhhhhhgg..","..ihhhhhhhhhhhhgkhhhhhhhhhhhgg..","..ihhhhhhhhhhhggxkhhhhhhhhhhgg..","..ihhhhhhhhhhggxxxkhhhhhhhhhgg..","..ihhhhhhhhhhgxxxxkhhhhhhhhhgg..","..ihhhhhhhhhhgxxxxkhhhhhhhhhgg..","..ihhhhhhhhhhgxxxxkhhhhhhhhhgg..","..ihhhhhhhhhhgxxxxkhhhhhhhhhgg..","..ihhhhhhhhhhgxxxxkhhhhhhhhhgg..","..gggggggggggkkkkkkggggggggggg..","..gggggggggggggggggggggggggggg..","................................","................................"]) },
+  taschendiebstahl: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","......................zzzzy.....",".....................zzYYYYy....","....................zzYYyYYYy...","....................zYYzyYYYy...","....................zYYYyYYYy...","....................zYYYyYYYy...","....................yYYYyYYyy...","....i...........tts..yYYYYyy....","................tSsttsyyyyy.....","................tSstSs..........","...i......tttts.tSstSs..........","........tttSSStttSstSss.........",".......ttSSSSStSsssssss.........","..i...ttSSSSSStSSSSSSSs.........",".....ttSSSSSSSsssssssss.........",".....tSSSSSSSSSSSSSs............",".....tSSSSSSSSSSSSSs............",".....tSSSSSSSSSSSSSs............",".....sSSSSSSSSSSSSss............","......sSSSSSSSSSSss.............",".......sSSSSSSSSss..............","........ssSSSSsss...............","..........sssss.................","................................","................................","................................","................................","................................"]) },
+  bestechung: { w: 32, h: 32, cells: R(["................................","................................","..........................zzy...","....zzy..................zzyYy..","...zzyYy................zzzyYYy.","..zzzyYYy...............zYYyYYy.","..zYYyYYy...............yYYyYyy.","..yYYyYyy................yYyyy..","...yYyyy....MMMMMMMMn.....yyy...","....yyy.....MNNNNNNNn...........","............MNNNNNNNn...........","............MNNNNNNNn...........","...........yyyyyyyyyy...........","...........yyyyyyyyyy...........","..........MMNNNNNNNNnn..........","..........MNNNNNNNNNnn..........",".........MMNNNNNNNNNNnn.........",".........MNNNNzzzzyNNnn.........",".........MNNNzzYYYYyNnn.........","........MMNNzzYYyYYYyNnn........","........MNNNzYYzyYYYyNnn........",".......MMNNNzYYYyYYYyNNnn.......",".......MNNNNzYYYyYYYyNNnn.......",".......MNNNNyYYYyYYyyNNnn.......","......MMNNNNNyYYYYyyNNNNnn......","......nnnnnnnnyyyyynnnnnnn......",".....nnnnnnnnnnnnnnnnnnnnnn.....","................................","................................","................................","................................","................................"]) },
+  schuldschein: { w: 32, h: 32, cells: R(["................................","................................","................................","......wwwwwwwwwwwwwwwwwm........","......wBBBBBBBBBBBBBBBBBm.......","......wBBBBBBBBBBBBBBBBBm.......","......wBBBBBBBBBBBBBBBBBBm......","......wBBBBBBBBBBBBBBBBBBm......","......wBBBBBBBBBBBBBBBBBBm......","......wBBBDDDDDDDDDDDDDBBm......","......wBBBBBBBBBBBBBBBBBBm......","......wBBBBBBBBBBBBBBBBBBm......","......wBBBBBBBBBBBBBBBBBmm......","......wBBBDDDDDDDDDDDDDBm.......","......wBBBBBBBBBBBBBBBBBm.......","......wBBBBBBBBBBBBBBBBBm.......","......wBBBBBBBBBBBBBBBBBm.......","......wBBBDDDDDDDDDDDDDBm.......","......wBBBBBBBBBBBBBBBBBm.......","......wBBBBBBBBBBBzzzzyBm.......","......wBBBBBBBBBBzzYYYYym.......","......wBBBBBBBBBzzYYyYYYy.......","......wBBBBBBrrBzYYzyYYYy.......","......wBBBBrrBBBzYYYyYYYy.......","......wBBrrBBBBBzYYYyYYYy.......","......wBBBBBBBBByYYYyYYyy.......","......mBBBBBBBBBByYYYYyy........",".......wBBBBBBBBBByyyyym........",".......mmmmmmmmmmmmmmmmm........","................................","................................","................................"]) },
+  dekadenz: { w: 32, h: 32, cells: R(["................................","................................","................................",".........JJJJJJJJJJJJJU.........",".........JOOOOOOOOOOOOr.........",".........UORRRRRRRRRRRr.........","..........ORRRRRRRRRRRr.........","..........ORRRRRRRRRRRr.........","..........rrrrrrrrrrrrr.........","..........JVVVVVVVVVVU..........","..........JVVVVVVVVVVU..........","..........UVVVVVVVVVUU..........","...........JVVVVVVVVU...........","...........JVVVVVVVVU...........","...........UUVVVVVUUU...........",".............UVVVUU.............","..............UUUU..............","...............zzy..............","...............zYy..............","...............zYy..............","...............zYy..............","...............zYy..............","...............zYy..............","...............zYy..............","....zzy........zYy........zzy...","...zzyYy..zzzzzzzzzzzzy..zzyYy..","..zzzyYYy.zYYYYYYYYYYYy.zzzyYYy.","..zYYyYYy.yyyyyyyyyyyyy.zYYyYYy.","..yYYyYyy...............yYYyYyy.","...yYyyy.................yYyyy..","....yyy...................yyy...","................................"]) },
+};
+
+__exports.CARDS2 = CARDS2;
+
+});
+__define("ui/art/items2.js", function (__exports, __require) {
+// ERZEUGT von tools/figures/items.mjs (nicht von Hand ändern). Item-Formen, 24x24 Pixel, mit Palette-Buchstaben a (dunkel), b (mittel), c (hell).
+const R = (rows) => rows.map((r) => [...r]);
+const SHAPES2 = {
+  gem: { w: 24, h: 24, cells: R(["........................","........................","........................","...........aa...........",".........ccccaa.........","........ccccccca........",".......cwwcccccca.......","......ccwwccccccca......","....ccccccccccccccca....","...acccccccccccccccca...","....cbbbccccccccaaaa....","....abbbbbbbaaaaaaaa....",".....abbbbbbaaaaaaa.....","......cbbbbbaaaaaa......","......abbbbbaaaaaa......",".......abbbbaaaaa.......","........abbbaaaa........",".........bbbaaa.........",".........abbaaa.........","..........abaa..........","...........ba...........","...........aa...........","........................","........................"]) },
+  crystal: { w: 24, h: 24, cells: R(["........................","........................","...........aa...........","..........ccca..........",".........ccbcaa.........","........wwbbcbaa........",".......cwwbbcbbaa.......","......ccwwbbcbbbaa......","......cbbbbbcbbbaa......","......cbbbbbcbbbaa......","......cbbbbbcbbbaa......","......cbbbbbcbbbaa......","......cbbbbbcbbbaa......","......abbbbbcbbbaa......","....ccabbbbbcbbbaa......","...ccbabbbbbcbbbaa......","...cbbabbbbbcbbbaa......","...cbbabbbbbcbbaaa......","...cbbbabbbbcbaaa.......","...abbbaabbbcaaa........","....cbba.abbcaa.........","....cbba..aaca..........","....aaaa...aa...........","........................"]) },
+  ring: { w: 24, h: 24, cells: R(["........................","........................","........................","...........ee...........","..........ewwe..........",".........eewwde.........","........eeddddee........","........ceedeeeaa.......","......cccaaeeabbbaa.....","......cbaaaaaaabbaa.....",".....ccaaa.....abbaa....",".....caaa.......abaa....","....ccaa.........cbaa...","....cbaa.........cbaa...","....cbaa.........cbaa...","....cbaa.........cbaa...","....abaa.........caaa...",".....cbaa.......ccaa....",".....abbaa.....ccaaa....","......abbbccccccaaa.....","......aaabbbbbaaaaa.....","........aaaaaaaaa.......","..........aaaaa.........","........................"]) },
+  medal: { w: 24, h: 24, cells: R(["........................","........................","....ddd.........ddd.....","...dded.........dedd....","....deed.......dded.....","....deeed.....ddedd.....",".....deed.....dedd......","......deed...dded.......","......deedcccaadd.......",".......dcccbbbbaa.......",".......ccbbbbbbbaa......","......ccbbcccccbbaa.....","......cbbcccdcccbaa.....",".....ccbcccccccccbaa....",".....cbbcccdcdcccbaa....",".....cbbccccdccccbaa....",".....cbbcccccccccbaa....",".....abbccccdccccaaa....","......cbbcccccccbaa.....","......abbbcccccbaaa.....",".......aabbbbbaaaa......","........aaaaaaaaa.......","..........aaaaa.........","........................"]) },
+  flask: { w: 24, h: 24, cells: R(["........................","........................",".........NNNNNN.........",".........NNNNNN.........","..........cbba..........","..........cbba..........","..........cbba..........","..........cbba..........","..........cbba..........",".........cccccaa........",".......cccbbbbbbaa......","......ccbbbbbbbbbaa.....",".....ccbbbbbbbbbbbaa....",".....cbbbwbbbbbbbbaa....","....ccbbwbbbbbbbbbbaa...","....cbbbwbbbbbbbbbbaa...","....cbbbbbbbbbbbbbbaa...","....cbbbbbbbbbbbbbbaa...","....abbbbbbbbbcbbbbaa...",".....cbbbbcbbbbbbbba....",".....abbbbbbbbbbbbba....","......bbbbbbbbbbbbb.....",".......aaaaaaaaaaa......",".........aaaaaaa........"]) },
+  vial: { w: 24, h: 24, cells: R(["........................","........................",".......NNNNNNNNNN.......",".......NNNNNNNNNN.......",".......NNNNNNNNNN.......","........cbbbbbaa........","........cwbbbbaa........","........cwbbbbaa........","........cwbbbbaa........","........cbbbbbaa........","........cbbbbbaa........","........cbbbbbba........","........cbbbbbba........","........cbbbbbba........","........cbbcbbba........","........cbbbbbba........","........cbbbbbba........","........cbbbbcba........","........cbbbbbba........","........cbbbbbba........","........abbbbbba........","........aaaaaaaa........","........................","........................"]) },
+  pouch: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........ccccccca........","........cbbbbbba........","........abbbbbaa........",".........cbbbbaa........",".......dddddddddda......",".....ecddddddddddae.....",".....cebbbbbbbbbbeaa....","....ccbbbbbbbbbbbbbaa...","....cbbbbbbbbbbbbbbaa...","...ccbbwwbbbbbbbbbbbaa..","...cbbbwwbbbbbbbbbbbaa..","...cbbbbbbbbbbbbbbbbaa..","...cbbbbbbbbbbbbbbbbaa..","...abbbbbbbbbbbbbbbaaa..","....cbbbbbbbbbbbbbbaa...","....abbbbbbbbbbbbbaaa...",".....abbbbbbbbbbbaaa....","......aabbbbbbbaaaa.....",".......aaaaaaaaaaa......",".........aaaaaaa........"]) },
+  dice: { w: 24, h: 24, cells: R(["........................","........................","........................","........cccccccccccc....",".......cccccccccccca....","......ccccccccccccaa....",".....ccccccccccccaaa....",".....ccccccccccccaaa....","....ccccccccccccakaa....","...cccccccccccaaaaaa....","...cbbbbbbbbbbaaaaaa....","...cbbbbbbbbbbaaaaaa....","...cbbkbbbbkbbaaaaka....","...cbbbbbbbbbbaaaaaa....","...cbbbbbbbbbbaaaaaa....","...cbbbbkbbbbbaaaaaa....","...cbbbbbbbbbbaaaaa.....","...cbbbbbbbbbbaaaa......","...cbbkbbbbkbbaaaa......","...cbbbbbbbbbbaaa.......","...aaaaaaaaaaaaa........","...aaaaaaaaaaaaa........","........................","........................"]) },
+  scroll: { w: 24, h: 24, cells: R(["........................","........................","........................",".....a............a.....","....ccawwwwwwwwwwcca....","....cbaBBBBBBBBBBcba....","....cbaBBBBBBBBBBcba....","...ccbbaBBBBBBBBccbba...","...cbbbakkkkkkkkcbbba...","...cbbbaBBBBBBBBcbbba...","...cbbbaBBBBBBBBcbbba...","...cbbbakkkkkkkkcbbba...","...cbbbaBBBBBBBBcbbba...","...cbbbaBBBBBBBBcbbba...","...cbbbakkkkkkkkcbbba...","...cbbbaBBBBBBBBcbbba...","...cbbbaBBBBBBBBcbbba...","...abbaakkkkkkkkabbaa...","....cbaBBBBBBBBBBcba....","....cbaBBBBBBBBBBcba....","....aaammmmmmmmmmaaa....",".....a............a.....","........................","........................"]) },
+  book: { w: 24, h: 24, cells: R(["........................","........................","........................","....aaacccccccccccaa....","....aaabbbbbbbbbbbaa....","....aaabbbbbbbbbbbww....","....aaabbbbbbbbbbbww....","....aaabbbbbbbbbbbww....","....aaabbdddddddbbww....","....aaabbdeeeeedbbww....","....aaabbdeaeaedbbww....","....aaabbdeeaeedbbww....","....aaabbdeeeeedbbww....","....aaabbdeeeeedbbww....","....aaabbdddddddbbww....","....aaabbbbbbbbbbbww....","....aaabbbbbbbbbbbww....","....aaabbbbbbbbbbbww....","....aaabbbbbbbbbbbww....","....aaabbbbbbbbbbbww....","....aaaaaaaaaaaaaaaa....","....aaaaaaaaaaaaaaaa....","........................","........................"]) },
+  helmet: { w: 24, h: 24, cells: R(["........................","........................",".........cccccaa........",".......cccbbbbbbaa......","......ccbbbbbbbbbaa.....",".....ccbbbbccbbbbbaa....","....ccbbbbbccbbbbbbaa...","....cbbbbbbccbbbbbbaa...","...ccbbbbbbccbbbbbbbaa..","...cbbbbbbbccbbbbbbbaa..","...cbbbbbbbccbbbbbbbaa..","...cbbbbbbbccbbbbbbbaa..","...cbbbbbbbccbbbbbbbaa..","...cbdbbkkkkkkkkbbdaaa..","...cbbbbkkkkkkkkbbbaa...","...cbbbbkkkkkkkkbbbaa...","...cbbbbbbbbbbbbbbbaa...","...cbbbbbbbbbbbbbbbaa...","...cbbbbbbbbbbbbbbbaa...","...aaaaaaaaaaaaaaaaaa...","...aaaaaaacccaaaaaaaa...","..........aaaa..........","........................","........................"]) },
+  chest: { w: 24, h: 24, cells: R(["........................","........................","........................","........................",".........ccccaa.........",".......cccbbbbbaa.......","......ccbbbbbbbbaa......",".....ccbbbbbbbbbbaa.....","....ccbbbbbbbbbbbbaa....","....cbbbbbbbbbbbbbaa....","...aaaaaaaaaaaaaaaaaa...","...aaaaaaaaaaaaaaaaaa...","...dddddddYYYYddddddd...","...dddddddYYYYddddddd...","...cebbbbbYkkYbbbbbea...","...cbbbbbbYYYYbbbbbaa...","...cbbbbbbYYYYbbbbbaa...","...cbbbbbbYYYYbbbbbaa...","...cbbbbbbbbbbbbbbbaa...","...cebbbbbbbbbbbbbbea...","...aaaaaaaaaaaaaaaaaa...","...aaaaaaaaaaaaaaaaaa...","........................","........................"]) },
+  belt: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................","........................","........eeeeeeee........","........edddddde........","........edddddde........",".cccccccedkkkkdecccccca.",".cbbbbbbedkkkkdebbbbbba.",".cbbdbbdedkkkkdedbbdbba.",".cbbbbbbedkkkkdebbbbbba.",".cbbbbbbedkkkkdebbbbbba.",".aaaaaaaedkkkkdeaaaaaaa.","........edddddde........","........edddddde........","........eeeeeeee........","........................","........................","........................","........................","........................","........................"]) },
+  clover: { w: 24, h: 24, cells: R(["........................","........................","........................","........a.......a.......",".....cccccca.cccccca....","....ccbbbbbbccbbbbbba...","....cbbbbbbbcbbbbbbba...","....cbbbbbbbcbbbbbbba...","...acbbbbbbacbbbbbbbaa..","....cbbbbbbbcbbbbbbba...","....cbbbbbbbcbbbbbbba...","....abbbabbacbbbabbaa...",".....cccccccccccccca....","....ccbbbbbbacbbbbbba...","....cbbbbbbbabbbbbbba...","....cbbbbbbbcabbbbbba...","...acbbbbbbacabbbbbbaa..","....cbbbbbbbcabbbbbba...","....cbbbbbbbcabbbbbba...","....abbbbbbaaabbbbbaa...",".....aaaaaaa.aaaaaaa....","........a.....a.a.......","..............a.........","........................"]) },
+  heart: { w: 24, h: 24, cells: R(["........................","........................","........................",".....ccccaa...ccccaa....","....ccbbbbaa.ccbbbbaa...","...ccwwbbbbbccbbbbbbaa..","..ccbwwbbbbbbbbbbbbbbaa.","..cbbwwbbbbbbbbbbbbbbaa.","..cbbbbbbbbbbbbbbbbbbaa.","..cbbbbbbbbbbbbbbbbbbaa.","..abbbbbbbbbbbbbbbbbaaa.","...abbbbbbbbbbbbbbbaaa..","....cbbbbbbbbbbbbbaaa...","....abbbbbbbbbbbbaaa....",".....abbbbbbbbbbaaa.....","......abbbbbbbbaaa......",".......abbbbbbaaa.......","........abbbbaaa........",".........cbbbaa.........",".........abbaaa.........","..........aaaa..........","...........aa...........","........................","........................"]) },
+  orb: { w: 24, h: 24, cells: R(["........................","........................",".........cccccaa........",".......cccbbbbbbaa......","......ccbbbbbbbbbaa.....",".....ccbbbbbbbbbbbaa....","....ccbwwwbbbbbbbbbaa...","....cbbwwwbbbbbbbbbaa...","...ccbbwwwbbbbbbbbbbaa..","...cbbbbbbbbbbbbbbbbaa..","...cbbbbbbbbbbbbbbbbaa..","...cbbbbbbbbbbbbbbbbaa..","...cbbbbbbbbbbbbbbbbaa..","...cbbbbbbbbbbbbbbbbaa..","...abbbbbbbbbbbcbbbaaa..","....cbbbbbbbbbcbbbbaa...","....abbbbbbbbbbbbbaaa...",".....abbbbbbbbbbbaaa....","......aabbbbbbbaaaa.....",".......aaaaaaaaaaa......","......dddddddddddd......",".......deeeeeeeed.......",".......dddddddddd.......","........................"]) },
+  log: { w: 24, h: 24, cells: R(["........................","........................","........................","...........a............","...........ca...........","..........cca...........","..........aaaa.....c....","...cccccccccccccccccc...","...cbbbbbbbbbbbbbccbbc..","...cbbbbbbbbbbabccbbbbc.","...cbbbabbbbbbbbcbbbbbc.","...cbbbbbbbbbbbbcbbbbbc.","...cbbbbbbbbbbbbcbbbbbc.","...cbbbbbbbbbbbbcbbbbbc.","...cbbbbbbbabbbbcbbbbbc.","...cbbbbbbbbbbbbcbbbbcc.","...aaaaaaaaaaaaaacbbcc..","...aaaaaaaaaaaaaaaccc...","...................c....","........................","........................","........................","........................","........................"]) },
+  stone: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","...........ccaa.........","........ccccbbbaa.......","......cccbbbbbbbaa......","......cbbcbbbbbbbbaa....",".....ccbcbabbbbbbbaa....",".....cbbbbbbbbbbbbaa....","....ccbbbbbbbbbbbbaa....","....cbbbbbbbbbbbbbbaa...","....cbbbbbbabbbbbbbaa...","...ccbbbbbbbabbbbbbaa...","...abbbbbbbbbbbbbbbaa...","....cbbbbbbbbbbabbaaa...","....abbbbbbbbbbbbaaa....",".....abbbbbbbbbbaaa.....","......aaaaaaaaaaaa......","......aaaaaaaaaaa.......","........................","........................","........................","........................"]) },
+  bread: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................","........................",".........cccccaa........","......ccccbbbbbbcaa.....",".....ccbbbbbbbbbbbaa....","....cccbbbbcbbbbcbbaa...","...ccbcbbbbcbbbbcbbbaa..","..ccbbbcbbbbcbbbbcbbbaa.","..cbbbbcbbbbcbbbbcbbbaa.","..cbbbbbcbbbbcbbbbcbbaa.","..cbbbbbcbbbbcbbbbcbbaa.","..abbbbbbbbbbbbbbbbbaaa.","...abbbbbbbbbbbbbbbaaa..","....abbbabbbbbbbbbaaa...",".....aaabbbbbbbaaaaa....","......aaaaaaaaaaaaa.....",".........aaaaaaa........","........................","........................","........................"]) },
+  backpack: { w: 24, h: 24, cells: R(["........................","........................","........................",".........ccccca.........",".......cccbbbbbca.......","......ccbbbbbbbbba......",".....ccbbbbbbbbbbba.....",".....aaaaaaaaaaaaaa.....",".....cbbbbbbbbbbbaa.....","..dd.cbbbbbbbbbbbaa.dd..","..dd.cbbbbbbbbbbbaa.dd..","..dd.cbbbbbbbbbbbaa.dd..","..dd.cbbbddddddbbaa.dd..","..dd.cbbbddddddbbaa.dd..","..dd.cbbbaaaaaabbaa.dd..","..dd.cbbbaaeeaabbaa.dd..","..dd.cbbbaaaaaabbaa.dd..","..dd.cbbbaaaaaabbaa.dd..","..dd.cbbbaaaaaabbaa.dd..",".....cbbbbbbbbbbbaa.....",".....aaaaaaaaaaaaaa.....",".....aaaaaaaaaaaaaa.....","........................","........................"]) },
+  skull: { w: 24, h: 24, cells: R(["........................","........................","..........cccaa.........","........cccbbbbaa.......","......cccbbbbbbbbaa.....","......cbbbbbbbbbbaa.....",".....ccbbbbbbbbbbbaa....",".....cbkkkkbbbkkkkaa....","....ccbkkkkbbbkkkkbaa...","....cbkkkkkkbkkkkkkaa...","....cbkkkkkkbkkkkkkaa...","....cbkkkkkkbkkkkkkaa...","....abbkkkkbbbkkkkaaa...",".....cbkkkkbbbkkkkaa....",".....abbbbbkkbbbbaaa....","......acccccccccaaa.....","......acbbbbbbbbaaa.....",".......cbbbbbbbba.......",".......cbkbbkbbka.......",".......cbbbbbbbba.......",".......cbkbbkbbka.......",".......aaaaaaaaaa.......","........................","........................"]) },
+  drum: { w: 24, h: 24, cells: R(["........................","........................","...N................N...","....NN............NN....","......N..........N......","......cNccccccccNc......",".....ccbNNbbbbNNbbc.....","....ccbbbbNbbNbbbbbc....","...ccbbbbbbbbbbbbbbcc...","....cbbbbbbbbbbbbbcc....","....cdbbdbbdbbdbbdca....","....cdccdccdccdccdaa....","....cbdbbdbbdbbdbbda....","....cbdbbdbbdbbdbbda....","....cbdbbdbbdbbdbbda....","....cbdbbdbbdbbdbbda....","....cbbdccdccdcadbad....","....cccdcbdbbdbbdcad....","....ccbdbbdbbdbbdbbd....","...acbbbbbbbbbbbbbbaa...","....abbbbbbbbbbbbbaa....",".....aaabbbbbbbaaaa.....","........aaaaaaaa........","........................"]) },
+  crown: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................","...........aw...........","...w.......aa........w..","...a......ccaa......a...","...aa.....cbaa.....aa...","...caa...ccbbaa...caa...","...caa...cbbbaa...caa...","...cbaa.ccbbbbaa.ccaa...","...cbbbccbbbbbbbccbaa...","..ccbbbbbbbbbbbbbbbbaa..","..cbbbbbbbbbbbbbbbbbaa..","..cbbbbbbbbbbbbbbbbbaa..","..ddddddddddddddddddddd.","..ddddddedddedddedddddd.","..ddddddddddddddddddddd.","..ddddddddddddddddddddd.","........................","........................","........................","........................"]) },
+  fang: { w: 24, h: 24, cells: R(["........................","........................",".....cccccccccccccc.....",".....cccccccccccccc.....",".....cccccccccccccc.....",".....cccccccccccccc.....",".......cwbbbbbbaa.......",".......awbbbbbbaa.......","........wbbbbbaaa.......","........wbbbbbaa........",".........cbbbbaa........",".........cbbbaaa........",".........abbbaa.........","..........cbbaa.........","..........cbaaa.........","..........cbaa..........","..........abaa..........","...........aaa..........","...........aa...........","...........aa...........","...........aa...........","........................","........................","........................"]) },
+  chalice: { w: 24, h: 24, cells: R(["........................","........................","........................","...cedeedeedeedeedeedeedeedeedeedeedeedeedeedeedeede....","...cedeedeedeedeedeedeedeedeedeedeedeedeedeedeedeede....","...aedeedeedeedeedeedeedeedeedeedeedeedeedeedeedeede....","....cbwbbbbbbbbbbaa.....","....cbwbbbbbbbbbbaa.....","....cbwbbbbbbbbbbaa.....","....abbbbbbbbbbbaaa.....",".....cbbbbbbbbbbaa......",".....aabbbbbbbaaaa......","......aaaaaaaaaaa.......","........aaaaaaa.........","...........ca...........","...........ca...........","...........ca...........","...........ca...........","...........ca...........","......ccccccccccca......","......cbbbbbbbbbba......","......aaaaaaaaaaaa......","........................","........................"]) },
+  moon: { w: 24, h: 24, cells: R(["........................","........................",".........caaaaa.........",".......ccaaaa...........","......ccbaa.........w...",".....ccbaaa.............","....ccbbaa..............","...ccbbaaa..............","...cbbwaa...............","..ccbwbaa...............","..cbbbbaa...............","..cbbbbaa...............","..cbbbbaa...............","..cbbbbbaa..............","..cbbbbbaa..............","..abbbbbbaa.............","...cbbbbbaa.............","...abbbbbbbaa...........","....abbbbbbbbaa...w.a...",".....abbbbbbbbbccaaa....","......aabbbbbbbaaaa.....",".......aaaaaaaaaaa......",".........aaaaaaa........","........................"]) },
+  dagger: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","....................c...","...................c....","................c.c.....","...............c.cbb....","..............c.bbbb....",".............c.bbbab....","............c.bbbab.....","...........c.bbbab......","..........c.bbbab.......",".........c.bbbab........","...YY...c.bbbab.........","...YYY.c.bbbab..........","....YYY.bbbab...........",".....YYYbbab............","....c.YYYab.............",".....NNYYY..............","....NNNaYYY.............","...NNNab.YYY............","..NNN.....YY............","..NN...................."]) },
+  snowflake: { w: 24, h: 24, cells: R(["........................","............w...........","........................",".......cb........cb.....",".......bcb......cbb.....","........cb......cb......","..w.....bcb....cbb...w..",".........cb....cb.......",".........bcb..cbb.......","..........cb..cb........","..........bwwwbb........","..........wwwww.........","..ccccccccwwwwwccccccccb","..bbbbbbbbwwwwwbbbbbbbbb","...........wwwb.........","..........cbbbcb........","..........cb..cb........","..w......cbb..bcb....w..",".........cb....cb.......","........cbb....bcb......","........cb......cb......",".......cbb......bcb.....",".......bb...w....bb.....","........................"]) },
+  icicle: { w: 24, h: 24, cells: R(["........................","........................","...ccccccccccccccccccc..","...ccccccccccccccccccc..","...ccccccccccccccccccc..","....ca.abbbbbbaaaabba...","....aa..cbbbbbaa..cba...","....a...cbbbbbaa..cba...","...ca...cbbbbbaa..cba...","...aa...abbbbaaa..aaa...","...a.....cbbbaa....a....","...a.....cbbbaa....a....",".........cbbbaa....a....",".........abbaaa....a....","..........cbaa..........","..........cbaa..........","..........cbaa..........","..........aaaa..........","...........aa...........","...........aa...........","...........aa...........","...........aa...........","........................","........................"]) },
+  globe: { w: 24, h: 24, cells: R(["........................","........................",".........cccccaa........",".......cccbbbbbbaa......","......ccbbbbbbbbbaa.....",".....cwwbbbbbbbbbbaa....","....ccwwbbbbbbbbbbbaa...","....cbbbbcccbbbbbbbaa...","...ccbbcccccbbbbbbbbaa..","...cbbbccccccbbbbbbbaa..","...cbbbbcccccbbbbbbbaa..","...cbbbbccccbbbbbbbbaa..","...cbbbbbcbbbbbbbbbbaa..","...cbbbbbbbbbbccccbbaa..","...abbbbbbbbbbccccbaaa..","....cbbbbbbbbbcccbbaa...","....abbbbbbbbbcccbaaa...",".....abbbbbbbbbbbaaa....","......aabbbbbbbaaaa.....",".......aaaaaaaaaaa......","........dddddddd........","........deeeeeed........","........dddddddd........","........................"]) },
+  star: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","...........aa...........","...........aa...........","...........aa...........","..........ccaa..........","..........wwaa..........","........ccwwbbaa........","...aaccccbbbbbbbcaaaa...","....aabbbbbbbbbbaaaa....","......abbbbbbbbaaa......",".......abbbbbbaaa.......","........cbbbbbaa........",".......ccbbbbbbaa.......",".......cbaaaabbaa.......",".......caaaaaabaa.......",".......aaa....aaa.......",".......aa......aa.......","......a..........a......","........................","........................","........................"]) },
+  target: { w: 24, h: 24, cells: R(["........................","........................",".........cccccca........",".......cccbbbbbbca......","......ccbbbbbbbbbba.....",".....ccbbbwwwwwbbbba....","....ccbbwwwwwwwwwbbba...","...ccbbwwwbbbbbwwwbbba..","...cbbwwwbbbbbbbwwwbba..","..ccbbwwbbbwwwbbbwwbbba.","..cbbwwbbbwwawwbbbwwbba.","..cbbwwbbwwaaawwbbwwbba.","..cbbwwbbwaaaaawbbwwbba.","..cbbwwbbwwaaawwbbwwbba.","..cbbwwbbbwwawwbbbwwbba.","..abbbwwbbbwwwbbbwwbbaa.","...cbbwwwbbbbbbbwwwbba..","...abbbwwwbbbbbwwwbbaa..","....abbbwwwwwwwwwbbaa...",".....abbbbwwwwwbbbaa....","......abbbbbbbbbbaa.....",".......aabbbbbbaaa......",".........aaaaaaa........","........................"]) },
+  eye: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................",".........wwwwwm.........",".......wwwBBBBBwm.......","......wwBBccccaBBm......",".....wwBBccbbbbaBBm.....","....wwBBccwbkbbbaBBm....","...wwBBccbwkkkkbbaBBm...","..wwBBBcbbkkkkkbbaBBBm..",".mwBBBBcbbkkkkkbbaBBBmm.","..mBBBBcbbkkkkkbbaBBmm..","...mBBBabbkkkkkbaaBmm...","....mBBBabbbkbbaaBmm....",".....mBBBabbbbaaBmm.....","......mBBBaaaaaBmm......",".......mmBBBBBmmm.......",".........mmmmmm.........","........................","........................","........................","........................"]) },
+  paw: { w: 24, h: 24, cells: R(["........................","........................","........................","........cca...cca.......",".......ccbba.ccbba......",".......cbbba.cbbba......","......acbbbaacbbbaa.....","....ccacbbba.cbbbacca...","...ccbbabbaa.abbaccbba..","...cbbbaaaa...aaacbbba..","..acbbbaa.......acbbbaa.","...cbbba..cccca..cbbba..","...abbaacccbbbbcaabbaa..","....aaaccbbbbbbbbaaaa...","......ccbbbbbbbbbba.....","......cbbbbbbbbbbba.....","......cbbbbbbbbbbba.....","......cbbbbbbbbbbba.....","......abbbbbbbbbbaa.....",".......abbbbbbbbaa......","........aabbbbaaa.......","..........aaaaa.........","........................","........................"]) },
+  watch: { w: 24, h: 24, cells: R(["........................","............YY..........","............YY..........","............YY..........","............YY..........",".........cccccaa........",".......cccbbbbbbaa......","......ccbbwwwwwbbaa.....",".....ccbwwwwawwwwbaa....","....ccbwwwwwkwwwwwbaa...","....cbwwwwwwkwwwwwwaa...","...ccbwwwwwwkwwwwwwbaa..","...cbwwwwwwwkwwwwwwwaa..","...cbwwwwwwwkwwwwwwwaa..","...cbwawwwwwkwwwwwawaa..","...cbwwwwwwwwkkwwwwwaa..","...cbwwwwwwwwwwkkwwwaa..","...abbwwwwwwwwwwwwwaaa..","....cbwwwwwwwwwwwwwaa...","....abbwwwwwwwwwwwaaa...",".....abbwwwwawwwwaaa....","......aabbwwwwwaaaa.....",".......aaaaaaaaaaa......",".........aaaaaaa........"]) },
+  scales: { w: 24, h: 24, cells: R(["........................","........................","........................","............bb..........","............bb..........","............bb..........","....cccccccccccccccccc..","....aacccccccccccccaac..","....aa......bb.....aa...","....a.a.....bb....a..a..","...a..a.....bb....a..a..","...a...a....bb...a...a..","...a...a....bb...a...a..","...a...a....bb..a.....a.","..accccaa...bb..cccccaa.",".cccbbbbca..bb.ccbbbbba.",".cbbbbbbba..bbacbbbbbbaa",".aabbbbaaa..bb.abbbbbaa.","...aaaaa....bb..aaaaaa..","............bb..........",".......ccccccccca.......",".......cbbbbbbbba.......",".......aaaaaaaaaa.......","........................"]) },
+  cards: { w: 24, h: 24, cells: R(["........................","........................","........................","........................",".........wwwwwwwwwm.....","......cccwBBBBBBBBm.....","...ccccbbwBBBBBBBBm.....","...abbbbbwBBRBRBBBm.....","....cbbbbwBBBBBBBBm.....","....cbbbbwBBBBBBBBm.....","....cbbbbwBBBRBBBBm.....","....abbbbmBBBBBBBBm.....",".....cbbbbwBBBBBBBBm....",".....cbbbbwBRBBBBBBm....",".....abbbbwBBBkkkBBm....","......cbbbwBBBkkkBBm....","......cbbbwBBBkkkBBm....","......cbbbwBBBBBBBBm....","......abbammmmmmmmmm....",".......aaa..............","........................","........................","........................","........................"]) },
+  cloak: { w: 24, h: 24, cells: R(["........................","............e...........",".......ccceeeeecc.......",".......cccedddecc.......","......ccceedddeeca......","......cbbbedddebaa......","......cbbbeeeeebaa......","......cbbbbbebbbaa......",".....ccbbbbbbbbbbaa.....",".....cbbbbbbbbbbbaa.....",".....cbbbbbbbbbbbaa.....",".....cbbbbbbbbbbbaa.....","....ccbbbabbbbbbbbaa....","....cbbbbbbbbbbbbbaa....","....cbbbbbbbbbbabbaa....","....cbbbbbbbbbbbbbaa....","...ccbbbbbbbbbbbbbbaa...","...cbbbbbbbbbbbbbbbaa...","...cbbbbbbbbbbbbbbbaa...","...aaaaaaaaaaaaaaaaaa...","..aaaaaaaaaaaaaaaaaaaa..","........................","........................","........................"]) },
+  lighter: { w: 24, h: 24, cells: R(["........................","........................",".............o..........","............Yo..........","............YOo.........","...........oooo.........",".......ccccccccca.......",".......cbbbbbbbba.......",".......cbbbbbbbba.......",".......aaaaaaaaaa.......",".......cbbbbbbbaa.......",".......cbbbbbbbaa.......",".......cbbbbbbbaa.......",".......cdddddddda.......",".......cdddddddda.......",".......cwbbbbbbaa.......",".......cwbbbbbbaa.......",".......cwbbbbbbaa.......",".......cwbbbbbbaa.......",".......cbbbbbbbaa.......",".......cbbbbbbbaa.......",".......aaaaaaaaaa.......",".......aaaaaaaaaa.......","........................"]) },
+  bowl: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................","........................",".......ccccccccccc......","....ccccbaaaaaaabbccc...","..cccaaaaaaaaaaaaaaabcc.","..cbaaaaaaaaaaaaaaaaabc.","..ccbaaaaaaaaaaaaaaaccc.","...ccccbbaaaaaaabcccc...","...cbbwcccccccccccbaa...","...abbbbbbbbbbbbbbaaa...","....cbbbbbbbbbbbbbaa....","....cbbbbbbbbbbbbbaa....","....abbbbbbbbbbbbaaa....",".....cbbbbbbbbbbaaa.....",".....aabbbbbbbbaaaa.....","......aaaaaaaaaaa.......","........aaaaaaaa........","........................","........................","........................"]) },
+  hammer: { w: 24, h: 24, cells: R(["........................","........................","...cccccccccccccccccc...","...cccccccccccccccccc...","...cbbbbbbbbbbbbbbbaa...","...cbdbbbbbbbbbbbbdaa...","...cbbbbbbbbbbbbbbbaa...","...cbbbbbbbbbbbbbbbaa...","...aaaaaaaaaaaaaaaaaa...","...aaaaaaaddddaaaaaaa...","..........dddd..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........NNNn..........","..........nnnn..........","........................"]) },
+  cannon: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................","........................","........................","........................","..ccccccccccccaa........","..cbbbbbbbbbbbbbaa.ggk..","..cbwwbbbbbbbbbbbbagxk..","..cbbbbbbbbbbbbbbbggxxk.","..cbbbbbbbbbbbbbbbgxxxk.","..cbbbbbbbbbbbbbbbgxxxk.","..cbbbbbbbbbbbbbbakxxkk.","..aaaaaaaaaaaaaaaaagxk..","..aaaaNNNNnaaaaaaa.kkk..","....NNNNNNNNn...........","....NNNNNNNNn...........","...NNNNNNNNNNn..........","...NNNNNNNNNNn..........","...nNNNNNNNNnn..........","....NNNNNNNNn...........","....nnnnnnnnn..........."]) },
+  bolt: { w: 24, h: 24, cells: R(["........................","........................","..............a.........",".............aa.........","............wa..........","...........cwa..........","..........ccwa..........",".........ccbaa..........",".........cbba...........","........ccbbbcccccaa....",".......ccbbbbbbbbaa.....","......ccbbbbbbbbaa......",".....aaaaaabbbbba.......","...........cbbbaa.......","...........cbbaa........","..........ccbaa.........","..........cbaa..........","..........caa...........",".........caa............",".........ca.............",".........aa.............",".........a..............","........a...............","........................"]) },
+  feather: { w: 24, h: 24, cells: R(["........................","........................","........................",".................cca....","..............ccccda....","...........ccccbbda.....","........ccccbbbbdba.....",".......ccbbbbbbbdba.....",".......cbbbbbabdbaa.....","......ccbbabbbdbba......","......cbbbbbbdbbaa......",".....ccbbbbbbdaaa.......",".....cbbbbbadaa.........","....ccbbabbdaa..........","....cbbbbbda............","....abbbbad.............",".....cbbad..............",".....cbad...............",".....aad................","......ad................","......d.................",".....d..................","........................","........................"]) },
+  worm: { w: 24, h: 24, cells: R(["........................","........................","........................","............a...........","..........cccaa.........",".........cccccaa........","........ccccccbaa.......","........caaccccca.......","........aaaccccca.......","...a...ccaaaccbaba.wwa..",".cccca.aaaaaccccca.kkcca",".cccca.cabaaccccca.cbbba","accccaaabaaaaccccaacbbba",".ccccaccaaaa.ccccaccbbba",".ccccacaaaaa.ccccacaaaaa",".acccaabbaaa.acccaabbaaa","..cccccaaaa...cccccaaaa.","..cccaaaaaa...cccaaaaaa.","..acccabaaa...acccabaaa.","...aaaaaaa.....aaaaaaa..","....aaaaa.......aaaaa...","......a...........a.....","........................","........................"]) },
+  razor: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................","........................","........................","..................wwa...","................wwcba...","..............wwcbbaaa..","...........wwwcbbaaa....",".........wwwbbbaaa......",".......wwwbbbaaa........",".....wwwbbbaaa..........","...wwwbbbaaa............","..NNNNNNNn..............","..NNNNNNNn..............","..NNNNNNNn..............","..NNYNNNNn..............","..NNNNNNNn..............","..NNNNNNNn..............","..nnnnnnnn..............","........................","........................"]) },
+  quiver: { w: 24, h: 24, cells: R(["........................","........................",".......gg..gg.gg........","........N...N..N........","........N...N..N........","........N...N..N........",".......RN..RN.RN........","........R...R..R........","........N...N..N........",".......dddddddddd.......",".......dddddddddd.......",".......cbbbbbbaa........",".......cbbbbbbaa........","......ccbbbbbbbaa.......","......cbbbbbbbbaa.......","......cbbbbbbbbaa.......","......cbbbbbbbbaa.......","......cbbbbbbbbaa.......","......cbbbbbbbbaa.......",".....ccbbbbbbbbbaa......",".....aaaaaaaaaaaaa......",".....aaaaaaaaaaaaa......","........................","........................"]) },
+  boot: { w: 24, h: 24, cells: R(["........................","........................","........................",".....cccccccc...........",".....cccccccc...........",".....cccccccc...........",".....cbbbbbaa...........",".....cbbbbbaa...........",".....cbdbbbaa...........",".....cbbbbbaa...........",".....cbbbbbaa...........",".....cbdbbbaa...........",".....cbbbbbaa...........",".....cbbbbbaa...........",".....cbbbbbaa...........",".....cbbbbbbbcccccaa....",".....cbbbbbbbbbbbbaa....",".....cbbbbbbbbbbbbaa....",".....aaaaaaaaaaaaaaaa...",".....kkkkkkkkkkkkkkkkk..",".....kkkkkkkkkkkkkkkkk..","........................","........................","........................"]) },
+  scope: { w: 24, h: 24, cells: R(["........................","........................","........................","........................","........................","........................","...........ddccccccaac..","...........ddbbbbbbaccc.","..cccccccccddbbbbbbccwbc","..cbbbbbbbbddbbbbbbcwwwc","..cbbbbbbbbddbbbbbbcwwwc","..cbbbbbbbbddbbbbbbcwwwc","..cbbbbbbbbddbbbbbbcwwwc","..cbbbbbbbbddbbbbbbcwwwc","..aaaaaaaaaddbbbbbbcwwwc","..aaaaaaNNnddbbbbbbcbwcc","........NNnddaaaaaaaccc.","........NNnddaaaaaaaac..","........NNn.............","........NNn.............","........NNn.............","........nnn.............","........................","........................"]) },
+  lens: { w: 24, h: 24, cells: R(["........................","........................","........cacaa...........","......aaaaaaaaa.........","....caaaaa.aaabaa.......","....aaa.wwwww.aaa.......","...aaa.wwwwwww.aaa......","...aa.wccwwwwww.aa......","..caawwwwwwwwwwwcaa.....","..aaawwwwwwwwwwwaaa.....","..aa.wwwwwwwwwww.aa.....","..caawwwwwwwwwwwcaa.....","..aaawwwwwwwwwwwaaa.....","...aa.wwwwwwwww.aa......","...aaa.wwwwwww.aNn......","....aaa.wwwww.anNNn.....","....aaacaa.caaaaNNNn....","......aaaaaaaaa.nNNn....","........aaaaa....nNNn...","..................nNnn..","...................Nn...","...................nn...","........................","........................"]) },
+  horn: { w: 24, h: 24, cells: R(["........................","........................","........................","...........cccccccaa....","..........wcbbwbbbaa....","........cccbbbbbbbaa....",".......ccbbbbbbbbbbaa...",".....cccbbbaaaaaaaaaa...","....ccbbbbaaaaaaaaaaa...","....cbbbbaaa............","....cbbbaaa.............","...ccbbbaa..............","...cbbbaaa..............","...cbbaaa...............","...cbbaa................","...cbbaa................","..ddddddd...............","..ddddddd...............","..ddddddd...............","..ddddddd...............","........................","........................","........................","........................"]) },
+};
+
+__exports.SHAPES2 = SHAPES2;
+
+});
+__define("ui/art/enemies2.js", function (__exports, __require) {
+// ERZEUGT von tools/figures/enemies.mjs (nicht von Hand ändern). Gegner im detaillierten Stil, jeder mit eigener Pixelgröße px.
+const R = (rows) => rows.map((r) => [...r]);
+const ENEMIES2 = {
+  ratte: { w: 36, h: 18, cells: R(["....................................","....................................",".........n..........................","........ppn.........................",".......ppppn........................",".......ppppn...MMMMMMMnn............",".....MMnppnnMMMMNNNNNNNNMnn.........","...MMMNNnnnnMNNNNNNNNNNNNNNnn......p","...MwNNNNnNnNNNNNNNNNNNNNNNNnn.....p","..MMnkNNNNNNnNNNNNNNNNNNNNNNNnn...p.","..MMnNNNNNNNnNNNNNNNNNNNNNNNNnn...p.","ppMNnNNNNNNnnNNNNNNNNNNNNNNNnnn..p..","..nNnNNNNNNnNNNNNNNNNNNNNNnnnnpppp..","...wwNNNNnnnnnNNNNNNNNNnnnnnn.......",".....nnnnn.nnnnnnnnnnnnnnnn.........","...........nn..nnnnnnnnnnn..nn......","...........nn...nn......nn..nn......","...........nn...nn......nn..nn......"]), px: 1.5, pal: {"p":"#e86f9a"} },
+  goblin: { w: 26, h: 36, cells: R(["..........................","..........................","..........................","..........................","..........GGGGGf..........","Gf......GGGFFFFFGf......Gf","GFG....GGFFFFFFFFFf....GGf","fFFGf.GGffFFFFFFffFf.GGGff",".GFFFfGFFFFFFFFFFFFfGGFFf.",".GFFFfGFFYkFFFFkYFFfGFFFf.",".ffFFfGFFFFFFFFFFFFffFfff.","...fffGFFFFFffFFFFFffff...","......GFFFFFFFFFFFFf......","......fFFkkkkkkkkFff......",".......fFFwFFFFwFff.......","........ffFFFFFfff........","..........ffffff..........",".......MMMnGGGGMMMn.......","...GGf.MNNnFFFFMNNn.GGf...","...GFf.MNNnFFFFMNNn.GFf...","...GFf.MNNnFFFFMNNn.GFf...","...GFf.MNNnFFFFMNNn.GFf...","...Gff.MNnnFFFFnNNn.fFf...","..GGf.MMNnFFFFFFMNNn.GFf..","..GFf.MNNnFFFFFFMNNn.GFf..","..GFf.MNNnFFFFFFMNNn.GFf..","..fff.xxxxxxYYxxxxxx.fff..","...f..xxxxxxxxxxxxxx..f...","..GGf...GFFf..GFFf...GGf..",".fGFff..GFFf..GFFf..fGFff.","..fff...GFFf..GFFf...fff..","...f....GFFf..GFFf....f...","........nFFf..GFFn........",".....MMMMMMn..MMMMMMn.....",".....MNNNNNn..MNNNNNn.....",".....nnnnnnn..nnnnnnn....."]), px: 1.55 },
+  skelett: { w: 26, h: 46, cells: R(["..........................","..........................",".........wwwwwwwB.........","........wwmmmmmmmB........",".......wwmmmmmmmmmB.......",".......wmmmmmmmmmmB.......","......wwmkkmmmmkkmmB......","......wmkkkkmmkkkkmB......","......wmkJkkmmkJkkmB......","......wmkkkkmmkkkkmB......","......BmmkkmmmmkkmBB......",".......wmmmmkkmmmmB.......",".......BmmmmmmmmmBB.......","........BwwwwwwwBB........",".........wkmkmkmB.........","......wwwBBBBBBBBwwB......","...wB.BBBBBBBBBBBBBB.wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB...wwwwBBwwB....wB...","...wB...wmmmmmmmB....wB...","..wwmB..BmmmmmmBB...wwmB..","..wmmB...BBBBBBBB...wmmB..","..BmBB...wB....wB...BmBB..","...BB....wB....wB....BB...",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".......wwBB....BwwB.......","......BBBB......BBBB......",".........................."]), px: 1.5 },
+  bandit: { w: 28, h: 44, cells: R(["............................","...........ggggxx...........",".........gggWWWWWxx.........","........ggWWWWWWWWxx........","........gWWWWWWWWWxx........",".......ggWWWWWWWWWWxx.......",".......gWWWWxxxxWWWxx.......","......ggWWxxxxxxxxWWxx......","......gWWxxxxxxxxxxWxx......","......gWWxxxxxxxxxxWxx......","......gWWOOOOOOOOOrWxx......","......xWxOYYRRRRYYrxxx......",".......gWORRRRRRRRrxx.......",".......xWrrrrrrrrrrxx.......","........gxxxxxxxxxxx........","......ggxxxxxxxxxxxxx.......","......gWWxxxxxxxxxxxx.......","......gWWWWxxxxxxWWxx.......","......gWWWWWWWWWWWWxx.......",".....ggWWWWWWWWWWWWWxx......",".....gWWWWWWWWWWWWWWxx......",".....gWWWWWWWWWWWWWWxx....i.",".....gWWWWWWWWWWWWWWxx....i.",".....gWWWWWWWWWWWWWWxx...i..",".....gWWWWWWWWWWWWWWxx...i..",".....gWWWWWWWWWWWWWWxx...i..",".....gWWWWWWWWWWWWWWxx..i...","....ggWWnnnnnYYnnnnnWxx.i...","....MMnWnnnnnnnnnnnnWMMi....","...MMNNnWWWWWWWWWWWWMMNin...","...MNNNnWWWWWWWWWWWWMNNNn...","...nNNnnWWWWWWWWWWWWnNNnn...","....nnnWWWWWWWWWWWWWWnnn....","....gWWWWWWWWWWWWWWWWxx.....","....gWWWWWWWWWWWWWWWWxx.....","...ggWWWWWWWWWWWWWWWWWxx....","...xxxxxxxxxxxxxxxxxxxxx....","...xxxxxxxxxxxxxxxxxxxxx....",".........gWWx..gWWx.........",".........gWWx..gWWx.........",".......WWWWkx..xWWWWk.......",".......Wxxxk....Wxxxk.......","......kkkkkk....kkkkkk......","............................"]), px: 1.5, pal: {"W":"#4a4468","g":"#7a7498","x":"#2b2433"} },
+  funke: { w: 18, h: 18, cells: R(["..................","........Yo........","........Yo........",".......YYOo.......",".......YOOo.......","......YYYYYo......","...YYYYYzzzYYYo...",".oYYOYYzzzzzYOOoo.","..oOOYzzwwzzYOoo..","...oYYzkwwkzYYo...","....oYzzzzzzYo....",".....YzzzzzYY.....",".....YYzzzYYo.....","....YYOYYYYOOo....","....YOoooooOOo....","....ooo....ooo....","...oo........oo...",".................."]), px: 1.6 },
+  dornenranke: { w: 26, h: 42, cells: R(["..........................","..........................","..........OOOOOrr.........",".......OOOORRRRRROrr......","......OORRRRRRRRRRRrr.....",".....OORYkRRRRRRRkYRrr....","....OORRRRRRRRRRRRRRRrr...","...OORRRRRRRRWRRRRRRRRrr..","...ORRRRRRWWWWWWWRRRRRrr..","..OORRRRRwWwWwWwWwRRRRRrr.","..ORRRRRWWWWWWWWWWWRRRRrr.","..ORRRRWWWWWWWWWWWWWRRRrr.","..ORRRRWWWWWWWWWWWWWRRRrr.","..rRRRRWWWWWWWWWWWWWRRrrr.","...ORRRWWWWWRRWWWWWWRRrr..","...rRRRWWWWWRRWWWWWWRrrr..","....rRRRWWWWWWWWWWWRrrr...",".....rRRwWwWwWwWwWwrrr....","......rrrRWWWWWWWrrrr.....",".......rrrrrrWrrrrrr......","..........rrrrrrr.........","..........................","..........................","..........................","...........GGGf...........","...........GFFf...........","...........GFFf......GGf..","..Gf.......GFFf.....GGFf..","..GFGf....yGFFf...GGGFFff.",".fGFFFf....GFFf..GGFFFFf..","..GFFFFf...GFFfGyGFFFFff..","..fFFFFFGf.GFFfGFFFFFFf...","...GFFFFFFfGFFFGFFFFFff...","...fFFFFFFfFFFFGFFffff....","....fffFFfyFFFFffff.......",".......fffGFFFFf..........","..........GFFFFfy.........","..........GFFFFf..........","..........GFFFFfn.........","........MMffffffNMn.......",".......nMNNNNNNNNNnn......","........nnnnnnnnnnn......."]), px: 1.6 },
+  glutgeist: { w: 26, h: 38, cells: R(["..........................","............oo............","............oo............","...........YYoo...........","...........YOoo...........","..........YYOOoo..........","..........YOOOoo..........",".........YYOOOOoo.........",".......YYYOOOOOOOoo.......","......YYOOOOOOOOOOoo......","......YOOOOOOOOOOOoo......","......oOOOOOOOOOOooo......",".......YOOOOOOOOOoo.......",".......YOOOOOOOOOoo.......",".......YOOOOOOOOOoo.......","......YYOOOOOOOOOOoo......",".....YYOOOOzzzOOOOOoo.....","....YYOOOzzzYYYzOOOOoo....","....YOOOzzYYYYYYYOOOoo....","...YYOOzzYYYYYYYYYOOOoo...","..YYOOOzYYYYYYYYYYOOOOoo..","..YOOOzzYYYYYYYYYYYOOOoo..","..oOOOzYYwkYYYYwkYYOOooo..","...YOOzYYkkYYYYkkYYOOoo...","...YOOzYYYYYYYYYYYYOOoo...","...YOOzYYYYYYYYYYYYOOoo...","...YOOzYYYYYYYYYYYYOOoo...","...oOOzYYYYYYYYYYYYOooo...","....YOzYYYYkkkkYYYYOoo....","....YOOYYYYYYYYYYYOOoo....","....oOOzYYYYYYYYYYOooo....",".....oOOYYYYYYYYYOOoo.....","......YOOYYYYYYYOOoo......","......oOOOOYYYOOOooo......",".......ooooOOOOoooo.......","........oooooooooo........","..........................",".........................."]), px: 1.5 },
+  flussgeist: { w: 26, h: 38, cells: R(["..........................","............uu............","............uu............","...........VVuu...........","...........VUuu...........","..........VVUUuu..........","..........VUUUuu..........",".........VVUUUUuu.........",".........VUUUUUuu.........","........VVUUUUUUuu..J.....","........VUUUUUUUuu........",".......VVUUUUUUUUuu.......",".....J.VUUUUUUUUUuu.......","......VVUUUUUUUUUUuu......","......VUUUUUUUUUUUuu......",".....VVUUUUUUUUUUUUuu.....",".....VUUUUUUUUUUUUUuuJ....","....VVUUUUUUUUUUUUUUuu....","....VUUUUUUUUUUUUUUUuu....","....VUUJJUUUUUUUUUUUuu....","....VJJJwwwwUUUwwwwUuu....","....VJVVwwwwUUUwwwwUuu....","....JJVwwwkwwUwwwkwwuu....","...VJVVVwwkwUUUwwkwUUuu...","...VJVVVwwwwUUUwwwwUUuu...","...VJVVVVVVVUUUUUUUUUuu...","...VUVVVVVVUUUUUUUUUUuu...","...VUJVVVVVUUUUUUUUUUuu...","...uUUUVVUUUUUUUUUUUuuu...","....VUUUUUkUUUUkUUUUuu....","....uUUUUUUkkkkUUUUuuu....",".....VUJUUUUUUUUUUUuu.....",".....uUUUUUUUUUUUUuuu.....","......VUUUUUUUUUUUuu......","......uuuUUUUUUuuuuu......",".......uuuuuuuuuuuu.......","..........uuuuuu..........",".........................."]), px: 1.6 },
+  sumpfgeist: { w: 40, h: 36, cells: R(["........................................","........................................","........................................",".................GGGGff.................","...............GGGFFFFFff...............","............GGGGFFFFFFFFFGff............","..........GGGFFFFFFFFFFFFFFFff..........",".........GGFFFFFFFkkkkkFFFFFFff.........",".........GFFFFFFkkkkkkkkkFFFFff.........","........GGFFFFkkkkkkkkkkkkkFFFff........",".......GGFFFFFkkkkkkkkkkkkkFFFff........",".......GFFFFFkkkkkkkkkkkkkkkFFFff.......","......GGGFFFFkkkkkkkkkkkkkkkFFFFGf......",".....GGFFFFFkkkkkkkkkkkkkkkkkFFFff......",".....GFFFFFFkkkYYkkkkkkYYkkkkFFFFff.....","....GGFFFFFFkkkYYkkkkkkYYkkkkFFFFff.....","...GGFFFFFFFkkkkkkkkkkkkkkkkkFFFFFff....","...GFFFFFFFFkkkkkkkkkkkkkkkkkFFFFFff....","..GGFFFFFFFFFkkkkkkkkkkkkkkkFFFFFFFff...","..GFFFFFFFFFFkkkkkkkkkkkkkkkFFFFFFFff...","..GFFFFFFFFFFFkkwkkkwkkkwkkFFFFFFFFff...","..GFFFFFFFFFFFkkkkwkkkwkkkkFFFFFFFFff...","..GFFFFFFFFFFFFFkkkkkkkkkFFFFFFFFFFff...","..GFFFFFFFFFFFFFFFkkkkkFFFFFFFFFFFFff...","..GFFFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFff...","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFffFFFFFFffFFFFFFffFFFFFFffFFFFFFff..","..fffffFFFFffffFFFFffffFFFFffffFFFFFff..","..fff..fFFfff..fFFfff..fFFfff..fFFffff..","..f.....ffff....ffff....ffff....fffff...",".........ff......ff......ff......ff.....","........................................"]), px: 1.5 },
+  knochenhauptmann: { w: 38, h: 58, cells: R(["......................................","................iiOOOOOOOr............","..............iiiOORRRRRRr............",".............iihhORRRRRRRRr...........","............iihhrrrrrRRRRRr...........","...........iihhhhhhhhrrrrrrr..........","...........ihhhhhhhhhhhhhhhg..........","..........iihhhhhhhhhhhhhhhhg.........","..........ihhhhhhhhhhhhhhhhhg.........","..........ihhhhhhhhhhhhhhhhhg.........","..........ihhhkkkkhhhkkkkhhhg.........","..........ghggkkkkgggkkkkhggg.........","...........igmkJkkmmmkJkkigB..........","...........igmkkkkmmmkkkkig...........","...........ggmkkkkmmmkkkkgg...........","............BmmmmmmmmmmmmBB...........",".............BmmmmkkkmmmBB............","..............BmmmmmmmmBB.............","....OOOOOOOOOOOBBmmmmBBBOOOOOOOOrr....","....ORiiiigRRRRRRBBBBBRRRRRiiiigrr....","....Oiihhhhgiiiiiiiiiiiiigiihhhhgr....","....iihhhhhhghhhhhhhhhhhhiihhhhhhg....","....ihhhhhhhghhhhhhhhhhhhihhhhhhhg....","....ghhhhhhgghhhhhhhhhhhhghhhhhhgg....","...OOghhhhgghhhhhhhhhhhhhgghhhhggrr...","...ORwwBgggihhhhhhhhhhhhhgggggwwBrr...","...ORwmBRRRihhhhhhhhhhhhhggRRRwmBrr...","...ORwmBRRRihhhhhhhhhhhhhggRRRwmBrr...","...ORwmBRRRghhhhhhhhhhhhgggRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRnnnnnnnnnnnnnnnRRRwmBrr...","...ORwmBRRRRnnnnnnnnnnnnnnnRRRwmBrr...","..OORwmBRRRRggggggggggggggRRRRwmBRrr..","..ORRwmBRRRRRRwwwwwwwwwBRRRRRRwmBRrr..","..ORRwmBRRRRRRwmmmmmmmmBRRRRRRwmBRrr..","..ORRwwBRRRRRRBmmmmmmmBBRRRRRRwwBRrr..","..ORwwmmBRRRRRRwmmmmmmBRRRRRRwwmmBrr..","..ORwmmmBRRRRRwBBBBBBBBBRRRRRwmmmBrr..","..ORBmmBBRRRRRwmBRRRRwmBRRRRRBmmBBrr..","..ORRBBBRRRRRRwmBRRRRwmBRRRRRRBBBRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..",".OORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".ORRRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".ORRRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".rrrrrrrrrrrrrwmBrrrrwmBrrrrrrrrrrrrr.",".rrrrrrrrrrrrrwmBrrrrwmBrrrrrrrrrrrrr.","..............wmB....wmB..............","..............wmB....wmB..............","............wwwBB....BwwwB............","...........wwmmB......wmmmB...........","..........BBBBBB......BBBBBB..........","......................................"]), px: 1.75 },
+  steingolem: { w: 42, h: 54, cells: R(["..........................................","..........................................","..........................................","..........................................",".................iiiiiiig.................","................iihhhhhhhg................","...............iihhhhhhhhhg...............","..............Fggggggggggggg..............","..............iggggggggggggg..............","..............ihhhhhhhhhhhhF..............",".............gihhOOhhhhOOhhgg.............","..............ihhOOhhhhOOhhg..............","..............ihhhhhhhhhhhhg..............","..............ghhhhhhhhhhhgg..............","...............ghhhhhhhhhgg...............","......iiiig.....ghkhkhkhgg.....iiiig......","....iiihhhhig....gggggggg....iiihhhhig....","...iihhhhhhhhg..............iihhhhhhhhg...","..iihhhhhhGGfhgiiiiiiiiiiiiiihhhhhhhhhhg..","..ihhhhhGGGFFGfhhhhhhhhhhhhihhfhhhhhhhhg..",".ighhhhhGFFFFFfhhhhhhhhhhhhGGGGGGfhhhhggg.",".ihghhhhffFFfffhhhhhhhhhhhhGFFFFFfhhhgghg.",".ihhgghhhhfffhhhhhhhhhhhhhhfffffffhggghhg.",".ihhhhggggghhhhhhhhhhhhhhhhhhhfggggghhhhg.",".ihhhhhghhhhhhghhhzzzzzohhhhhhghggihhhhhg.","iihhhhhghhhhhhhhhzzOOOOOohhhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzzOOOOOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhgzOOOzzOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzOOOzzOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzOOOOOOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhoOOOOOOOoohhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhoOOOOOoohhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhoooooohhhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhghhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhgihhhhhhg","ihhhhhhghhhghhhhhhhhhhhhhhhghhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhhihhhhhhg","ihhhghhghhhhhhhhhhhhhhhhhhhhhhhhhhihhghhhg","iiiiiiigggggggggggggggggggggFgggggiiiiiigg","iihhhhhhgggggggggggggggggggggggggiihhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgiihhhhhhhg","ihhhhhhhhgihFFhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhggihhhhhhg......ihhhhhhgghhhhhhhhg","ghhhhhhgg.ihhhhhhg......ihhhhhhg.ghhhhhhgg",".ggggggg..ihhhhhhg......ihhhhhhg..ggggggg.","....g...FFihhhhhhg......ihhhhhhg.....g....","..........iiiiiigg......iiiiiiig..........","........iiihhhhhhig....iiihhhhhhig........",".......gihhhhhhhhhgg..gihhhhhhhhhgg.......","........ggggggggggg....ggggggggggg........"]), px: 1.65 },
+  frostwolf: { w: 52, h: 34, cells: R(["....................................................","....................................................","....................................................","....................................................","....................................................","....................................................",".........JJJU.......................................",".........UVVVU...........wV.............wV..........","..........JVVU......wV...wV........wV...wV..........","........JJUUUU......wV...wV...wV...wV...wV..........","......JJJVVVVJU.....wV...wV...wV...wV...wV..........",".....JJVVVVVVVVU...VVVV.VVVVJVVVVJVVVV.VVVV......U..","....JJVVVVVVVVVVU....JJJJJVVVVVVVVVVJJUU........JU..","...JJUVVVVVVVVVVVU.JJJVVVVVVVVVVVVVVVVVVUU....JJJVU.","...JJJUVYkVVVVVVVUJJVVVVVVVVVVVVVVVVVVVVVVUU.JJVVVU.","..JJJVUVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVUUJVVVVU.",".JJVVVUVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVVUUVVVUU.","kkUVVVUVVVVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVUUVUU..","...UUVVUVVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUUU...","...w.wUUVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUU.....","......UUVVVVUUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUU.....","........UUUUU.UVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUU.....","...............UVVVVVVVVVVVVVVVVVVVVVVVVVVVUUU......","................UUVVVVVVVVVVVVVVVVVVVVVVVUUUU.......",".................UUUVVVVVVVVVVVVVVVVVVVUUUUU........",".................JVUUUUUVVVVVVVVVVVUUUUUUUVU........",".................JVU.UUUUUUUUUUUUUUUUUUU.JVU........",".................JVU..JVUUUUUUUUUUUUJVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................UUU..UUU...........UUU..UUU........","....................................................","...................................................."]), px: 1.4 },
+  elementarwandler: { w: 64, h: 64, cells: R(["................................................................","........m..............................................m........","........mm............................................mm........",".........mm...............m..........m...............mm.........",".........mmm..............m..........m..............mmm.........",".........mmmm.cccccaa....mm..........mm....cccccaa.mmmm.........",".........mmmmmcbbbbbbaa..mm..........mm..cccbbbbbbmmmmm.........","..........mmcbbbbbbbbbaammm..........mmmccbbbbbbbbbamm..........","..........ccbbbbbbbbbbbaa..............ccbbbbbbbbbbbaa..........",".........ccbbbbbbbbbbbbbaa............ccbbbbbbbbbbbbbaa.........",".........cbbbbbbbbbbbbbbaa............cbbbbbbbbbbbbbbaa.........","........ccbbbbbbbbbbbbbbbaa..........ccbbbbbbbbbbbbbbbaa........","........cbbbbbbbbbbbbbbbbaa..........cbbbbbbbbbbbbbbbbaa........","........cbbbbeebbbbbeebbbaa..........cbbbbeebbbbbeebbbaa........","........cbbbbeebbbbbeebbbaa..........cbbbbeebbbbbeebbbaa........","........cbbbbbbbbbbbbbbbbaa..........cbbbbbbbbbbbbbbbbaa........","........cbbbbbbbbbbbbbbbbaa..........cbbbbbbbbbbbbbbbbaa........","........abbbbbbbbbbbbbbbaaa..........abbbbbbbbbbbbbbbaaa........",".........cbbbbbbbbbbbbbbaa............cbbbbbbbbbbbbbbaa.........",".........abbbbmbmbmbbbbaaa............abbbbbbmbmbmbbaaa.........","..........abbbbbbbbbbbaaa..............abbbbbbbbbbbaaa..........","..........caabbbbbbbaaaa................aabbbbbbbaaaaa..........","..........cbaaaaaaaaaaa..................aaaaaaaaaaaba..........",".........ccbbbaaaaaaacca................cccaaaaaaabbbba.........",".........cbbbbbbbbbbbbbbccca........cccccbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........","....ccccccbbbbbbbbbbbbbbbbbacccccccccbbbbbbbbbbbbbbbbbbaccca....","....cbbbcbbbbbbbbbbbbbbbbbbabbbbbbbbcbbbbbbbbbbbbbbbbbbabbba....","....cbbbaaaaaaaaaabbbbbbbbbabbbbbbbbcbbbbbbbbaaaaaaaaaaabbba....","....cbbbbbbbbabbbbaaaaaaaaaabbbbbbbbaaaaaaaaaabbbacbbbbbbbba....","....cbbbbbbbbabbbbbbbbbbbbbbbbkkkkkbbbbbbbbbbbbbbacbbbbbbbba....","....cbbbbbbbaabbbbbbbbbbbbbbkkkkkkkkkbbbbbbbbbbbbbabbbbbbbba....","...ccbbbbbbbabbbbbbbbbbbbbkkkkeeeeekkkkbbbbbbbbbbbacbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbbbkkeeeeeeeeekkbbbbbbbbbbbacbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbbkkeeeeeeeeeeekkbbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbbkkeeeeeweeeeekkbbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeewwwwwwweeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbaabbbbbbbbbbbbkkeeeeeweeeeekkbbbbbbbbbbbabbbbbbbba...","...cbbbbbbbabbbbbbbbbbbbbkkeeeeeeeeeeekkbbbbbbbbbbbbcbbbbbbba...","..ccbbbbbbbabbbbbbbbbbbbbbkkeeeeeeeeekkbbbbbbbbbbbbbcbbbbbbbba..","..cbbbbbbbbabbbbbbbbbbbbbbkkkkeeeeekkkkbbbbbbbbbbbbbcbbbbbbbba..","..cbbbbbbbbabbbbbbbbbbbbbbbbkkkkkkkkkbbbbbbbbbbbbbbbcbbbbbbbba..","..cbbbaaaaaabbbbbbbbbbbbbbbbbbkkkkkbbbbbbbbbbbbbbbbbaaaaabbbba..","..aaaaacbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaa..",".......aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.......","..m...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...m..","...m.m....ccccccccccca....................ccccccccccca....m.m...","..........cbbbbbbbbbba....................cbbbbbbbbbba..........",".........ccbbbbbbbbbba....................cbbbbbbbbbbba.........",".........cbbbbbbbbbbba....................cbbbbbbbbbbba.........","........ccbbbbbbbbbbba....................cbbbbbbbbbbbba........","........cbbbbbbbbbbbba....................cbbbbbbbbbbbba........","........cbbbbbbbbbbbba....................cbbbbbbbbbbbba........",".......ccbbbbbbbbbbbba....................cbbbbbbbbbbbbba.......",".......cbbbbbbbbbbbbba....................cbbbbbbbbbbbbba.......","......aaaaaaaaaaaaaaaa....................aaaaaaaaaaaaaaaa......","......k..k..k......................................k..k..k......","................................................................"]), px: 1.7, pal: {"a":"#4a2a6a","b":"#8a4fc0","c":"#c79af0","e":"#ffe58a"} },
+};
+const RIGS3 = {
+  ratte: {"rel":true,"regions":[{"id":"head","box":[0,0,0.3429,0.8824],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":1.6,"under":true},{"id":"ear","parent":"head","box":[0.1714,0.0588,0.3429,0.4118],"seq":[[0,0],[0,0],[0,1],[0,0],[0,0]],"dur":2.4,"under":true},{"id":"tail","box":[0.8286,0.2353,1,0.7647],"seq":[[0,0],[0,1],[0,0],[0,-1]],"dur":0.9,"under":true}]},
+  goblin: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.6857],"seq":[[0,0],[0,1]],"dur":1.3},{"id":"earl","parent":"up","box":[0,0.0857,0.2,0.3429],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2,"under":true},{"id":"earr","parent":"up","box":[0.8,0.0857,1,0.3429],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2,"under":true,"phase":0.9}],"blink":[{"cells":[[0.36,0.2571],[0.4,0.2571],[0.6,0.2571],[0.64,0.2571]],"color":"F","every":3.4,"at":0.5}]},
+  skelett: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7111],"seq":[[0,0],[0,1]],"dur":1.6},{"id":"jaw","parent":"up","box":[0.32,0.2889,0.68,0.3333],"seq":[[0,0],[0,1],[0,0],[0,1],[0,0],[0,0],[0,0],[0,0]],"dur":2.4},{"id":"al","parent":"up","box":[0.08,0.3556,0.2,0.7556],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.2,"under":true},{"id":"ar","parent":"up","box":[0.8,0.3556,0.92,0.7556],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.2,"phase":1.1,"under":true}],"glow":[{"letters":"J","color":"w","max":0.7,"dur":1.8}]},
+  bandit: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.8372],"seq":[[0,0],[0,1]],"dur":1.5},{"id":"hood","parent":"up","box":[0.1481,0,0.8519,0.4651],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.6,"under":true},{"id":"hem","box":[0,0.7907,1,0.9535],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.2,"under":true}],"blink":[{"cells":[[0.3704,0.2558],[0.4074,0.2558],[0.5926,0.2558],[0.6296,0.2558]],"color":"R","every":4.4,"at":1.2}]},
+  funke: {"rel":true,"regions":[{"id":"s","box":[0,0,1,1],"seq":[[0,0],[0,1],[0,0],[1,0]],"dur":0.8}],"glow":[{"letters":"zw","color":"w","max":0.85,"dur":0.8}]},
+  dornenranke: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7317],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3},{"id":"head","parent":"up","box":[0,0,1,0.4634],"seq":[[0,0],[1,0],[1,0],[0,0],[-1,0],[-1,0]],"dur":2.2,"phase":0.5,"under":true},{"id":"ll","parent":"up","box":[0,0.5854,0.24,0.8293],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":1.2,"under":true},{"id":"lr","parent":"up","box":[0.76,0.5854,1,0.8293],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":1.2,"under":true,"phase":0.6}],"blink":[{"cells":[[0.32,0.122],[0.36,0.122],[0.68,0.122],[0.72,0.122]],"color":"R","every":3.6,"at":1}]},
+  glutgeist: {"rel":true,"regions":[{"id":"tl","box":[0.24,0,0.36,0.1622],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":0.9},{"id":"tc","box":[0.4,0,0.6,0.1622],"seq":[[0,0],[0,0],[0,1],[0,0]],"dur":0.9,"phase":0.3},{"id":"tr","box":[0.64,0,0.76,0.1622],"seq":[[0,0],[0,0],[0,0],[0,1]],"dur":0.9,"phase":0.6},{"id":"hem","box":[0.08,0.8378,0.92,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.1,"under":true}],"blink":[{"cells":[[0.36,0.5946],[0.4,0.5946],[0.36,0.6216],[0.4,0.6216],[0.6,0.5946],[0.64,0.5946],[0.6,0.6216],[0.64,0.6216]],"color":"O","every":3.2,"at":0.7}],"glow":[{"letters":"Y","color":"z","max":0.5,"dur":1.2}]},
+  flussgeist: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.8108],"seq":[[0,0],[0,1]],"dur":1.8},{"id":"hem","box":[0.12,0.8378,0.92,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1,"under":true}],"blink":[{"cells":[[0.36,0.5946],[0.4,0.5946],[0.36,0.6216],[0.4,0.6216],[0.64,0.5946],[0.68,0.5946],[0.64,0.6216],[0.68,0.6216]],"color":"U","every":3.9,"at":0.9}]},
+  sumpfgeist: {"rel":true,"regions":[{"id":"body","box":[0,0.0571,1,0.9429],"seq":[[0,0],[0,1]],"dur":1.7}],"blink":[{"cells":[[0.3846,0.4],[0.4103,0.4],[0.3846,0.4286],[0.4103,0.4286],[0.5897,0.4],[0.6154,0.4],[0.5897,0.4286],[0.6154,0.4286]],"color":"k","every":3.3,"at":0.6}]},
+  knochenhauptmann: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7018],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"plume","box":[0.4054,0,0.7838,0.1053],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.7,"under":true,"parent":"up"},{"id":"cl","parent":"up","box":[0,0.5965,0.1351,0.9123],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.6,"under":true},{"id":"cr","parent":"up","box":[0.8919,0.5965,1,0.9123],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.6,"phase":1.3,"under":true}],"glow":[{"letters":"J","color":"w","max":0.7,"dur":1.5}]},
+  steingolem: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7736],"seq":[[0,0],[0,1]],"dur":3.2}],"glow":[{"letters":"oOz","box":[0.3902,0.434,0.6098,0.6038],"color":"z","max":0.65,"dur":1.6},{"letters":"O","box":[0.3415,0.1698,0.6585,0.2264],"color":"w","max":0.5,"dur":2.2}]},
+  frostwolf: {"rel":true,"regions":[{"id":"head","box":[0,0,0.3529,0.8485],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2.6},{"id":"tail","box":[0.8431,0.1818,1,0.6667],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.4,"under":true},{"id":"crest","box":[0.3529,0.1212,0.8235,0.3939],"seq":[[0,0],[0,0],[0,1],[0,0]],"dur":1.9}]},
+  elementarwandler: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7302],"seq":[[0,0],[0,1]],"dur":2.8},{"id":"hl","parent":"up","box":[0,0,0.3968,0.381],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2.4},{"id":"hr","parent":"up","box":[0.6032,0,1,0.381],"seq":[[0,0],[0,0],[0,1],[0,0]],"dur":2.4},{"id":"kl","box":[0,0.7937,0.1429,1],"seq":[[0,0],[0,1],[0,0]],"dur":1.5,"under":true},{"id":"kr","box":[0.8571,0.7937,1,1],"seq":[[0,0],[0,1],[0,0]],"dur":1.5,"phase":0.7,"under":true}],"glow":[{"letters":"ew","color":"w","max":0.6,"dur":1.4}]},
+};
+
+__exports.ENEMIES2 = ENEMIES2;
+__exports.RIGS3 = RIGS3;
+
+});
+__define("ui/art/heroes2.js", function (__exports, __require) {
+// ERZEUGT von tools/figures/heroes.mjs (nicht von Hand ändern). Neue Helden und NPCs im detaillierten Stil (40x60 Pixel).
+const R = (rows) => rows.map((r) => [...r]);
+const HEROES2 = {
+  nahkaempfer: { w: 40, h: 60, cells: R(["........................................",".......................OOr..............","................iiiiiOOORr..............","...............iihhhhORRRrr.............","..............iihhhhOORRRr..............",".............iihhhhhORRRrrg.............","............iihhhhhOORRrrhhg............","............ihhhhhhrRrrrhhhg............","............ihhhhhhhrrhhhhhg............","............ihhhhhhhhhhhhhhg............","...........iihhhhhhhhhhhhhhhg...........","...........ihhhhhhhhhhhhhhhhg...........","...........iggggggghhgggggggg...........","...........igtsSSSshhsSSSsSig...........","...........igtssksshhsskssSig...........","...........igtssksshhsskssSig...........","...........igSssssshhssssSSig...........","...........ig.SsssshhsssSS.ig...........","...........ig..SssrrrrsSS..ig...........","...........gg...SSSSSSSS...gg...........",".........g.......tssssS.......g.........","......iiiiiig....SSSSSS....iiiiiig......",".....iihhhhhhgVVVVVVVVVVVuiihhhhhhg.....",".....ihhhhhhygUUUUUUUUUUUuiyhhhhhhg.....","....gihhhhhhyggUUUUUUUUUUgiyhhhhhhgg....",".....ihhhhhhygUUUUUUUUUUUuiyhhhhhhg.....",".....ghhhhhhygUUUUUUUUUUUugyhhhhhgg.....",".....iggggggyUUUUUUOOUUUUuuyggggggg.....","....iihhhg..yUUUUUOOOOUUUuuy..ghhhhg....","....ihhhhg..yUUUUJJwwUUUUuuy..ihhhhg....","....ihhhhg..yUUUUJJwwUUUUuuy..ihhhhg....","....ihhhhg..yUUUUUFFFFUUUuuy..ihhhhg....","....ihhhhg..yUUUUUUFFUUUUuuy..ihhhhg....","....ihhhhg.VyUUUUUUUUUUUUUuy..ihhhhg....","....ghhhhg.VyUUUUUUUUUUUUUuy..ihhhgg....",".....ihhhg.VyUUUUUUUUUUUUUuy..ihhhg.....",".....ihhhg.VynnnnnnYYnnnnnny..ihhhg.....",".....ggggg.VynnnnnnYYnnnnnny..ggggg.....","......ttS..VyUUUUUUUUUUUUUuy...ttS......",".....ttssS.VyUUUUUUUUUUUUUuy..ttssS.....",".....tsssS.VyUUUUUUUUUUUUUuy..tsssS.....",".....SssSS.uyuuuuuuuuuuuuuuy..SssSS.....","......SSS..uyuuuuuuuuuuuuuuy...SSS......","...........yyyyyyyyyyyyyyyyyy...........",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............","..........NNNNNNNxg..gNNNNNNNx..........",".........NNnnnnnnx....Nnnnnnnnx.........","........NNnnnnnnnx....Nnnnnnnnnx........","........xxxxxxxxxx....xxxxxxxxxx........","........................................"]), px: 1.65, hand: [36,41] },
+  fernkaempfer: { w: 40, h: 60, cells: R(["........................................","................GGGGGGGf................","..............GGGFGFFFFfff..............",".............GGFFGGFFFffFff.............","............GGFFFffffffFFFff............","...........GGFFFFFFFFFFFFFFff...........","...........GFFFFFFFFFFFFFFFff...........","..........GGFFFFFFFFFFFFFFFFff..........","..........GFFFFFFffffffFFFFFff..........","..........GFFFFffffffffffFFFff..........","..........GFFFfftttttttSffFFffR.........","..........GFFffttsssssssSffFffM.........","..........GFFfttsssssssssSfFffM.........","..........fFfftSSSssssSSSSffff..........","...........GfftskssssssksSfffggx........","...........ffftskssssssksSfffnnx........","............fftssssSSssssSffnnnx........",".............fSsssssssssSSfgnnnx........",".............ffSssrrrrsSSffgnnnx........","..............ffSSSSSSSSff.gnnnx........",".......GGGGGGGGffffffffffGGgnnnx........",".......GFFFFFFFFFffffffFFFFgnnnx........",".......GFFFFFFFFFFFFFFFFFFFgnnnx........",".......GFFFFMMMMMMMMMMMMMnngnnnx........","......MMMMnFMNNNNNNOONNNNnngnnnxMn......","......MNNNnFMNNNNNJwwUNNNnngnnnxNn......","......MNNNnFMNNNNNJwwUNNNnngnnnxNn......","......MNNNnFMNNNNNNFFNNNNnngnnnxNn......","......MNNNnFMNNNNNNNNNNNNnngnnnxNn......","......MNNNnFMNNNNNNNNNNNNnngnnnxNn......","......MNNNnFMNNNNNNNNNNNNnnxxxxxNn......","......MNNNnFMNNNNNNNNNNNNnnFFMNNNn......","......MNNNnFMNNNNNNNNNNNNnnFFMNNNn......",".....GMNNNnMMNNNNNNNNNNNNNnnFMNNNn......",".....GMNNNnMNNNNNNNNNNNNNNnnFMNNNn......",".....GMNNNnMxxxxxxxYYxxxxxxxFMNNNn......",".....GnnnnnMxxxxxxxYYxxxxxxxFnnnnn......",".....GFttSFMNNNNNNNNNNNNNNnnFFttSf......",".....GttssSMNNNNNNNNNNNNNNnnFttssS......",".....GtsssSMNNNNNNNNNNNNNNnnFtsssS......",".....GSssSSnnnnnnnnnnnnnnnnnFSssSS......",".....GFSSSFnnnnnnnnnnnnnnnnnFFSSSf......","....GGFFFFFFFFFFFFFFFFFFFFFFFFFFFff.....","....GFFFFFFFFFFFFFFFFFFFFFFFFFFFFff.....","....fffffffffffffffffffffffffffffff.....","....fffffffffffffffffffffffffffffff.....",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............nnnnn....nnnnn.............","..........NNNNNNNx....NNNNNNNx..........",".........NNnnnnnnx....Nnnnnnnnx.........","........NNnnnnnnnx....Nnnnnnnnnx........","........xxxxxxxxxx....xxxxxxxxxx........","........................................"]), px: 1.65, hand: [36,41] },
+  magier: { w: 40, h: 60, cells: R(["........................................","..................PPqq..................","................PPPQqq..................","................PQQQQqq.................","...............PPQQQQqq.................","...............PQQQQQQqq................","...............PQQQQQQQqq...............","..............PPQQQQQQQqq...............",".........PPPPPPQQQQQQQQQqqPPPPq.........","......PPPPQQQYYYYYYYYYYYYYYQQQQPPq......",".....qPQQQQQQYYYYYYYYYYYYYYQQQQQQqq.....","......qqqQQQQQQQQQQQQQQQQQQQQQqqqq......",".........qqqqqqqqqqqqqqqqqqqqqq.........",".............ttBBBssssBBBSS.............",".............ttsksssssskssS.............",".............tssksssssskssS.............",".............SsssssSSssssSS.............","........wwwwwwSsssmmmmssSSwwwBB.........","........BmmmmmmSSSSSSSSSSmmmBBB.........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........BmmmmmmmmmmmmmmmmmBBB..........","..........wmmmmmmmmmmmmmmmmBB...........","..........BmmmmmmmmmmmmmmmBBB...........","...........wmmmmmmmmmmmmmmBB............","....VVVVVuVBmmmmmmmmmmmmmBBBuuVVVVVu....","....VUUUUuUUwmmmmmmmmmmmmBBUuuVUUUUu....","....VUUUUuUUBmmmmmmmmmmmBBBUuuVUUUUu....","....VUUUUuUUUwmmmmmmmmmmBBUUuuVUUUUu....","....VUUUUuUUUBmmmmmmmmmBBBUUuuVUUUUu....","...VVUUUUuUUUUwmmmmmmmmBBUUUUuVUUUUUu...","...VUUUUUuUUUUBmmmmmmmBBBUUUUuVUUUUUu...","...VUUUUUuUUUUUwmmmmmmBBUUUUUuVUUUUUu...","...VUUUUUuUUUUUBmmmmmBBBUUUUUuVUUUUUu...","...VUUUUuuUUUUUUBBBBBBBUUUUUUuuUUUUUu...","...VUUUUuUUUUUUUBBBBBBBUUUUUUuuVUUUUu...","...VUUUUuUUUUUUUUUUUUUUUUUUUUuuVUUUUu...","...VUUUUuUUYYYYYYYYOOYYYYYYYYuuVUUUUu...","...VUUUUuUUYYYYYYYJwwUYYYYYYYUuVUUUUu...","...VUUUUuUUUUUUUUUJwwUUUUUUUUUuVUUUUu...","..VVUUUUuUUUUUUUUUUFFUUUUUUUUUuVUUUUUu..","..VUUUUUuUUUUUUUUUUUUUUUUUUUUUuVUUUUUu..","..VUUUUUuUUUUUUUUUUUUUUUUUUUUUuVUUUUUu..","..VUttSuuUUUUUUUUUUUUUUUUUUUUUuuuttSUu..","..uttssSUUUUUUUUUUUUUUUUUUUUUUuuttssSu..","...tsssSUUUUUUUUUUUUUUUUUUUUUUuutsssS...","...SssSSUUUUUUUUUUUUUUUUUUUUUUuuSssSS...","....SSSVUUUUUUUUUUUUUUUUUUUUUUUuuSSS....","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......",".....VVUUUUUUUUUUUUUUUUUUUUUUUUUuu......",".....VUUUUUUUUUUUUUUUUUUUUUUUUUUuu......",".....uuuuuuuuuuuuuuuuuuuuuuuuuuuuu......",".....YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY.....",".....YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY.....","........................................"]), px: 1.65, hand: [36,43] },
+  pyromant: { w: 40, h: 60, cells: R(["...................r....................","................OOOOrOrr................","..............OOOOORRrRRrr..............",".............OOROORRRRrRRrr.............","............OORRORRRRRrRRRrr............","...........OORRrrrrOOrrrRRRrr...........","...........ORRRRRRJwwURRRRRrr...........","..........OORRRRRRJwwURRRRRRrr..........","..........ORRRRRRWWFFWWRRRRRrr..........","..........ORRRRWWWWWWWWWWRRRrr..........","..........ORRRWWWWWWWWWWWWRRrr..........",".........rORRRWWWWsssnWWWWRRrrr.........","..........ORRWWWsssSSSsnWWWRrr..........","..........ORRWWssSSSSSSSnWWRrr..........","..........ORRWWsYSSSSSSYnWWRrr..........","..........rRRWWsYSSSSSSYnWWrrr..........","...........ORWWsSSSSSSSSnWWrr...........","...........rRWWsSSSSSSSSnWWrr...........","............rRWnSSrrrrSnnWrr............",".............rWWnnSSSnnnWWr.............","..............rWWWnnnnWWWr..............","................rWWWWWWr................",".........OOOOOOOOOOOOOOOOOOOrr..........",".........ORRRRRRRRRRRRRRRRRRrr..........","....OOOOOrRRrRRRRRRRRRRRRRRrrrOOOOOr....","....ORRRRrRRrRRRRRRRRRRRRRRrrrORRRRr....","....ORRRRrRRrRRRRRRRRRRRRRRrRrORRRRr....","....ORRRRrRRrRRRRRRRRRRRRRRrRrORRRRr....","....ORRRRrRRrRRRRRRRRRRRRRRrRrORRRRr....","...OORRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRrrRRrRRRRRRRRRRRRRRrRRrRRRRRr...","...ORRRRrRRRrRRRRRRRRRRRRRRrRRrORRRRr...","...ORRRRrRRRrRRRRRRRRRRRRRRrRRrORRRRr...","...ORRRRrRRnnnnnnnnOOnnnnnnnnRrORRRRr...","...ORRRRrRRnnnnnnnJwwUnnnnnnnRrORRRRr...","...ORRRRrRRRRRRRRRJwwURRRRRRRRrORRRRr...","..OORRRRrRRRRRRRRRRFFRRRRRRRRRRORRRRRr..","..ORRRRRrRRRRRRRRRRRRRRRRRRRRRRORRRRRr..","..ORRRRRrRRRRRRRRRRRRRRRRRRRRRRORRRRRr..","..ORssnrrRRRRRRRRRRRRRRRRRRRRRRrrssnRr..","..rssSSnRRRRRRRRRRRRRRRRRRRRRRRrssSSnr..","...sSSSnRRRRRRRRRRRRRRRRRRRRRRRrsSSSn...","...nSSnnRRRRRRRRRRRRRRRRRRRRRRRrnSSnn...","....nnnRRRRRRRRRRRRRRRRRRRRRRRRRrnnn....",".....ORRRRRRRRRRRRRYoRRRRRRRRRRRrr......",".....ORRRRRRRRRRRRYYoRRRRRRRRRRRrr......",".....ORRRRRRRRRRRRYOOoRRRRRRRRRRrr......",".....ORRRRRYoRRRRYYOOoRRRRYoRRRRrr......",".....OoRRRRYoRRRRYOOOOoRRRYoRRRRor......",".....YoRRRYYOoRRYYOOOOoRRYYOoRRRYo......","....OYOoRRYOOoRRYOOOOOoRRYOOoRRYYor.....","....rYOorYYOOOYYYOOOOOOYYYOOOorYOor.....","....YYOOYYOOOOOOOOOOOOOOOOOOOOYYOOo.....","....oOOOOOOOOOOOOOOOOOOOOOOOOOOOOoo.....",".....YOOOOOOOOOOOOOOOOOOOOOOOOOOOo......",".....ooooooooooooooooooooooooooooo......","........................................"]), px: 1.65, hand: [36,43] },
+  aristokrat: { w: 40, h: 60, cells: R([".............gggggggggggggk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............yyyyyyYYyyyyyy.............","...........ggyyyyyyYYyyyyyygk...........",".........gggxgxxxxxxxxxxxxkxxgk.........","........kgxxxkkkkkkkkkkkkkkxxxkk........",".........kkxxxxxxxxxxxxxxxxxkkk.........","...........kkkkkkkkkkkYYYkkkk...........",".............tsnnnsssYnnYsS.............",".............tsskssssYskYsS.............",".............tsskssssYskYsS.............",".............SssssssssYYsSS.............","..............SnnnnssnnnnS..............","..............nSsssssssSSn..............","................SSSSSSSS................",".................tttttS.................",".................tssssS.................","..........PPPPPPPSSSSSSPPPPqq...........","..........PQQQQQQwmmmmBQQQQqq...........","....PPPPPqPQQQQQQwmmmmBQQQQqq.PPPPPq....","....PQQQQqPQQQQQzwmmmmByQQQqq.PQQQQq....","....PQQQQqPQQQQQzBBBBBByQQQqq.PQQQQq....","....PQQQQqPQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYkkYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYkkYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....wwwwwwQQQQQQzYYkkYYyQQQQQqwwwwww....","....wwwwwwQQQQQQzYYYYYYyQQQQQqwwwwww....","....wwwwwwQQQQQQzYYYYYYyQQQQQqwwwwww....","......ttSQQQQQQQzYYYYYYyQQQQQqqttS......",".....ttssSQQQQQQyyyyyyyyQQQQQqttssS.....",".....tsssSQQQQQQQQQQQQQQQQQQQqtsssS.....",".....SssSSQQQQQQQQQQQQQQQQQQQQSssSS.....","......SSSQQQQQQQQQQQQQQQQQQQQQqSSS......",".......qqqqqqqqqqqqqqqqqqqqqqqqq........",".......qqqqqqqqqqqqqqqqqqqqqqqqq........","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","...........hhhhhhkk..khhhhhhk...........","..........hhxxxxxk....hxxxxxxk..........",".........hhxxxxxxk....hxxxxxxxk.........",".........kkkkkkkkk....kkkkkkkkk.........","........................................"]), px: 1.65, hand: [36,43] },
+  gaertnerin: { w: 40, h: 60, cells: R(["........................................","........................................","...............ttttttttN................","...............tMMMMMMMN................","..............ttMMMMMMMMN...............","..............tMMMMMMMMRN...............","..............tMMMMMMMRYR...............","..........ttttRRRRRRRRRRRRtttN..........",".......ttttMMNRRRRRRRRRRRRMMMMttN.......","......NtMMMMMMMMMMMMMMMMMMMMMMMMNN......",".......NNNMMMMMMMMMMMMMMMMMMMNNNN.......","..........NNNNNNNNNNNNNNNNNNNN..........","...........MnnttsssssssssnnNn...........","...........MnttsssssssssssnNn...........","...........MNtssssssssssssSNn...........",".........MMnNtssksssssskssSnnMn.........",".........MNNMtssksssssskssSnNNn.........",".........MNNnSSssssssssssSSnNNn.........",".........MNNnnSsssssssssSSnMNNn.........",".........MNNn.nSsssRRssSSn.MNNn.........",".........MNNn..nSSSSSSSSn..MNNn.........",".........MNNn....SSSSSS....MNNn.........","........MMNNn..............MNNNn........","........MNNNn..wwwwwwwwwB..MNNNn........","........MNNNnGGwmmmmmmmmBGGMNNNn........",".....wwwMNNNnFFBBBBBBBBBBFFMNNNnwwB.....",".....wmmMNNNnFFFFFFFFFFFFFFMNNNnmmB.....",".....wmmMNNNnFFFFFFFFFFFFFFMNNNnmmB.....",".....wmmMNNNnFFFFFFFFFFFFFFMNNNnmmB.....",".....wmmnNNNnFFFFFFFFFFFFFFMNNnnmmB.....",".....wmmmMNnnFFFFFFFFFFFFFFnNNnmmmB.....",".....wmmmRRnGFFFFFFFFFFFFFFfnRRmmmB.....",".....wmmmBFFGFFFFFFFFFFFFFFfffwmmmB.....",".....wmmmBFFNNNNNNNYYNNNNNNNffwmmmB.....",".....wmmmBFFNNNNNNNNNNNNNNNNFfwmmmB.....",".....wmmmBFFFFFFFFFFFFFFFFFFFfwmmmB.....",".....wmmmBFFFFFFFFFFFFFFFFFFFfwmmmB.....",".....BBBBBFFFFFFFFFFFFFFFFFFFfBBBBB.....","......ttSFFFFFFFFFFFFFFFFFFFFffttS......",".....ttssSFFFFFFFFFFFFFFFFFFFFttssS.....",".....tsssSFFFFFFFFFFFFFFFFFFFFtsssS.....",".....SssSSFFFFFFFFFFFFFFFFFFFFSssSS.....","......SSSFFFFFFFFFFFFFFFFFFFFFfSSS......","......GGFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......",".....GGFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......","....fffffffffffffffffffffffffffffff.....","....ffffffffffffffffffffffffffffffff....","....ffffffffffffffffffffffffffffffff....","..........MNNNNNNn....MNNNNNNn..........",".........MMNNNNNNn....MNNNNNNNn.........",".........nnnnnnnnn....nnnnnnnnn.........","........................................"]), px: 1.65, hand: [36,41] },
+};
+const NPCS2 = {
+  brumm: { w: 40, h: 60, cells: R(["........................................","........................................",".........................wwB............","........................wwmmB...........","..................OOOrr.wmmmB...........","................OOORRRROBmmBB...........","..............OOORRRRRRRrBBB............","..............ORRRRRRRRRRrr.............",".............OORRRRRRRRRRrr.............",".............ORRRRRRRRRRRrr.............","............OORRRRRRRRRRRrr.............","............rrrrrwwwwwBrrrrr............","...........wwwwwwwmmmmmwwwwwB...........",".........BBwmmmmmmmmmmmmmmmmBBB.........","...........BBBBBBmmmmmBBBBBBB...........",".............ttwwBBBBBBwwsS.............",".............tssssssssssssS.............",".............tssksssssskssS.............","............StssksRRRSskssSS............",".............tswwwwwwwwwBsS.............",".............wwwmmmmmmmmmwB.............","..........wwBwmmmmmmmmmmmmBBB...........","..........wmmBBmmmmmmmmmBBBBB...........","..........wmmmmBBBBBBBBBBmmBB...........",".........wwmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........","........wwmmmmmmmmmmmmmmmmmmmBB.........","........wmmmmmmmmmmmmmmmmmmmmBB.........","...mmmmmBmmmmmmmmmmmmmmmmmmmBBBmmmmmD...","...mBBBBDwmmmmmmmmmmmmmmmmmmBB.mBBBBD...","...mBBBBDBmmmmmmmmmmmmmmmmmBBBDmBBBBD...","...mBBBBDmBmmmmmmmmmmmmmmmBBBBDmBBBBD...","...mBBBBDBBBmmmmmmmmmmmmmBBBBBDmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...mBBBBDBBBBBBBBBBBBBBBBBBBBBBmBBBBD...","...mBBBBDBBBwBBBBBBBBBBBBBBBBBBmBBBBD...","...mBBBBDnnnnnnnnnnYYnnnnnnnnnnmBBBBD...","...mBBBBDnnnnnnnnnnYYnnnnnnnnnnmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...DDDSDDBBwwmmmmmmmmmmmmmBBBBDDDSDDD...","....ttttSBBwmmmmmmmmmmmmmmBBBBDttttS....","....tsssSBBwmmBBBBBmmmmmmmBBBDDtsssS....","...StsssSSBwmmwmmmBmmmmmmmBBDDStsssSS...","....tsssS.DwmmwmmmBmmmmmmmBBDD.tsssS....","....SSSSS..wmmwmmmBmmmmmmmBBD..SSSSS....","......S....wmmBBBBBmmmmmmmBB.....S......","...........wmmmmmmmmmmmmmmBB............","...........wmmmmmmmmmmmmmmBB............","...........BBBBBBBBBBBBBBBBB............","...........BBBBBBBBBBBBBBBBB............","...........NNNNNNxn..nNNNNNNx...........","..........NNnnnnnx....Nnnnnnnx..........",".........NNnnnnnnx....Nnnnnnnnx.........",".........xxxxxxxxx....xxxxxxxxx.........","........................................"]), px: 1.55, hand: [36,47] },
+  mira: { w: 40, h: 60, cells: R(["........................................","...................y....................","..................zzy...................",".................zzYYy..................",".............zy..zYYYy..zy..............",".............zYzzzYYYYzzzy..............",".............zYYYYYRRYYYYy..............",".............zYYYYYYYYYYYy..............",".............yyyyyyyyyyyyy..............","............MMMMMMMMMMMMMMn.............","........MMMMMNNNNNNNNNNNNNnMMnn.........","........MNNNMnnnnnnnnnnnnNnNNnn.........","........MNNNnnttsssssssssnnNNnn.........","........MMMMnttsssssssssssnMMMn.........","........MMNNntskksssssskksSMNNn.........","........MMNNntssussssssussSMNNn.........","........MMNNntssussssssussSMNNn.........","........MMNNnSsssssssssssSSMNNn.........",".......MMMNNnNSsssssssssSSNMNNnn........",".......MNMNNnNNSsssRRssSSNNMNNnn........",".......MNMNNnNNNSSSSSSSSNNNMNNnn........",".......MNMNNnNNNNtssssSNNNNMNNnn........",".......MMMNNnNNNNSSSSSSNNNNMNNNn........",".......MMNNNnNNNNNNNNNNNNNNMNNNn........","......PPMNNNnNNwwwwwwwwwBNNMNNNnPq......",".....PPQMNNNnPPwmmmmmmmmBPqMNNNnQQq.....","....PPQQMNNNnPQBBBBBBBBBBQqMNNNnQQQq....","....PQQQMNNNnPQQQQQQQQQQQQqMNNNnQQQq....","....qQQQMNNNnPQQQQQQQQQQQQqMNNNnQQqq....",".....wwwMNNNnPQQQQQQQQQQQQqMNNNnwwB.....",".....wmmMNNNnPQQQQQQQQQQQQqMNNNnmmB.....",".....wmmnNNNnPQQQQQQQQQQQQqMNNnnmmB.....",".....wmmBMNNnPQQQQQQQQQQQQqMNNnwmmB.....",".....wmmBnNNnPQQQQQQQQQQQQqMNnnwmmB.....",".....wmmBQMnnYYYYYYOOYYYYYYnNnqwmmB.....",".....wmmBQnnQYYYYYJwwUYYYYYQnnqwmmB.....",".....wmmBQQQQQQQQQJwwUQQQQQQQQqwmmB.....",".....wmmBQQQQQQQQQQFFQQQQQQQQQqwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....tttSQQQQQQQQQQQQQQQQQQQQQQtttS.....",".....tssSQQQQQQQQQQQQQQQQQQQQQQtssS.....","....StssSSQQQQQQQQQQQQQQQQQQQQStssSS....",".....tssSQQQQQQQQQQQQQQQQQQQQQQtssS.....",".....SSSSQQQQQQQQQQQQQQQQQQQQQQSSSS.....",".....PQQQQQQQQQQQQQQQQQQQQQQQQQQqq......","....PPQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","...PPQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","..qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq...","..YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY..","..YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY..","........................................"]), px: 1.55, hand: [36,43] },
+};
+const RIGS2 = {
+  nahkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.6949],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"plume","parent":"up","box":[0.4359,0,0.7179,0.1356],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.8}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":4.6,"at":0.8}]},
+  fernkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7119],"seq":[[0,0],[0,1]],"dur":2},{"id":"hood","parent":"up","box":[0.2564,0,0.7436,0.322],"seq":[[0,0],[0,0],[1,0],[1,0],[0,0],[0,0],[-1,0],[-1,0]],"dur":4.4,"under":true},{"id":"cl","parent":"up","box":[0.0769,0.4068,0.2051,0.7797],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.8,"under":true},{"id":"cr","parent":"up","box":[0.7949,0.4068,0.9231,0.7797],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.8,"phase":1.4,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":3.8,"at":1.5}]},
+  magier: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7458],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"tip","parent":"up","box":[0.359,0,0.6667,0.1356],"seq":[[0,0],[0,0],[1,0],[1,0]],"dur":2.6,"under":true},{"id":"beard","parent":"up","box":[0.3077,0.4068,0.6923,0.5932],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.6,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":5,"at":2}]},
+  pyromant: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7797],"seq":[[0,0],[0,1]],"dur":2},{"id":"hood","parent":"up","box":[0.2308,0,0.7692,0.322],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.8,"under":true},{"id":"hem","box":[0.0513,0.7966,0.9487,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":0.9,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"S","every":4.2,"at":1}],"glow":[{"letters":"Y","box":[0.359,0.2034,0.641,0.2712],"color":"w","max":0.7,"dur":1.4}]},
+  aristokrat: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7966],"seq":[[0,0],[0,1]],"dur":2.6},{"id":"hat","parent":"up","box":[0.3077,0,0.6923,0.1864],"seq":[[0,0],[0,0],[1,0],[0,0]],"dur":3.4,"under":true},{"id":"tail","parent":"up","box":[0.1538,0.7119,0.8462,0.8136],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.4,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":5,"at":1.6}]},
+  gaertnerin: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.5593],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"flower","parent":"up","box":[0.5385,0.0678,0.641,0.1356],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.8,"under":true},{"id":"bl","parent":"up","box":[0.1795,0.2712,0.3077,0.5424],"seq":[[0,0],[-1,0],[0,0]],"dur":2.6,"under":true},{"id":"br","parent":"up","box":[0.6923,0.2712,0.8205,0.5424],"seq":[[0,0],[1,0],[0,0]],"dur":2.6,"phase":1.3,"under":true},{"id":"hem","box":[0.0769,0.7458,0.9231,0.9322],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.8,"under":true}],"blink":[{"cells":[[0.4103,0.2542],[0.5897,0.2542]],"color":"s","every":4.4,"at":0.9}]},
+  brumm: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7627],"seq":[[0,0],[0,1]],"dur":2},{"id":"cap","parent":"up","box":[0.2564,0.0339,0.7436,0.2373],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3},{"id":"beard","parent":"up","box":[0.2051,0.3729,0.7949,0.661],"seq":[[0,0],[0,0],[1,0],[0,0],[-1,0],[0,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.4103,0.2881],[0.5897,0.2881]],"color":"s","every":3.6,"at":1.2}]},
+  mira: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7797],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"bl","parent":"up","box":[0.1538,0.2373,0.3077,0.7458],"seq":[[0,0],[-1,0],[0,0]],"dur":3,"under":true},{"id":"br","parent":"up","box":[0.6923,0.2373,0.8462,0.7458],"seq":[[0,0],[1,0],[0,0]],"dur":3,"phase":1.5,"under":true},{"id":"hem","box":[0.0513,0.8475,0.9487,0.9831],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.4103,0.2542],[0.5897,0.2542]],"color":"s","every":4.8,"at":0.5}]},
+};
+
+__exports.HEROES2 = HEROES2;
+__exports.NPCS2 = NPCS2;
+__exports.RIGS2 = RIGS2;
+
+});
 __define("ui/art/chars2.js", function (__exports, __require) {
+const { ENEMIES2 } = __require("ui/art/enemies2.js");
+const { HEROES2, NPCS2 } = __require("ui/art/heroes2.js");
 // Figuren in höherer Auflösung (Helden 24x36, Gegner bis 48x44). Symmetrisch gezeichnet (linke Hälfte), dazu "over" für unsymmetrische Details.
 // Farbschlüssel siehe core.js GLOBAL: g/h/i Stahl (dunkel/mittel/hell), s/S/t Haut, U/u/V Blau, f/F/G Grün, n/N/M Leder, R/r/O Rot/Orange, Y/y/z Gold.
 const S = (rows, extra = {}) => ({ rows, sym: true, ...extra });
@@ -3832,6 +4517,120 @@ const HEROES = {
     "uuuunnnnnnn.",
     ".....nnnnnn.",
   ], { over: place(24, 23, 9, gemRows(6)) }),
+  pyromant: S([
+    "............",
+    "...........r",
+    "..........rR",
+    ".........rRR",
+    "........rRRR",
+    ".......rRRRO",
+    "......rRRRRO",
+    "......rRRRRR",
+    ".....rRRrrrr",
+    ".....rRrSSSS",
+    ".....rRrSYSS",
+    ".....rRrSSSS",
+    ".....rRrSkkS",
+    "......rRrSSS",
+    "....rRRRRRRR",
+    "..rrRRRRRRRO",
+    ".rRRRRRRRRRO",
+    "rRRRRnRRRRRR",
+    "rRRRrnRRRRRR",
+    "rRRrRnRRUYRR",
+    "rRRrRnRRUYRR",
+    "rRRRrnRRRRRR",
+    "rRSSrnRRRRRR",
+    "rrSSrnRRRRRR",
+    ".rrrrnRRRRRR",
+    "..rrrnYYYYzY",
+    "...rRnRRRRRR",
+    "...rRRRRRRRR",
+    "..rrRRRRRRRO",
+    "..rRRRRRRROO",
+    ".rrRRRRRRROO",
+    ".rRRRRRRRROY",
+    "rrRRRRRROOOY",
+    "rRRRRRROOYYz",
+    "rRROOOOYYYzz",
+    "rROOYYzz....",
+  ]),
+  aristokrat: S([
+    "............",
+    "......xxxxxx",
+    "......xggxxx",
+    "......xgxxxx",
+    "......xxxxxx",
+    "......xxxxxx",
+    "......YYYYYY",
+    "....xxxxxxxx",
+    "...xxxxxxxxx",
+    ".......sssss",
+    ".......sskss",
+    ".......sssSS",
+    "......nNnnnn",
+    ".......sSSss",
+    "......wwwwww",
+    "...qQQQQQQww",
+    "..qQQQQQQQww",
+    ".qQQPQQQQYww",
+    "qQQPPQQQQYww",
+    "qQQPQQQQYYww",
+    "qQQQQQQQYyww",
+    "qQSSQQQQYyww",
+    "qqSSqQQQYyww",
+    ".qqqqQQQYyww",
+    "..qqQQQQYYww",
+    "...qQQQQQQQQ",
+    "...qQQQQQQQq",
+    "..qQQQQQQQQQ",
+    "..qqQQQQQQQQ",
+    "...xxxxxxxx.",
+    "...xgxxxxxx.",
+    "...xxxxxxxx.",
+    "...xxxxxxxx.",
+    "...xgxxxxxx.",
+    "..kkkkkkkkk.",
+    "..kwkkkkkkk.",
+  ]),
+  gaertnerin: S([
+    "............",
+    "...........R",
+    "..........RY",
+    ".......MMMMM",
+    "......MMMMMM",
+    "......MMMMMM",
+    "......FFFFFF",
+    ".MMMMMMMMMMM",
+    "MMmmMMMMMMMM",
+    "....nnssssss",
+    "....nnssksss",
+    "....nnsssSSs",
+    "....nNsssssR",
+    "....nNssssss",
+    "...nNmmmmmmm",
+    "...nNmmmmmmm",
+    ".mmmnFFFFFFF",
+    "mmmmnFFGFFFF",
+    "mmmmmFFGFFFF",
+    "mmmmmFFFFFFF",
+    "mmmmmFFFFFYY",
+    "mmSSmFFFFFYR",
+    ".mSSmFFFFFFF",
+    "..mmmFFfFFFF",
+    "...nnfFFFFFF",
+    "...nffffffff",
+    "..FFFFFFFFFF",
+    "..FFGFFFFFFF",
+    ".FFFGFFFFGFF",
+    ".FFFFFFFFGFF",
+    "FFFFFFFFFFFF",
+    "ffffffffffff",
+    "....nnnnnnn.",
+    "....nNnnnnn.",
+    "...nnnnnnnn.",
+    "..kkkkkkkkk.",
+  ]),
 };
 
 const NPCS = {
@@ -4317,6 +5116,9 @@ const ENEMIES = {
 // Vergrößerung je Gegner (Sprite-Pixel -> Szenen-Einheiten). Die Ratte ist klein, der Boss groß.
 const ENEMY_SCALE = { ratte: 1.9, goblin: 2.15, skelett: 2.05, bandit: 1.95, steingolem: 2.5, knochenhauptmann: 2.6, glutgeist: 1.95, frostwolf: 1.95, dornenranke: 2.15, flussgeist: 2.25, sumpfgeist: 2.15, funke: 2.4, elementarwandler: 2.5 };
 
+Object.assign(HEROES, HEROES2); Object.assign(NPCS, NPCS2);          // neue Figuren (tools/figures/heroes.mjs) ersetzen die alten gleichen Namens
+Object.assign(ENEMIES, ENEMIES2);          // neue Gegner (tools/figures/enemies.mjs)
+
 __exports.gemRows = gemRows;
 __exports.place = place;
 __exports.HEROES = HEROES;
@@ -4337,6 +5139,8 @@ const sway = (id, parent, box, dur, dir = 1, extra = {}) => ({ id, parent, box, 
 const U = { under: true };                                   // feste Kopie darunter (keine Löcher)
 const flick = (id, parent, box, dur, extra = {}) => ({ id, parent, box, seq: [Z, [0, 1], Z, Z], dur, ...extra });
 
+const { RIGS2 } = __require("ui/art/heroes2.js");
+const { RIGS3 } = __require("ui/art/enemies2.js");
 const RIGS = {
   // ---------------- Helden
   nahkaempfer: {   // schwer und ruhig: tiefes Atmen, Helmbusch weht
@@ -4355,6 +5159,22 @@ const RIGS = {
       { id: "tip", parent: "up", box: [8, 0, 15, 6], seq: [Z, Z, [1, 0], [1, 0]], dur: 2.6, ...U },
       { id: "beard", parent: "up", box: [6, 14, 17, 22], seq: [Z, Z, [1, 0], Z, Z, [-1, 0]], dur: 3.6, ...U }],
     blink: [{ cells: [[9, 12], [14, 12]], color: "s", every: 5.0, at: 2.0 }],
+  },
+  pyromant: {      // flackernd: Kapuze schwankt, der Saum brennt, die Augen glühen
+    regions: [breathe("up", [0, 0, 23, 27], 2.0), { id: "hood", parent: "up", box: [4, 0, 19, 13], seq: [Z, Z, [1, 0], Z, Z, [-1, 0]], dur: 3.8, ...U },
+      sway("hem", null, [0, 30, 23, 35], 0.9)],
+    blink: [{ cells: [[9, 10], [14, 10]], color: "S", every: 4.2, at: 1.0 }],
+    glow: [{ letters: "Y", box: [8, 9, 15, 10], color: "w", max: 0.7, dur: 1.4 }],
+  },
+  aristokrat: {    // vornehm: ruhig, Zylinder wippt leicht, Mantelschöße schwingen
+    regions: [breathe("up", [0, 0, 23, 28], 2.6), { id: "hat", parent: "up", box: [3, 0, 20, 8], seq: [Z, Z, [1, 0], Z], dur: 3.4, ...U }, sway("tail", "up", [0, 25, 23, 28], 2.4, 1, U)],
+    blink: [{ cells: [[9, 10], [14, 10]], color: "s", every: 5.0, at: 1.6 }],
+  },
+  gaertnerin: {    // sanft: Blume und Zöpfe schwingen, der Rock weht
+    regions: [breathe("up", [0, 0, 23, 25], 2.2), sway("flower", "up", [10, 1, 13, 2], 1.8, 1, U),
+      { id: "bl", parent: "up", box: [3, 9, 5, 24], seq: [Z, [-1, 0], Z], dur: 2.6, ...U }, { id: "br", parent: "up", box: [18, 9, 20, 24], seq: [Z, [1, 0], Z], dur: 2.6, phase: 1.3, ...U },
+      sway("hem", null, [0, 26, 23, 31], 2.8)],
+    blink: [{ cells: [[9, 10], [14, 10]], color: "s", every: 4.4, at: 0.9 }],
   },
   // ---------------- NPCs
   brumm: {
@@ -4441,6 +5261,9 @@ const RIGS = {
     glow: [{ letters: "ew", color: "w", max: 0.6, dur: 1.4 }],
   },
 };
+
+Object.assign(RIGS, RIGS2);          // Animationen der neuen Figuren (in Anteilen, rel: true)
+Object.assign(RIGS, RIGS3);          // Animationen der neuen Gegner
 
 __exports.RIGS = RIGS;
 
@@ -4541,9 +5364,12 @@ const { pixels, toSvg, parse } = __require("ui/art/core.js");
 const { PALETTES } = __require("ui/art/palettes.js");
 const { SHAPES, MARKS, ITEM_ART } = __require("ui/art/shapes.js");
 const { WEAPON_SHAPES, WEAPON_ASYM, WEAPON_ART } = __require("ui/art/weapons.js");
+const { WEAPONS2 } = __require("ui/art/weapons2.js");
+const { CARDS2 } = __require("ui/art/cards2.js");
+const { SHAPES2 } = __require("ui/art/items2.js");
 const { HEROES, NPCS, ENEMIES, ENEMY_SCALE } = __require("ui/art/chars2.js");
 const { RIGS } = __require("ui/art/rigs.js");
-const rigged = (def, id) => (RIGS[id] ? { ...def, rig: RIGS[id] } : def);   // Idle-Animation anhängen
+const rigged = (def, id) => (def.rig ? def : RIGS[id] ? { ...def, rig: RIGS[id] } : def);   // Idle-Animation: eigene (def.rig) oder aus rigs.js
 const { ALL_ICONS } = __require("ui/art/icons.js");
 
 
@@ -4551,10 +5377,11 @@ const pal = (p) => (typeof p === "string" ? PALETTES[p] : p);
 
 function itemPixels(id, opts = {}) {
   const [shape, palette, mark] = ITEM_ART[id];
-  return pixels(SHAPES[shape], { pal: PALETTES[palette], mark: mark ? MARKS[mark] : null, ...opts });
+  return pixels(SHAPES2[shape] ?? SHAPES[shape], { pal: PALETTES[palette], mark: mark ? MARKS[mark] : null, ...opts });      // neue Formen (tools/figures/items.mjs) vor den alten
 }
 const WEAPON_IDS = Object.keys(WEAPON_ART);
 function weaponPixels(id, opts = {}) {
+  if (WEAPONS2[id]) return pixels(WEAPONS2[id], opts);                  // neue Waffen (tools/figures/weapons.mjs) ersetzen die alten gleichen Namens
   const a = WEAPON_ART[id];
   const def = a.shape ? WEAPON_SHAPES[a.shape] : { rows: Array.isArray(WEAPON_ASYM[a.asym]) ? WEAPON_ASYM[a.asym] : WEAPON_ASYM[a.asym].rows };
   return pixels(def, { pal: pal(a.pal), ...opts });
@@ -4563,6 +5390,8 @@ const HERO_IDS = [...Object.keys(HEROES), ...Object.keys(NPCS)];
 const heroPixels = (id, opts = {}) => pixels(rigged(HEROES[id] ?? NPCS[id], id), opts);
 const ENEMY_IDS = Object.keys(ENEMIES);
 const enemyPixels = (id, opts = {}) => pixels(rigged(ENEMIES[id], id), opts);
+const CARD_ART_IDS = Object.keys(CARDS2);
+const cardPixels = (id, opts = {}) => pixels(CARDS2[id], opts);          // Kartenmotive (tools/figures/cards.mjs)
 const ICON_IDS = Object.keys(ALL_ICONS);
 const iconPixels = (id, opts = {}) => pixels(ALL_ICONS[id], opts);
 
@@ -4578,6 +5407,7 @@ function pxOf(kind, id, o = {}) {
       const pal = o.element && PALETTES[o.element] ? { ...PALETTES[o.element], e: "#ffe58a" } : undefined;
       return enemyPixels(id, { ...base, ...(pal ? { pal } : {}) });
     }
+    case "card": return cardPixels(id, base);
     case "icon": return iconPixels(id, { ...base, ...(o.pal ? { pal: o.pal } : {}) });
     default: throw new Error(`Unbekannte Grafik-Art: ${kind}`);
   }
@@ -4590,6 +5420,33 @@ function spr(kind, id, o = {}) {
   return s;
 }
 const sprSize = (kind, id, o = {}) => { const p = pxOf(kind, id, o); return { w: p.w, h: p.h }; };
+
+// ---------------- Anzeige-Parameter der Figuren (Stufe 1 des Grafik-Umbaus)
+// Jede Figur darf in ihrer Definition (chars2.js) eigene Werte tragen; ohne Angabe gelten die bisherigen Standardwerte, damit sich nichts ändert:
+//   px      Szenen-Einheiten je Kunst-Pixel im Kampf (EINE gemeinsame Pixelgröße je Figurengruppe ist das Ziel)
+//   introPx dasselbe in der Geschichte (Standard: etwas größer, im Verhältnis wie bisher)
+//   hand    Handposition in Sprite-Pixeln [x, y] (Standard: Anteile der Spritegröße); Waffen: px und grip [x, y] (Standard: Mitte, unteres Ende)
+const LEGACY = { heroPx: 2.45, introFactor: 2.9 / 2.45, npcPx: 2.6, weaponPx: 2.9, enemyPx: 3, hand: { nahkaempfer: [22, 27], fernkaempfer: [22, 22], magier: [22, 25], pyromant: [22, 24], aristokrat: [22, 23], gaertnerin: [22, 23] } };
+const heroDef = (id) => HEROES[id] ?? NPCS[id];
+const heroPx = (id, mode = "combat") => { const d = heroDef(id); return mode === "intro" ? (d.introPx ?? Number(((d.px ?? LEGACY.heroPx) * LEGACY.introFactor).toFixed(3))) : (d.px ?? LEGACY.heroPx); };
+const npcPx = (id) => NPCS[id]?.px ?? LEGACY.npcPx;
+// Breite in Szenen-Einheiten für die Anordnung: nur Gegner mit eigener Pixelgröße (neue Grafik) zählen, die heutigen sind so schmal, dass sie nie eingreifen
+const enemyFootprint = (id) => (ENEMIES[id]?.px ? sprSize("enemy", id).w * ENEMIES[id].px : 0);
+const enemyPx = (id) => ENEMIES[id]?.px ?? ENEMY_SCALE[id] ?? LEGACY.enemyPx;
+function handOf(id) {
+  const d = heroDef(id);
+  if (d?.hand) return d.hand;
+  if (LEGACY.hand[id]) return LEGACY.hand[id];
+  const { w, h } = sprSize("hero", id);
+  return [Math.round(w * 0.92), Math.round(h * 0.72)];
+}
+const weaponPx = (id) => WEAPONS2[id]?.px ?? WEAPON_ART[id]?.px ?? LEGACY.weaponPx;
+function weaponGrip(id) {
+  const g = WEAPONS2[id]?.grip ?? WEAPON_ART[id]?.grip;
+  if (g) return g;
+  const { w, h } = sprSize("weapon", id);
+  return [w / 2, Math.round(h * 0.88)];                    // bisherige Waffen (10x18): [5, 16]
+}
 
 // Welches Symbol zeigt eine Karte? (Element, Typ, Wirkung)
 const ELEMENT_ICON = { feuer: "flame", wasser: "water", pflanze: "leaf", eis: "snow" };
@@ -4619,10 +5476,19 @@ __exports.HERO_IDS = HERO_IDS;
 __exports.heroPixels = heroPixels;
 __exports.ENEMY_IDS = ENEMY_IDS;
 __exports.enemyPixels = enemyPixels;
+__exports.CARD_ART_IDS = CARD_ART_IDS;
+__exports.cardPixels = cardPixels;
 __exports.ICON_IDS = ICON_IDS;
 __exports.iconPixels = iconPixels;
 __exports.spr = spr;
 __exports.sprSize = sprSize;
+__exports.heroPx = heroPx;
+__exports.npcPx = npcPx;
+__exports.enemyFootprint = enemyFootprint;
+__exports.enemyPx = enemyPx;
+__exports.handOf = handOf;
+__exports.weaponPx = weaponPx;
+__exports.weaponGrip = weaponGrip;
 __exports.cardIconId = cardIconId;
 __exports.elementIconId = elementIconId;
 
@@ -4636,7 +5502,7 @@ const elementName = (id) => CONTENT.elements[id]?.name ?? id;
 
 // Status -> [Symbol-ID, Name]
 const STATUS = {
-  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"],
+  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"], frost: ["snow", "Kälte"], eingefroren: ["snow", "Eingefroren"],
 };
 const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
 const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
@@ -4656,7 +5522,7 @@ __define("ui/widgets.js", function (__exports, __require) {
 // Wiederverwendbare Bausteine als HTML-Strings: Symbole, Karten, Items, Balken, Logo. Keine Emojis, alles aus ui/art.
 const { CONTENT } = __require("content/index.js");
 const { computeDamage } = __require("engine/modifiers.js");
-const { spr, cardIconId, elementIconId } = __require("ui/art/index.js");
+const { spr, cardIconId, elementIconId, CARD_ART_IDS } = __require("ui/art/index.js");
 const { esc, describeItem, describeWeapon } = __require("ui/util.js");
 const { elementColor, STATUS, RARITY } = __require("ui/theme.js");
 
@@ -4687,6 +5553,7 @@ function cardChips(def, build, playsBefore = 0, ctx = {}) {
     else if (a.action === "energy") raw.push(["bolt", String(a.value)]);
     else if (a.action === "heal") raw.push(["heart", String(a.value)]);
     else if (a.action === "maxHpUp") raw.push(["heart", `+${a.value}`]);
+    else if (a.action === "gainGold") raw.push(["coin", `+${a.value}`]);
     else if (a.action === "payGoldPct") raw.push(["coin", `-${Math.round(a.value * 100)}%`]);
   }
   const merged = [], seen = new Map();
@@ -4700,7 +5567,9 @@ function cardHtml(def, o = {}) {
   const rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
   const chips = o.build ? cardChips(def, o.build, o.plays ?? 0, o.ctx ?? {}) : [];
   const icon = cardIconId(def);
-  const art = spr("icon", icon, { shiny: def.shiny, attrs: 'width="100%" height="100%"' });
+  const baseId = def.id.replace(/:s$/, "");
+  const art = CARD_ART_IDS.includes(baseId) ? spr("card", baseId, { shiny: def.shiny, attrs: 'width="100%" height="100%"' })        // eigenes Motiv der Karte
+    : spr("icon", icon, { shiny: def.shiny, attrs: 'width="100%" height="100%"' });
   const glow = `rgba(${[1, 3, 5].map((i) => parseInt(el.slice(i, i + 2), 16)).join(",")},.38)`;
   return `<div class="card ${o.size ?? "sm"} ${def.shiny ? "shiny sh" : ""} ${o.selected ? "sel" : ""} ${o.dim ? "dim" : ""}" style="--el:${el};--rar:${rar[1]};--elg:${glow}"${o.action ? at(o.action, o.arg, o.arg2) : ""}>
     <div class="c-top"><span class="c-cost">${ico("bolt", 12)}${def.cost}</span><span class="c-name">${esc(def.name)}</span></div>
@@ -4829,7 +5698,7 @@ function lockHint(def) {
 
 function cosmeticsView(ui) {
   const meta = ui.meta, frame = activeFrame(meta);
-  const heroes = Object.values(CONTENT.classes).map((cl) => {
+  const heroes = Object.values(CONTENT.classes).filter((cl) => Object.values(CONTENT.skins).some((s) => s.hero === cl.id)).map((cl) => {
     const cur = activeSkin(meta, cl.id);
     const chips = [`<span class="chip ${cur === "default" ? "on" : ""}"${at("pick-skin", cl.id, "default")}>Standard</span>`,
       ...Object.values(CONTENT.skins).filter((s) => s.hero === cl.id).map((s) => meta.unlocked[`skins/${s.id}`]
@@ -4892,17 +5761,19 @@ const GLOSSARY = {
   verbrennung: ["Verbrennung", "Am Ende der Gegnerrunde Schaden in Höhe der Stapel (ignoriert Block), danach halbieren sich die Stapel."],
   fromMissingHp: ["Fehlende HP", "Der Schaden hängt davon ab, wie viele Lebenspunkte dir zum Maximum fehlen."],
   hpLost:     ["HP verloren", "Zählt alle HP, die seit Beginn deines Zuges verloren gingen, auch durch eigene Karten und Items."],
+  frost:      ["Kälte", "Sammelt sich beim Gegner. Bei 3 Stapeln friert er ein und überspringt seine nächste Aktion (der Endboss und Feuerwesen sind immun)."],
   aussetzen:  ["Aussetzen", "Der Gegner überspringt diese Runde seine Aktion. Bosse sind unbestechlich."],
   lifesteal:  ["Lebensraub", "Du heilst dich um den tatsächlich verursachten Schaden (Block des Ziels zählt nicht)."],
   kopfgeld:   ["Kopfgeld", "Tötet genau diese Karte den Gegner, erhältst du sofort das Gold."],
   maxHp:      ["Max-HP", "Dauerhaft bis zum Ende des Runs; die aktuellen HP steigen mit."],
   geheilt:    ["Geheilt", "Zählt auch, wenn die Heilung durch einen Effekt (z. B. Nekromanten-Pakt) verhindert wurde."],
+  verbrauchen: ["Verbrauchen", "Nach dem Spielen ist die Karte für den Rest dieses Kampfes weg. Im nächsten Kampf ist sie wieder da."],
   fromBlock:  ["Schaden aus Block", "Der Schaden hängt von deinem aktuellen Block ab. Der Block bleibt erhalten."],
   loseHp:     ["HP verlieren", "Kostet HP, aber nie die letzte: mindestens 1 HP bleibt. Zählt nicht als erlittener Schaden."],
   reaktion:   ["Reaktion", "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus."],
   block:      ["Block", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges."],
 };
-const ORDER = ["gift", "blutung", "verbrennung", "aussetzen", "lifesteal", "kopfgeld", "geheilt", "maxHp", "verwundbar", "markiert", "ausweichen", "dornen", "fromBlock", "fromMissingHp", "hpLost", "loseHp", "reaktion", "block"];
+const ORDER = ["verbrauchen", "gift", "blutung", "verbrennung", "frost", "aussetzen", "lifesteal", "kopfgeld", "geheilt", "maxHp", "verwundbar", "markiert", "ausweichen", "dornen", "fromBlock", "fromMissingHp", "hpLost", "loseHp", "reaktion", "block"];
 
 // Welche Begriffe kommen auf dieser Karte vor? (höchstens max, in fester Reihenfolge der Wichtigkeit)
 function keywordsOf(def, max = 3) {
@@ -4919,6 +5790,7 @@ function keywordsOf(def, max = 3) {
     if (a.action === "loseHp") found.add("loseHp");
     if (a.action === "block") found.add("block");
   }
+  if (def.exhaust) found.add("verbrauchen");
   if (def.element) found.add("reaktion");
   const list = ORDER.filter((k) => found.has(k));
   const rest = list.filter((k) => k !== "block");                 // Block ist Grundwissen: nur zeigen, wenn sonst nichts zu erklären ist
@@ -5075,16 +5947,14 @@ __define("ui/scene.js", function (__exports, __require) {
 // Virtuelle Größe 400x216, wird vom Browser auf Quer- und Hochformat skaliert.
 const { CONTENT } = __require("content/index.js");
 const { aliveEnemies, intentOf } = __require("engine/combat.js");
-const { spr, sprSize, ENEMY_SCALE, cardIconId, elementIconId } = __require("ui/art/index.js");
+const { spr, sprSize, heroPx, npcPx, enemyPx, enemyFootprint, handOf, weaponPx, weaponGrip, cardIconId, elementIconId } = __require("ui/art/index.js");
 const { esc, skinPal } = __require("ui/util.js");
 const { elementColor, STATUS } = __require("ui/theme.js");
 const { backdrop, BIOMES } = __require("ui/backdrop.js");
 
 const W = 400, H = 232;
-const HERO = { x: 78, feet: 192, scale: 2.45 };
-// Handposition (in Sprite-Pixeln) und Griffpunkt der Waffe (Sprite 10x18 mit Rand)
-const HAND = { nahkaempfer: [22, 27], fernkaempfer: [22, 22], magier: [22, 25] };
-const GRIP = [5, 16], WEAPON_SCALE = 2.9;
+const HERO = { x: 78, feet: 192 };
+// Größe, Handposition und Waffengriff kommen aus den Figurendaten (ui/art/index.js: heroPx, handOf, weaponPx, weaponGrip), nicht mehr aus festen Zahlen hier
 // Haltung der Waffe nach ihrer Art (nicht nach der Klasse des Trägers): Bogen fast senkrecht, Stab leicht schräg, Klinge schräg
 const wkind = (id) => { const t = CONTENT.get("weapons", id).tags; return t.includes("fernkampf") ? "fernkaempfer" : t.includes("zauber") ? "magier" : "nahkaempfer"; };
 // Jede Gegnerart bewegt sich anders im Leerlauf: Geister schweben, Golems stampfen, Ratten hüpfen ...
@@ -5110,9 +5980,24 @@ function layoutEnemies(enemies) {
   enemies.forEach((e, i) => {
     const row = two ? i % 2 : 0, col = two ? Math.floor(i / 2) : i;
     const x = zoneL + ((col + 0.5) * zoneW) / cols + (two && row ? 12 : 0);
-    const big = sprSize("enemy", e.id).h * (ENEMY_SCALE[e.id] ?? 3) > 100;
+    const big = sprSize("enemy", e.id).h * enemyPx(e.id) > 100;
     out[e.uid] = { x: Math.min(x, W - 30), y: two ? (row ? 198 : 184) : big ? 196 : 192, order: row };
   });
+  // Breite Figuren (neue Grafik) dürfen sich höchstens zu 40 % überdecken: in jeder Reihe von links nach rechts nachrücken, bei Platzmangel nach links ausweichen.
+  // Die heutigen Gegner sind so schmal, dass sich dadurch nichts ändert.
+  for (const row of two ? [0, 1] : [0]) {
+    const list = enemies.filter((_, i) => (two ? i % 2 : 0) === row);
+    const half = (e) => enemyFootprint(e.id) / 2;
+    for (let j = 1; j < list.length; j++) {
+      const need = 0.6 * (half(list[j - 1]) + half(list[j]));
+      if (out[list[j].uid].x - out[list[j - 1].uid].x < need) out[list[j].uid].x = out[list[j - 1].uid].x + need;
+    }
+    const last = list.at(-1);
+    if (last) {
+      const over = out[last.uid].x + half(last) - (W - 6);
+      if (over > 0) list.forEach((e) => { out[e.uid].x -= over; });
+    }
+  }
   return out;
 }
 
@@ -5134,7 +6019,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const b = BIOMES[biomeFor(run)];
   const tl = timeline(fx);
   const layout = layoutEnemies(c.enemies);
-  const heroPx = { x: HERO.x, y: HERO.feet };
+  const heroPos = { x: HERO.x, y: HERO.feet };
   const killed = new Set(fx.filter((e) => e.t === "kill").map((e) => e.uid));
   const summoned = new Set(fx.filter((e) => e.t === "summon").map((e) => e.uid));
 
@@ -5176,17 +6061,17 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const anim = (uid, key, cls) => (A[uid]?.[key] !== undefined ? ` ${cls}` : "");
 
   // ---- Held
-  const cls = run.classId, sz = sprSize("hero", cls), hs = HERO.scale;
-  const [hx, hy] = HAND[cls] ?? [15, 16];
+  const cls = run.classId, sz = sprSize("hero", cls), hs = heroPx(cls);
+  const [hx, hy] = handOf(cls);
   const wid = run.weapon.replace(/:s$/, "");        // Chrom-Waffen haben die ID "x:s", die Grafik kennt nur "x"
-  const wsz = sprSize("weapon", wid);
+  const wsz = sprSize("weapon", wid), wp = weaponPx(wid), [wgx, wgy] = weaponGrip(wid);
   const hx0 = HERO.x - (sz.w * hs) / 2, hy0 = HERO.feet - sz.h * hs;
   const wpn = CONTENT.get("weapons", run.weapon);
   const hero = `<g class="pos" transform="translate(${hx0} ${hy0})"><g class="mover${enter ? " enter-l" : ""}${anim("hero", "strike", ` strike-${play?.style ?? "slash"}`)}" ${del("hero", "strike")}>
       <ellipse cx="${(sz.w * hs) / 2}" cy="${sz.h * hs - 1}" rx="${sz.w * hs * 0.4}" ry="5" fill="#000" opacity=".42"/><g class="flash${anim("hero", "hurt", " hurtflash")}" ${del("hero", "hurt")}><g class="shake${anim("hero", "hurt", " hurtshake")}" ${del("hero", "hurt")}><g class="bob ${cls === "magier" ? "mv-hover" : "mv-none"}">
       ${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * hs}" height="${sz.h * hs}"` })}
       <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${wkind(run.weapon)}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
-        <g transform="translate(${-GRIP[0] * WEAPON_SCALE} ${-GRIP[1] * WEAPON_SCALE})">${spr("weapon", wid, { shiny: wpn.shiny, attrs: `width="${wsz.w * WEAPON_SCALE}" height="${wsz.h * WEAPON_SCALE}"` })}</g></g></g>
+        <g transform="translate(${-wgx * wp} ${-wgy * wp})">${spr("weapon", wid, { shiny: wpn.shiny, attrs: `width="${wsz.w * wp}" height="${wsz.h * wp}"` })}</g></g></g>
       </g></g></g></g></g>`;
   // Heldenwerte unter den Füßen
   const P = c.player;
@@ -5198,7 +6083,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const entList = [...c.enemies].sort((a, bb) => layout[a.uid].y - layout[bb.uid].y).map((e) => {
     const p = layout[e.uid], def = CONTENT.enemies[e.id], m = def.mechanics ?? {};
     const el = m.rotateElement ? e.elements[0] : null;
-    const s = ENEMY_SCALE[e.id] ?? 3, z = sprSize("enemy", e.id, { element: el });
+    const s = enemyPx(e.id), z = sprSize("enemy", e.id, { element: el });
     const w = z.w * s, h = z.h * s, x0 = p.x - w / 2, y0 = p.y - h;
     const dead = e.hp <= 0, dying = dead && killed.has(e.uid);
     const target = targetable.has(e.uid) && !dead;
@@ -5211,7 +6096,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
     const shadow = `<ellipse cx="${w / 2}" cy="${h - 1}" rx="${w * 0.42}" ry="4.5" fill="#000" opacity=".42"/>`;
     const sts = Object.entries(e.statuses).filter(([, v]) => v > 0).slice(0, 4);
     const ibox = intent ? `<g transform="translate(${p.x - 18} ${y0 - 17})"><rect width="36" height="14" rx="3" fill="#17121f" stroke="${intent.type === "attack" ? "#c73c3c" : "#4a7fd0"}" stroke-width="1.5"/>
-        ${icon(intent.type === "attack" ? "sword" : intent.type === "skip" ? "wind" : "shield", 3, 2, 1)}${text(intent.type === "attack" ? `${intent.value}${(intent.hits ?? 1) > 1 ? "x" + intent.hits : ""}` : intent.type === "skip" ? "Aus" : String(intent.value), 15, 11, "int")}</g>` : "";
+        ${icon(intent.type === "attack" ? "sword" : intent.type === "skip" ? (intent.frozen ? "snow" : "wind") : "shield", 3, 2, 1)}${text(intent.type === "attack" ? `${intent.value}${(intent.hits ?? 1) > 1 ? "x" + intent.hits : ""}` : intent.type === "skip" ? (intent.frozen ? "Eis" : "Aus") : String(intent.value), 15, 11, "int")}</g>` : "";
     const platesTxt = m.plates && !dead ? `<g transform="translate(${p.x - 22} ${y0 - 33})"><rect width="44" height="13" rx="3" fill="#17121f" stroke="#8fa3b8"/>${icon("shield", 2, 1, 1)}${text(e.plates > 0 ? `Platten ${e.plates}` : "gebrochen", 14, 10, "plt")}</g>` : "";
     const rot = m.rotateElement && !dead ? `<g transform="translate(${p.x + 22} ${y0 - 17})"><rect width="38" height="14" rx="3" fill="#17121f" stroke="#c9b8ff" stroke-width="1.5"/>${icon(elementIconId(e.nextElement), 3, 2, 1)}${text(`in ${Math.max(1, m.rotateElement.every - e.rotTimer)}`, 14, 11, "int")}</g>` : "";
     const elIcon = (e.elements ?? []).slice(0, 2).map((el2, i) => icon(elementIconId(el2), p.x - bw / 2 - 12 - i * 11, p.y + 1, 1)).join("");
@@ -5243,13 +6128,13 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
 
 // ---------------------------------------------------------------- Intro (Geschichte): Held steht links, Figur kommt von rechts herein
 function introScene({ run, speaker, first, ext = 0 }) {   // die Sprechblase zeichnet storyView als Fenster darüber
-  const b = BIOMES[0], cls = run.classId, sz = sprSize("hero", cls), s = 2.9;
-  const npc = sprSize("npc", speaker.id), ns = 2.6;
+  const b = BIOMES[0], cls = run.classId, sz = sprSize("hero", cls), s = heroPx(cls, "intro");
+  const npc = sprSize("npc", speaker.id), ns = npcPx(speaker.id);
   const hx = 90, hfeet = 190, nx = 270;
-  const wid = run.weapon.replace(/:s$/, ""), wsz = sprSize("weapon", wid), [hx2, hy2] = HAND[cls] ?? [15, 16];
+  const wid = run.weapon.replace(/:s$/, ""), wsz = sprSize("weapon", wid), [hx2, hy2] = handOf(cls), wp = weaponPx(wid), [wgx, wgy] = weaponGrip(wid);
   return `<svg class="scene-svg" viewBox="${-ext} 0 ${W + 2 * ext} ${H}" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Geschichte">${backdrop(b, "i", { ext })}
     <g class="pos" transform="translate(${hx - (sz.w * s) / 2} ${hfeet - sz.h * s})"><g class="bob mv-none">${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * s}" height="${sz.h * s}"` })}
-      <g transform="translate(${hx2 * s} ${hy2 * s})"><g class="wpn idle-wpn"><g transform="translate(${-GRIP[0] * WEAPON_SCALE} ${-GRIP[1] * WEAPON_SCALE})">${spr("weapon", wid, { shiny: CONTENT.get("weapons", run.weapon).shiny, attrs: `width="${wsz.w * WEAPON_SCALE}" height="${wsz.h * WEAPON_SCALE}"` })}</g></g></g></g></g>
+      <g transform="translate(${hx2 * s} ${hy2 * s})"><g class="wpn idle-wpn"><g transform="translate(${-wgx * wp} ${-wgy * wp})">${spr("weapon", wid, { shiny: CONTENT.get("weapons", run.weapon).shiny, attrs: `width="${wsz.w * wp}" height="${wsz.h * wp}"` })}</g></g></g></g></g>
     <g class="pos" transform="translate(${nx - (npc.w * ns) / 2} ${hfeet - npc.h * ns})"><g class="mover${first ? " enter-npc" : ""}"><g class="bob mv-none">${spr("npc", speaker.id, { attrs: `width="${npc.w * ns}" height="${npc.h * ns}"` })}</g></g></g>
   </svg>`;
 }
@@ -5260,10 +6145,10 @@ const menuBackdrop = (ext = 0) => `<svg class="scene-svg" viewBox="${-ext} 0 ${W
 
 // Held mit Waffe in der Hand als Standbild (Auswahl, Vorschau)
 function heroPortrait(cls, weaponId, skinId = "default") {
-  const sz = sprSize("hero", cls), [hx, hy] = HAND[cls] ?? [15, 16], wsz = sprSize("weapon", weaponId), ws = WEAPON_SCALE / HERO.scale;
+  const sz = sprSize("hero", cls), [hx, hy] = handOf(cls), wsz = sprSize("weapon", weaponId), ws = weaponPx(weaponId) / heroPx(cls), [wgx, wgy] = weaponGrip(weaponId);
   return `<svg class="portrait" viewBox="0 0 ${sz.w + 10} ${sz.h}" shape-rendering="crispEdges" role="img" aria-label="${esc(cls)}">
     ${spr("hero", cls, { pal: skinPal(skinId), attrs: `x="0" y="0" width="${sz.w}" height="${sz.h}"` })}
-    <g transform="translate(${hx} ${hy}) rotate(16)"><g transform="translate(${-GRIP[0] * ws} ${-GRIP[1] * ws})">${spr("weapon", weaponId, { attrs: `width="${wsz.w * ws}" height="${wsz.h * ws}"` })}</g></g></svg>`;
+    <g transform="translate(${hx} ${hy}) rotate(16)"><g transform="translate(${-wgx * ws} ${-wgy * ws})">${spr("weapon", weaponId, { attrs: `width="${wsz.w * ws}" height="${wsz.h * ws}"` })}</g></g></svg>`;
 }
 
 __exports.cardIconId = cardIconId;
@@ -5282,10 +6167,10 @@ const { keywordsOf } = __require("ui/glossary.js");
 const { CONTENT } = __require("content/index.js");
 const { CONFIG } = __require("data/config.js");
 const { aliveEnemies, activeItems } = __require("engine/combat.js");
-const { availableNodes, buildOf, currentLayer, restHealAmount } = __require("engine/run.js");
+const { availableNodes, buildOf, currentLayer, restHealAmount, restPct } = __require("engine/run.js");
 const { findNode } = __require("engine/map.js");
 const { tagCount } = __require("engine/modifiers.js");
-const { maxDifficulty, describeUnlock } = __require("engine/meta.js");
+const { maxDifficulty, describeUnlock, isUnlocked } = __require("engine/meta.js");
 const { dexProgress } = __require("engine/dex.js");
 const { storyLines, storySpeaker } = __require("engine/story.js");
 const { esc, needsTarget, describeWeapon, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
@@ -5315,8 +6200,9 @@ function titleView(ui) {
     <div class="title-body"><div class="title-l">${logo()}<div class="tag">Ein Deckbuilder-Roguelite</div></div>
       <div class="title-r"><div class="menu-buttons">${ui.hasSave ? btn("Run fortsetzen", "continue", undefined, { cls: "good big" }) : ""}
         ${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}</div>
-        <div class="row wrap center">${btn("Vollbild", "fullscreen", undefined, { cls: "small" })}${btn(`Anzeige: ${SIZE_NAMES[m.settings.size ?? "gross"]}`, "cycle-size", undefined, { cls: "small" })}</div>
-        <div class="muted center small">Siege ${m.wins} · Runs ${m.runs} · Shinys ${Object.keys(m.dex.shiny).length}</div></div></div></div>`;
+        <div class="row wrap center">${btn("Einstellungen", "open-settings", undefined, { cls: "small" })}</div>
+        <div class="muted center small">Siege ${m.wins} · Runs ${m.runs} · Shinys ${Object.keys(m.dex.shiny).length}</div>
+        <div class="muted center small">Version ${esc(CONFIG.version)}</div></div></div></div>`;
 }
 
 // ---------------------------------------------------------------- Charakter- und Waffenwahl
@@ -5324,18 +6210,26 @@ function setupView(ui) {
   const st = ui.setup, classes = Object.values(CONTENT.classes), cur = CONTENT.classes[st.classId];
   const bg = `<div class="bgscene">${menuBackdrop(sceneExt(ui, ui.stageH ?? 400))}</div>`;
   if (st.step === 0) {
-    return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deinen Charakter</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Weiter", "setup-next", undefined, { cls: "primary" })}</div></div>
-      <div class="herogrid">${classes.map((c) => `<div class="herocard px ${st.classId === c.id ? "on" : ""}"${at("pick-class", c.id)}>
-        <div class="hero-art">${heroPortrait(c.id, c.weapon, activeSkin(ui.meta, c.id))}</div><b>${esc(c.name)}</b>
-        <div class="stats"><span>${ico("heart", 14)}${c.hp}</span><span>${ico("pile", 14)}${CONFIG.player.handSize + (c.stats.handSize ?? 0)}</span><span>${ico("bolt", 14)}${CONFIG.player.startEnergy + (c.stats.energy ?? 0)}</span></div>
-        <div class="d">${esc(c.blurb ?? "")}</div>${c.passive ? `<div class="d passive"><b>${esc(c.passive.name)}:</b> ${esc(c.passive.text)}</div>` : ""}</div>`).join("")}</div></div></div>`;
+    const card = (c) => {
+      const open = isUnlocked(ui.meta, "classes", c), on = st.classId === c.id;
+      const body = open
+        ? `<div class="stats"><span>${ico("heart", 12)}${c.hp}</span><span>${ico("pile", 12)}${CONFIG.player.handSize + (c.stats.handSize ?? 0)}</span><span>${ico("bolt", 12)}${CONFIG.player.startEnergy + (c.stats.energy ?? 0)}</span></div>
+           <div class="perks">${c.perks.map((p) => `<div class="${p.startsWith("+") ? "plus" : "minus"}">${esc(p)}</div>`).join("")}</div>`
+        : `<div class="lockhint">${ico("lock", 14)} Gesperrt<br><span class="muted small">${esc(describeUnlock(c.unlock))}</span></div>`;
+      return `<div class="herocard2 px ${on ? "on" : ""} ${open ? "" : "locked"}"${at("pick-class", c.id)} title="${esc(open ? c.blurb ?? "" : "Gesperrt")}">
+        <div class="hc-art">${heroPortrait(c.id, c.weapon, activeSkin(ui.meta, c.id))}</div><div class="hc-body"><b>${esc(open ? c.name : "???")}</b>${body}</div></div>`;
+    };
+    return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deinen Helden</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Weiter", "setup-next", undefined, { cls: "primary" })}</div></div>
+      <div class="herogrid6">${classes.map(card).join("")}</div></div></div>`;
   }
   const maxD = maxDifficulty(ui.meta);
   const sig = (w) => (w.signature === cur.id ? "Dein Held" : esc(CONTENT.classes[w.signature]?.name ?? ""));
   return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deine Waffe</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Aufbrechen", "start-run", undefined, { cls: "primary" })}</div></div>
     <div class="weapongrid2"><div class="hero-big px">${heroPortrait(cur.id, st.weaponId, activeSkin(ui.meta, cur.id))}<b>${esc(cur.name)}</b></div>
       <div class="wcol"><div class="wgrid">${cur.starterWeapons.map((id) => { const w = CONTENT.get("weapons", id);
-        return `<div class="wpick ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}>${itemHtml(w, "weapons")}<span class="sigtag${w.signature === cur.id ? " own" : ""}">${sig(w)}</span></div>`; }).join("")}</div>
+        return `<div class="wtile ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}><span class="wico">${spr("weapon", id, { attrs: 'width="100%" height="100%"' })}</span><span class="wname"><b>${esc(w.name)}</b><small class="${w.signature === cur.id ? "own" : ""}">${sig(w)}</small></span></div>`; }).join("")}</div>
+        ${(() => { const w = CONTENT.get("weapons", st.weaponId), r = RARITY[w.rarity] ?? RARITY.gewoehnlich;
+          return `<div class="wdetail px"><span class="wico big">${spr("weapon", st.weaponId, { attrs: 'width="100%" height="100%"' })}</span><div><b>${esc(w.name)}</b> <span class="rar" style="color:${r[1]}">${esc(r[0])} · Signatur: ${esc(CONTENT.classes[w.signature]?.name ?? "-")}</span><div>${esc(describeWeapon(w))}</div></div></div>`; })()}
         <div class="optsbar px"><div class="optrow"><b>Schwierigkeit</b><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
           ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div></div>
           <div class="optrow"><b>Seed</b><input class="seed" inputmode="numeric" placeholder="leer = Zufall" value="${esc(st.seed)}" data-change="set-seed"></div>
@@ -5449,7 +6343,7 @@ function shopView(ui) {
     <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items4">${items}</div></div></div>`;
 }
 function restView(ui) {
-  const run = ui.run, heal = Math.min(run.maxHp - run.hp, restHealAmount(run, Math.ceil(run.maxHp * CONFIG.run.restHealPct)));
+  const run = ui.run, heal = Math.min(run.maxHp - run.hp, restHealAmount(run, Math.ceil(run.maxHp * restPct(run))));
   return `${hud(ui)}<div class="screen rest"><div class="bigicon">${spr("icon", "n_rast", { attrs: 'width="110" height="110"', cls: "flick" })}</div>
     <div class="rest-r stack"><h2>Rastplatz</h2><div class="muted">Ein Feuer knistert. Du hast Zeit für genau eine Sache.</div>
     <div class="stack">${btn(`Ausruhen (+${heal} HP)`, "rest-heal", undefined, { cls: "good" })}${btn("Eine Karte aus dem Deck entfernen", "rest-remove-start", undefined, { disabled: run.deck.length <= CONFIG.run.minDeck })}</div></div></div>`;
@@ -5526,9 +6420,21 @@ function overlayView(ui) {
   }
   if (o === "pick-remove") return `<div class="overlay"><div class="sheet"><h2>Welche Karte entfernen?</h2><div class="grid">${groupedDeck(run).map((g) =>
     `<div class="slot">${cardHtml(g.def, { size: "lg", build, count: g.idxs.length })}${btn("Entfernen", "pick-remove", String(g.idxs[0]), { cls: "small danger" })}</div>`).join("")}</div>${close}</div></div>`;
-  if (o === "menu") return `<div class="overlay"><div class="sheet mid stack"><h2>Menü</h2><div class="row wrap">${btn("Vollbild", "fullscreen", undefined, { cls: "small" })}${btn(`Anzeige: ${SIZE_NAMES[ui.meta.settings.size ?? "gross"]}`, "cycle-size", undefined, { cls: "small" })}</div>${run.phase === "combat" ? `<div class="stack"><h3>Kampf-Bedienung</h3>${btn(ui.manual ? "Zielen: von Hand" : "Zielen: automatisch", "toggle-manual", undefined, { cls: "small" })}<div class="muted small">${ui.manual ? "Erst Karte wählen, dann Gegner antippen." : "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel."}</div>${btn(ui.autoEnd ? "Zug endet automatisch: an" : "Zug endet automatisch: aus", "toggle-autoend", undefined, { cls: "small" })}</div>` : ""}<div class="muted">Seed: <b>${run.seed}</b> (für Freunde: gleiche Karte)</div>${run.shinyHero ? `<div class="chrome">Chrom-Held: +${CONFIG.shiny.heroLuck} Glück in diesem Run</div>` : ""}${btn("Weiterspielen", "close-overlay", undefined, { cls: "primary" })}
+  if (o === "menu") return `<div class="overlay"><div class="sheet mid stack"><h2>Menü</h2>${btn("Einstellungen", "open-settings")}<div class="muted">Seed: <b>${run.seed}</b> (für Freunde: gleiche Karte)</div>${run.shinyHero ? `<div class="chrome">Chrom-Held: +${CONFIG.shiny.heroLuck} Glück in diesem Run</div>` : ""}${btn("Weiterspielen", "close-overlay", undefined, { cls: "primary" })}
     ${run.phase === "combat" ? `<div class="muted small">Im Kampf wird nicht gespeichert. Beendest du jetzt, beginnt der Kampf beim nächsten Mal von vorn.</div>` : ""}${btn("Zum Titel (speichert)", "to-title")}${btn("Run aufgeben", "abandon", undefined, { cls: "danger" })}</div></div>`;
   return "";
+}
+// Einstellungen: Sprache, Anzeige, Tempo und Kampf-Bedienung an einem Ort (öffnet sich über jedem Bildschirm, auch im Spiel)
+const chips = (list, cur, action) => `<div class="chips">${list.map(([v, label]) => `<span class="chip ${String(cur) === String(v) ? "on" : ""}"${at(action, String(v))}>${esc(label)}</span>`).join("")}</div>`;
+function settingsView(ui) {
+  const s = ui.meta.settings, size = s.size ?? "gross", lang = s.lang ?? "de";
+  return `<div class="overlay settings"><div class="sheet mid stack"><h2>Einstellungen</h2>
+    <div class="setgroup"><b>Sprache</b>${chips([["de", "Deutsch"], ["en", "English"]], lang, "set-lang")}</div>
+    <div class="setgroup"><b>Anzeigegröße</b>${chips([["normal", "Normal"], ["gross", "Groß"], ["riesig", "Sehr groß"]], size, "set-size")}${btn("Vollbild", "fullscreen", undefined, { cls: "small" })}<div class="muted small">Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.</div></div>
+    <div class="setgroup"><b>Tempo im Kampf</b>${chips(CONFIG.ui.speeds.map((v) => [v, `x${v}`]), ui.speed, "set-speed")}</div>
+    <div class="setgroup"><b>Zug beenden</b>${chips([[1, "Automatisch"], [0, "Von Hand"]], ui.autoEnd ? 1 : 0, "set-autoend")}<div class="muted small">Automatisch: Der Zug endet, sobald du keine Karte mehr spielen kannst.</div></div>
+    <div class="setgroup"><b>Ziele wählen</b>${chips([[0, "Automatisch"], [1, "Von Hand"]], ui.manual ? 1 : 0, "set-manual")}<div class="muted small">${ui.manual ? "Erst Karte wählen, dann Gegner antippen." : "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel."}</div></div>
+    ${btn("Schließen", "close-settings", undefined, { cls: "primary" })}</div></div>`;
 }
 // Detailansicht einer Karte: voller Text und höchstens drei Begriffserklärungen
 function cardDetailView(ui) {
@@ -5555,7 +6461,7 @@ function render(ui) {
     body = p === "intro" ? storyView(ui) : p === "map" ? mapView(ui) : p === "combat" ? combatView(ui) : p === "reward" ? rewardView(ui) : p === "shop" ? shopView(ui)
       : p === "rest" ? restView(ui) : p === "event" ? eventView(ui) : endView(ui);
   }
-  const overlay = (ui.screen === "game" && ui.overlay ? overlayView(ui) : "") + (ui.screen === "game" && ui.run && ui.cardInfo ? cardDetailView(ui) : "");
+  const overlay = (ui.screen === "game" && ui.overlay ? overlayView(ui) : "") + (ui.settingsOpen ? settingsView(ui) : "") + (ui.screen === "game" && ui.run && ui.cardInfo ? cardDetailView(ui) : "");
   const frame = activeFrame(ui.meta);
   return `<div class="app ${ui.landscape ? "land" : "port"}${frame !== "default" ? ` frame-${frame}` : ""}">${body}</div>${overlay}${ui.notice ? noticeView(ui.notice) : ""}${ui.toast ? `<div class="toast">${esc(ui.toast)}</div>` : ""}`;
 }
@@ -5567,11 +6473,12 @@ __define("ui/controller.js", function (__exports, __require) {
 // Controller: verbindet Engine und Ansichten. Kein DOM, daher komplett in Node testbar.
 // dispatch(action, arg, arg2) verändert den Zustand und gibt false zurück, wenn kein Neuzeichnen nötig ist.
 const { CONTENT } = __require("content/index.js");
+const { applyContentLanguage } = __require("ui/i18n.js");
 const { CONFIG } = __require("data/config.js");
 const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, shopBuy, shopReroll, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
 const { playCard, endPlayerTurn, useItem, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
-const { createMeta, normalizeMeta, maxDifficulty } = __require("engine/meta.js");
+const { createMeta, normalizeMeta, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
 const { evaluateAchievements } = __require("engine/achievements.js");
 const { bannerHtml } = __require("ui/achview.js");
 const { storyLines } = __require("engine/story.js");
@@ -5604,9 +6511,10 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
-    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null,
-    auto: false, speed: meta.settings.speed, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
+    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, settingsOpen: false,
+    auto: false, speed: CONFIG.ui.speeds.includes(meta.settings.speed) ? meta.settings.speed : 1, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
   };
+  applyContentLanguage(CONTENT, meta.settings.lang ?? "de");                  // gespeicherte Sprache anwenden
   let lastWave = -1;
 
   // Gespeicherten Run prüfen: passt er nicht zur aktuellen Version, wird er sauber verworfen.
@@ -5673,7 +6581,9 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     switch (action) {
       // ---- Titel und Vorbereitung
       case "new-run": Object.assign(st, { step: 0, difficulty: 0 }); ui.screen = "setup"; break;
-      case "pick-class": st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; break;
+      case "pick-class":
+        if (!isUnlocked(ui.meta, "classes", CONTENT.classes[arg])) { toast(`Noch gesperrt: ${describeUnlock(CONTENT.classes[arg].unlock)}`); break; }
+        st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; break;
       case "setup-next": st.step = 1; break;
       case "setup-back": if (st.step === 0) ui.screen = "title"; else st.step = 0; break;
       case "pick-weapon": st.weaponId = arg; break;
@@ -5706,7 +6616,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         }
         break;
       }
-      case "to-title": endPreview(); ui.auto = false; ui.cardInfo = null; ui.screen = "title"; ui.overlay = null; ui.run = null; ui.confirmReset = false; break;
+      case "to-title": endPreview(); ui.auto = false; ui.cardInfo = null; ui.settingsOpen = false; ui.screen = "title"; ui.overlay = null; ui.run = null; ui.confirmReset = false; break;
       case "show-collection": ui.screen = "collection"; break;
       case "show-achievements": ui.screen = "achievements"; break;
       case "show-cosmetics": ui.screen = "cosmetics"; break;
@@ -5772,13 +6682,20 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "card-info": ui.cardInfo = arg; break;                                 // Detailansicht einer Karte (Info-Symbol)
       case "close-cardinfo": ui.cardInfo = null; break;
       case "set-tab": ui.tab[arg] = arg2; break;                                  // Reiter in Sammlung, Erfolge und Aussehen
+      case "open-settings": ui.settingsOpen = true; break;                          // Einstellungen (Titel und Spiel)
+      case "close-settings": ui.settingsOpen = false; break;
+      case "set-lang": ui.meta.settings = { ...ui.meta.settings, lang: arg === "en" ? "en" : "de" }; applyContentLanguage(CONTENT, ui.meta.settings.lang); break;
+      case "set-size": ui.meta.settings = { ...ui.meta.settings, size: ["normal", "gross", "riesig"].includes(arg) ? arg : "gross" }; break;
+      case "set-speed": ui.speed = CONFIG.ui.speeds.includes(Number(arg)) ? Number(arg) : 1; saveSettings(); break;
+      case "set-manual": ui.manual = arg === "1"; ui.selected = null; saveSettings(); break;
+      case "set-autoend": ui.autoEnd = arg === "1"; saveSettings(); break;
       case "cycle-size": {                                  // Anzeigegröße: Normal -> Groß -> Sehr groß (das Spiel zeigt dann weniger Platz, dafür größer)
         const order = ["normal", "gross", "riesig"], cur = order.indexOf(ui.meta.settings.size ?? "gross");
         ui.meta.settings = { ...ui.meta.settings, size: order[(cur + 1) % order.length] };
         break;
       }
       case "toggle-auto": ui.auto = !ui.auto; break;
-      case "cycle-speed": ui.speed = ui.speed >= 3 ? 1 : ui.speed + 1; saveSettings(); break;
+      case "cycle-speed": ui.speed = CONFIG.ui.speeds[(CONFIG.ui.speeds.indexOf(ui.speed) + 1) % CONFIG.ui.speeds.length]; saveSettings(); break;
       case "toggle-manual": ui.manual = !ui.manual; ui.selected = null; saveSettings(); break;
       case "toggle-autoend": ui.autoEnd = !ui.autoEnd; saveSettings(); break;
       case "auto-step": {                                  // ein Schritt des Autopiloten (der Browser ruft das im Takt auf)
@@ -5797,7 +6714,13 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         const fn = { cards: takeCard, items: takeItem, weapons: takeWeapon, shinyItems: takeShinyItem, shinyWeapons: takeShinyWeapon }[arg];
         const r = fn ? fn(run, Number(arg2)) : { ok: false, reason: "Unbekannte Liste" };
         toast(r.ok ? `Genommen: ${nameAny(r.id)}` : r.reason);
-        if (r.ok) ui.tab.reward = null;                                        // nach einer Wahl zum nächsten offenen Reiter
+        if (r.ok) {
+          ui.tab.reward = null;                                                // nach einer Wahl zum nächsten offenen Reiter
+          // Sind alle Auswahlen getroffen, geht es von selbst weiter (kein extra "Weiter" mehr nötig). Wer etwas auslassen will, tippt oben auf "Weiter".
+          const rw = run.pending.reward, t = rw.taken;
+          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length]].filter(([k, n]) => n && !t[k]);
+          if (!open.length) { const f = finishReward(run); if (!f.ok) toast(f.reason); }
+        }
         break;
       }
       case "finish-reward": { const r = finishReward(run); if (!r.ok) toast(r.reason); break; }
@@ -5855,7 +6778,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     // Wartezeit (ms) bis zum nächsten Autopilot-Schritt, oder null wenn gerade nichts zu tun ist
     autoWait: () => {
       const r = ui.run;
-      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo) return null;
+      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo || ui.settingsOpen) return null;
       const c = r.pending.combat;
       const first = c.turn === 1 && c.metrics.plays === 0;                                // Auftritt der Figuren abwarten
       return Math.round((first ? 1800 : 700) / ui.speed);
@@ -5871,6 +6794,7 @@ __exports.createController = createController;
 __define("ui/main.js", function (__exports, __require) {
 // Einstiegspunkt im Browser: hängt Controller und DOM zusammen (Klicks per Event-Delegation).
 const { createController } = __require("ui/controller.js");
+const { translateDom } = __require("ui/i18n.js");
 
 const root = document.getElementById("app");
 const storage = (() => {
@@ -5912,7 +6836,7 @@ function showBanners() {
     wrap.innerHTML = ctrl.achievementBanner(id);
     const el = wrap.firstElementChild;
     if (!el || !banners) continue;
-    banners.appendChild(el);
+    banners.appendChild(el); translateDom(el);
     setTimeout(() => el.remove(), 5400);
   }
 }
@@ -5928,6 +6852,7 @@ function scheduleAuto() {
 
 function render() {
   root.innerHTML = ctrl.render();
+  translateDom(document.body);                                     // Sprache Englisch: alle Texte der Oberfläche übersetzen (auch Hinweise und Meldungen außerhalb der App-Fläche)
   showBanners();
   scheduleAuto();
 }
@@ -5941,7 +6866,7 @@ root.addEventListener("click", (ev) => {
     return;
   }
   const res = ctrl.dispatch(el.dataset.action, el.dataset.arg, el.dataset.arg2);
-  if (el.dataset.action === "cycle-size") fit();                  // neue Höhe sofort anwenden
+  if (el.dataset.action === "cycle-size" || el.dataset.action === "set-size") fit();                  // neue Höhe sofort anwenden
   if (res !== false) render();
 });
 root.addEventListener("change", (ev) => {
