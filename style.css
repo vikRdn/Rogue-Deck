@@ -659,3 +659,12 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 /* ---- Startdeck-Draft */
 .dslots{display:flex;gap:6px;justify-content:center;margin:2px 0 6px}.dslot{min-width:92px;padding:5px 8px;border:2px dashed var(--line);text-align:center;font-size:11px;color:var(--muted,#9fb0d0)}.dslot.on{border-style:solid;border-color:var(--accent);color:var(--ink);background:rgba(255,61,154,.12)}
 .dbody{align-items:center}.dcards{max-width:640px;margin:0 auto}
+
+/* ---- Draft zentriert, Waffenvergleich */
+.setup-body .dbody{align-self:stretch;width:100%;display:flex;justify-content:center}.dcards{display:flex!important;justify-content:center;gap:12px;max-width:none!important;width:100%}.dcards .slot{flex:0 0 150px}
+.wcmp{font-size:10px;font-weight:800;padding:2px 4px;border:2px solid var(--line);text-align:center}.wcmp.up{color:#6bf29a;border-color:#2f8a5d}.wcmp.down{color:#ff8a8a;border-color:#a33}.wcmp.same{color:#9fb0d0}
+
+/* ---- Waffen-Stufen: Glühen der Waffe nach Stufe, Aufwerten-Hinweis */
+.wpn.wt2{filter:drop-shadow(0 0 2px #4a8fd8) drop-shadow(0 0 4px #4a8fd8)}.wpn.wt3{filter:drop-shadow(0 0 2px #a45bd6) drop-shadow(0 0 5px #a45bd6)}.wpn.wt4{filter:drop-shadow(0 0 3px #e8a33d) drop-shadow(0 0 7px #ff8a3c);animation:wglow 1.6s ease-in-out infinite}
+@keyframes wglow{50%{filter:drop-shadow(0 0 4px #ffd36b) drop-shadow(0 0 10px #ff8a3c)}}
+.wcmp.upg{background:rgba(107,242,154,.14);animation:upgpulse 1.4s ease-in-out infinite}@keyframes upgpulse{50%{box-shadow:0 0 8px #6bf29a}}

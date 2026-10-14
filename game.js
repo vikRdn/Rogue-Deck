@@ -12,7 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "6.3",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "6.5",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
@@ -21,7 +21,7 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.80,
+    enemyDmgScale: 0.86,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
@@ -93,6 +93,7 @@ const CONFIG = {
     tierSplit: 4,               // ab dieser Ebene kommen Begegnungen der Stufe 2
   },
   // Erfahrung und Wert-Aufstiege (Brotato-Richtung): Gegner geben Erfahrung nach ihren Lebenspunkten, volle Leiste = ein Aufstieg mit 4 Wert-Angeboten
+  weaponTiers: { power: [0, 1, 2, 3], names: ["I", "II", "III", "IV"] },     // Waffen-Stufen: Zusatzstärke je Stufe; dieselbe Waffe nochmal gewählt = nächste Stufe
   draft: { rounds: 4, options: 3, ownWeight: 2.5 },        // Startdeck-Draft: 4 Züge, je 3 Karten zur Wahl, eigene Klassenkarten 2,5x so wahrscheinlich
   xp: { hpPerXp: 14, base: 8, step: 4 },
   // Run-Struktur: 10 Stages mit je einer Karte (Kämpfe, Elite, Mini-Boss, Rast, Händler, Ereignisse). Stage 1 bis 9 enden mit einem Wächter, Stage 10 mit dem Endboss. Gegner, Gold und Preise wachsen von Stage zu Stage.
@@ -2061,6 +2062,8 @@ const EN_UI = {
   "Lebensraub": "Lifesteal", "Schaden": "Damage", "Krit-Chance": "Crit Chance", "Ausweichen": "Dodge", "Gold": "Gold", "Preise": "Prices", "Reroll-Preis": "Reroll price", "Schaden gegen Bosse": "Damage vs bosses", "Heilung": "Healing", "Doppel-Gold": "Double Gold", "Reaktionen": "Reactions",
   "Wird behalten": "Will be kept", "Am Zugende behalten": "Keep at end of turn", "Gratis": "Free",
   "Empfohlenes Deck": "Recommended deck", "Neu wählen": "Choose again", "Dein Startdeck steht. Mit Aufbrechen beginnt der Run.": "Your starting deck is set. Set out to begin the run.", "Weiter": "Next",
+  "Karte für die nächste Runde sperren": "Lock card for the next round",
+  "Waffe ▲": "Weapon ▲",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -2082,6 +2085,12 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^AUFWERTEN: Stufe (I|II|III|IV) → (I|II|III|IV) · Stärke (\d+) → (\d+) \(\+(\d+)\)$/, (t, a, b, p, q, d) => `UPGRADE: Tier ${a} → ${b} · Power ${p} → ${q} (+${d})`], [/^Höchste Stufe$/, () => "Highest tier"],
+  [/^(Waffe aufwerten oder tauschen|Waffe tauschen)\? \(aktuell: (.+?)( Stufe (I|II|III|IV))?, Stärke (\d+)\)$/, (t, q, n, x, tr, p) => `${q === "Waffe tauschen" ? "Swap weapon" : "Upgrade or swap weapon"}? (current: ${n}${tr ? ` Tier ${tr}` : ""}, Power ${p})`],
+  [/^Waffe aufgewertet: (.+) Stufe (I|II|III|IV)$/, (t, n, tr) => `Weapon upgraded: ${n} Tier ${tr}`],
+  [/^(Gewöhnlich|Ungewöhnlich|Selten|Legendär) · Waffe · Stufe (I|II|III|IV)$/, (t, r, tr) => `${t(r)} · Weapon · Tier ${tr}`],
+  [/^Stärke (\d+) \(([+-]\d+) gegenüber (.+?)\)( · (mehr|weniger) Zusatzwirkungen)?( · deine Stufe (I|II|III|IV) geht verloren)?$/, (t, p, d, n, x, m, y, tr) => `Power ${p} (${d} vs ${n})${m ? ` · ${m === "mehr" ? "more" : "fewer"} extra effects` : ""}${tr ? ` · your Tier ${tr} is lost` : ""}`], [/^Gleich stark wie (.+?) \(Stärke (\d+)\)( · (mehr|weniger) Zusatzwirkungen)?( · deine Stufe (I|II|III|IV) geht verloren)?$/, (t, n, p, x, m, y, tr) => `Same power as ${n} (Power ${p})${m ? ` · ${m === "mehr" ? "more" : "fewer"} extra effects` : ""}${tr ? ` · your Tier ${tr} is lost` : ""}`],
+  [/^(Karte|Item) gesperrt: wartet auf den nächsten Händler$/, (t, k) => `${k === "Karte" ? "Card" : "Item"} locked: waits for the next merchant`],
   [/^Dein Startdeck: Karte (\d+) von (\d+)$/, (t, a, b) => `Your starting deck: card ${a} of ${b}`],
   [/^([+-]?\d+%?) (Max-HP|Regeneration|Lebensraub|Schaden|Nahkampfschaden|Fernkampfschaden|Elementarschaden|Krit-Chance|Rüstung|Ausweichen|Glück|Ernte|Energie|Handkarten|Gold|Block\/Zug|Shiny-Chance|Reaktionen|Einfrier-Hilfe|Preise|Reroll-Preis|Freie Rerolls|Schaden gegen Bosse|Gift-Stärke|Brenn-Stärke|Blutungs-Stärke|Heilung|Doppel-Gold|Fluch)$/, (t, v, s) => `${v} ${t(s)}`],
   [/^Stufe (\d+)\/(\d+)$/, (t, a, b) => `Level ${a}/${b}`], [/^(.+) ist jetzt Stufe (\d+)\.$/, (t, n, l) => `${n} is now level ${l}.`], [/^([\d.,]+) \/ ([\d.,]+) · Belohnung: (.+)$/, (t, a, b, r) => `${a} / ${b} · Reward: ${r}`],
@@ -2372,6 +2381,10 @@ const get = (kind, id) => {
 const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal", "priceMod", "rerollMod", "freeRerolls", "bossDmg", "poisonPower", "burnPower", "bleedPower", "healPct", "doubleChance", "curse"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
+function tierWeapon(def, tier = 1) {                                  // Waffe in ihrer Stufe: Stärke wächst, Stufe merken
+  const P = CONFIG.weaponTiers.power, t = Math.min(Math.max(1, tier), P.length);
+  return { ...def, power: def.power + (P[t - 1] ?? 0), tier: t };
+}
 function resolveBuild(spec) {
   const cls = spec.classId ? CONTENT.classes[spec.classId] : null;
   // Klassen-Passive (cls.passives, Daten wie bei Items) zählen wie ein verstecktes Item: sie erscheinen nicht in der Ausrüstung, wirken aber in allen Trigger-Ketten
@@ -2379,7 +2392,7 @@ function resolveBuild(spec) {
   const items = [...(spec.items ?? []).map((id) => get("items", id)), ...classSrc];
   return {
     cards: spec.deck.map((id) => get("cards", id)),
-    weapon: get("weapons", spec.weapon),
+    weapon: tierWeapon(get("weapons", spec.weapon), spec.weaponTier ?? 1),
     items,
     stats: Object.fromEntries(STAT_KEYS.map((k) => [k, (spec.stats?.[k] ?? 0) + items.reduce((sum, i) => sum + (i.stats[k] ?? 0), 0)])),
   };
@@ -2485,6 +2498,7 @@ function computeDamage({ build, card, action, target, playsBefore = 0, hp = 0, m
 }
 
 __exports.STAT_KEYS = STAT_KEYS;
+__exports.tierWeapon = tierWeapon;
 __exports.resolveBuild = resolveBuild;
 __exports.tagCount = tagCount;
 __exports.distinctTypes = distinctTypes;
@@ -3492,7 +3506,8 @@ function generateWeaponChoices(ctx, n = 2) {
     if (!def) break;
     taken.add(def.id); out.push(def);
   }
-  return out;
+  const w = ctx.build.weapon;                                                      // Verschmelzen: solange die Waffe nicht auf der höchsten Stufe ist, wird ihre Aufwertung zuerst angeboten
+  return (w.tier ?? 1) < CONFIG.weaponTiers.power.length ? [CONTENT.get("weapons", w.id), ...out] : out;
 }
 
 const generateItemChoices = (ctx, n = 3) =>
@@ -3563,11 +3578,13 @@ function generateShop(ctx, quick = false) {
   const S = quick ? { ...CONFIG.shop, cardSlots: CONFIG.shop.quick.cards, itemSlots: CONFIG.shop.quick.items, wildcardCards: 1, wildcardItems: 1 } : CONFIG.shop, infl = ctx.inflation ?? 1;
   // Gesperrte Items der letzten Händlerrunde ("Freeze") kommen zuerst wieder, zu den aktuellen Preisen
   const frozen = (ctx.frozen ?? []).slice(0, S.itemSlots).map((f) => ({ ...slot(ctx.rng, "items", CONTENT.get("items", f.id), infl), frozen: true }));
+  const frozenCards = (ctx.frozenCards ?? []).slice(0, S.cardSlots).map((f) => ({ ...slot(ctx.rng, "cards", CONTENT.get("cards", f.id), infl), frozen: true }));
+  const needCards = S.cardSlots - frozenCards.length;
   const need = S.itemSlots - frozen.length;
   const exclude = new Set([...maxedItems(ctx.build), ...frozen.map((f) => baseOf(f.id))]);
   const fresh = need > 0 ? pickMany(ctx, "items", need, Math.min(S.wildcardItems, need), exclude).map((d) => slot(ctx.rng, "items", d, infl)) : [];
   return {
-    cards: pickMany(ctx, "cards", S.cardSlots, S.wildcardCards).map((d) => slot(ctx.rng, "cards", d, infl)),
+    cards: [...frozenCards, ...(needCards > 0 ? pickMany(ctx, "cards", needCards, Math.min(S.wildcardCards, needCards), new Set(frozenCards.map((f) => baseOf(f.id)))).map((d) => slot(ctx.rng, "cards", d, infl)) : [])],
     items: [...frozen, ...fresh],
     removeCost: removalCost(ctx.removedCards ?? 0), removals: 0,
     rerollCost: Math.max(1, Math.round(S.rerollBase * Math.max(0.2, 1 + (ctx.build?.stats?.rerollMod ?? 0) / 100))), freeRerolls: Math.max(0, Math.floor(ctx.build?.stats?.freeRerolls ?? 0)), rerolls: 0,
@@ -3586,7 +3603,7 @@ function rerollShop(shop, ctx, run) {
   const shown = new Set([...shop.cards, ...shop.items].map((s) => baseOf(s.id)));
   for (const [list, kind, wild] of [[shop.cards, "cards", CONFIG.shop.wildcardCards], [shop.items, "items", CONFIG.shop.wildcardItems]]) {
     list.forEach((s, i) => {
-      if (s.sold || s.fixed || s.frozen) return;              // verkaufte, feste und gesperrte Slots bleiben
+      if (s.fixed || (s.frozen && !s.sold)) return;           // feste und gesperrte Plätze bleiben; gekaufte Plätze werden neu gefüllt (wie bei Brotato)
       const exclude = new Set([...shown, ...(kind === "items" ? maxedItems(ctx.build) : [])]);
       const def = pickOne(ctx, kind, exclude, i < list.length - wild);
       if (!def) return;
@@ -3598,8 +3615,8 @@ function rerollShop(shop, ctx, run) {
 }
 
 // Freeze: sperrt ein Item für die nächste Händlerrunde (und vor Rerolls). Nochmal antippen hebt die Sperre auf.
-function toggleFreeze(shop, index) {
-  const s = shop.items[index];
+function toggleFreeze(shop, index, kind = "items") {
+  const s = shop[kind]?.[index];
   if (!s || s.sold) return { ok: false, reason: "Nicht verfügbar" };
   s.frozen = !s.frozen;
   return { ok: true, frozen: s.frozen };
@@ -3677,11 +3694,11 @@ function createRun({ startDeck, ability, classId = "nahkaempfer", seed = (Date.n
   const run = {
     seed, classId, difficulty, meta, rng, shinyHero: Boolean(shinyHero),
     phase: "intro", map: generateMap(rng), nodeId: null,
-    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold + (cls.startGold ?? 0), removedCards: 0, frozenItems: [], flags: {},
+    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold + (cls.startGold ?? 0), removedCards: 0, frozenItems: [], frozenCards: [], flags: {},
     deck: validStartDeck(startDeck, classId) ? [...startDeck] : [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
-    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
+    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, weaponTier: 1, xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
     stats: { fights: 0, elites: 0, minibosses: 0, nodes: 0, shinyEnemies: 0, shinyLoot: 0, goldEarned: 0, purchases: 0 },
   };
   run.maxHp = computeMaxHp(run);
@@ -3722,7 +3739,7 @@ const specOf = (run) => {
   const cls = CONTENT.classes[run.classId];
   const stats = { ...cls.stats, luck: (cls.stats.luck ?? 0) + (run.shinyHero ? CONFIG.shiny.heroLuck : 0) };   // Chrom-Held: +1 Glück
   for (const [k, v] of Object.entries(run.upStats ?? {})) stats[k] = (stats[k] ?? 0) + v;                    // Wert-Aufstiege aus Erfahrung
-  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold, stage: run.stage, ability: run.ability ?? null, abilityLevel: run.meta?.abilities?.[run.ability]?.level ?? 1 };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
+  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold, stage: run.stage, weaponTier: run.weaponTier ?? 1, ability: run.ability ?? null, abilityLevel: run.meta?.abilities?.[run.ability]?.level ?? 1 };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
 };
 const buildOf = (run) => resolveBuild(specOf(run));
 const computeMaxHp = (run) => Math.max(1, CONTENT.classes[run.classId].hp + run.bonusMaxHp + buildOf(run).stats.maxHp);
@@ -3730,7 +3747,7 @@ const currentLayer = (run) => (run.nodeId ? findNode(run.map, run.nodeId).layer 
 const ctxOf = (run) => {
   const build = buildOf(run);
   return { rng: run.rng, build, classId: run.classId, depth: (run.stage - 1) + currentLayer(run) / 10, stage: run.stage, luck: build.stats.luck + Math.floor((build.stats.curse ?? 0) / 5), meta: run.meta,
-    inflation: (1 + CONFIG.stageScale.price * (run.stage - 1) + CONFIG.shop.inflationPerFight * run.stageFights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)) * Math.max(0.4, 1 + (build.stats.priceMod ?? 0) / 100), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [] };
+    inflation: (1 + CONFIG.stageScale.price * (run.stage - 1) + CONFIG.shop.inflationPerFight * run.stageFights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)) * Math.max(0.4, 1 + (build.stats.priceMod ?? 0) / 100), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [], frozenCards: run.frozenCards ?? [] };
 };
 
 // Neue Max-HP-Boni heilen um den Zuwachs (wie bei Slay the Spire)
@@ -3744,7 +3761,7 @@ const addItem = (run, id) => {
   run.items.push(id); refreshMaxHp(run); found(run, "items", id);
   run.flags ??= {};
   for (const f of CONTENT.get("items", id).flags ?? []) run.flags[f] = true;                    // Items können dauerhafte Run-Flags setzen (Midas-Fluch: noFreeze)
-  if (run.flags.noFreeze) { run.frozenItems = []; run.pending?.shop?.items?.forEach((s) => { s.frozen = false; }); }
+  if (run.flags.noFreeze) { run.frozenItems = []; run.frozenCards = []; run.pending?.shop?.items?.forEach((s) => { s.frozen = false; }); run.pending?.shop?.cards?.forEach((s) => { s.frozen = false; }); }
 };
 const addCard = (run, id) => { run.deck.push(id); found(run, "cards", id); };
 const setWeapon = (run, id) => { run.weapon = id; found(run, "weapons", id); };
@@ -3915,9 +3932,13 @@ function take(run, list, idx, apply) {
 }
 const takeCard = (run, idx) => take(run, "cards", idx, (id) => addCard(run, id));
 const takeItem = (run, idx) => take(run, "items", idx, (id) => addItem(run, id));
-const takeWeapon = (run, idx) => take(run, "weapons", idx, (id) => setWeapon(run, id));
+function equipWeapon(run, id) {                                                  // dieselbe Waffe = nächste Stufe (Verschmelzen), eine andere Waffe = Tausch auf Stufe I
+  if (id === run.weapon) { run.weaponTier = Math.min(CONFIG.weaponTiers.power.length, (run.weaponTier ?? 1) + 1); run.upgradeNotice = { id, tier: run.weaponTier }; }
+  else { setWeapon(run, id); run.weaponTier = 1; }
+}
+const takeWeapon = (run, idx) => take(run, "weapons", idx, (id) => equipWeapon(run, id));
 const takeShinyItem = (run, idx) => take(run, "shinyItems", idx, (id) => addItem(run, id));
-const takeShinyWeapon = (run, idx) => take(run, "shinyWeapons", idx, (id) => setWeapon(run, id));
+const takeShinyWeapon = (run, idx) => take(run, "shinyWeapons", idx, (id) => equipWeapon(run, id));
 function finishReward(run) {
   if (run.phase !== "reward") return fail("Keine Belohnung offen");
   run.stageClear = Boolean(run.pending.reward.stageClear);                       // Wächter besiegt: nach Beute und Laden beginnt die nächste Stage
@@ -3996,14 +4017,15 @@ function shopRemove(run, deckIndex) {
   if (res.ok) run.deck.splice(deckIndex, 1);
   return res;
 }
-function shopFreeze(run, idx) {
+function shopFreeze(run, idx, kind = "items") {
   if (run.phase !== "shop") return fail("Nicht im Shop");
   if (run.flags?.noFreeze) return fail("Midas-Fluch: Sperren ist dauerhaft deaktiviert");
-  return toggleFreeze(run.pending.shop, idx);
+  return toggleFreeze(run.pending.shop, idx, kind);
 }
 function leaveShop(run) {
   if (run.phase !== "shop") return fail("Nicht im Shop");
-  run.frozenItems = run.pending.shop.items.filter((s) => s.frozen && !s.sold).map((s) => ({ id: s.id }));     // gesperrte Items warten auf die nächste Händlerrunde
+  run.frozenItems = run.pending.shop.items.filter((s) => s.frozen && !s.sold).map((s) => ({ id: s.id }));     // gesperrte Items und Karten warten auf die nächste Händlerrunde
+  run.frozenCards = run.pending.shop.cards.filter((s) => s.frozen && !s.sold).map((s) => ({ id: s.id }));
   backToMap(run);
   return ok();
 }
@@ -6252,6 +6274,7 @@ __exports.elementIconId = elementIconId;
 __define("ui/widgets.js", function (__exports, __require) {
 // Wiederverwendbare Bausteine als HTML-Strings: Symbole, Karten, Items, Balken, Logo. Keine Emojis, alles aus ui/art.
 const { CONTENT } = __require("content/index.js");
+const { CONFIG } = __require("data/config.js");
 const { computeDamage } = __require("engine/modifiers.js");
 const { spr, cardIconId, elementIconId, CARD_ART_IDS } = __require("ui/art/index.js");
 const { esc, describeItem, describeWeapon } = __require("ui/util.js");
@@ -6321,7 +6344,7 @@ function itemHtml(def, kind = "items", o = {}) {
   const text = kind === "weapons" ? describeWeapon(def) : describeItem(def);
   return `<div class="itemcard ${def.shiny ? "shiny sh" : ""}" style="--rar:${rar[1]}" data-tip-ref="${kind}:${def.id}">
     <div class="i-art ${kind === "weapons" ? "tall" : ""}">${art}</div>
-    <div class="i-body"><b class="${nameLen(def.name).trim()}">${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}${kind === "items" && def.maxStack === 1 ? " · Einzigartig" : ""}</span><span class="d">${esc(text)}</span></div></div>`;
+    <div class="i-body"><b class="${nameLen(def.name).trim()}">${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${kind === "weapons" && (o.tier ?? 1) > 1 ? ` · Stufe ${CONFIG.weaponTiers.names[o.tier - 1]}` : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}${kind === "items" && def.maxStack === 1 ? " · Einzigartig" : ""}</span><span class="d">${esc(text)}</span></div></div>`;
 }
 const itemIcon = (def, px = 30, kind = "item") =>
   `<span class="mini ${def.shiny ? "sh" : ""}">${spr(kind, def.id.replace(/:s$/, ""), { shiny: def.shiny, attrs: `width="${px}" height="${px}"` })}</span>`;
@@ -6819,7 +6842,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const hero = `<g class="pos" transform="translate(${hx0} ${hy0})"><g class="mover${enter ? " enter-l" : ""}${victory ? ` victory vic-${run.classId}` : ""}${anim("hero", "strike", ` strike-${play?.style ?? "slash"}`)}" ${del("hero", "strike")}>
       <ellipse cx="${(sz.w * hs) / 2}" cy="${sz.h * hs - 1}" rx="${sz.w * hs * 0.4}" ry="5" fill="#000" opacity=".42"/><g class="flash${anim("hero", "hurt", " hurtflash")}" ${del("hero", "hurt")}><g class="shake${anim("hero", "hurt", " hurtshake")}" ${del("hero", "hurt")}><g class="bob ${cls === "magier" ? "mv-hover" : "mv-none"}">
       ${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * hs}" height="${sz.h * hs}"` })}
-      <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${wkind(run.weapon)}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
+      <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${wkind(run.weapon)} wt${run.weaponTier ?? 1}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
         <g transform="translate(${-wgx * wp} ${-wgy * wp})">${spr("weapon", wid, { shiny: wpn.shiny, attrs: `width="${wsz.w * wp}" height="${wsz.h * wp}"` })}</g></g></g>
       </g></g></g></g></g>`;
   // Heldenwerte unter den Füßen
@@ -6919,7 +6942,7 @@ const { aliveEnemies, activeItems } = __require("engine/combat.js");
 const { availableNodes, buildOf, currentLayer, restHealAmount, restPct } = __require("engine/run.js");
 const { lane: mapLane } = __require("engine/map.js");
 const { findNode } = __require("engine/map.js");
-const { tagCount } = __require("engine/modifiers.js");
+const { tagCount, tierWeapon } = __require("engine/modifiers.js");
 const { abilityAt } = __require("engine/abilities.js");
 const { abilityForm } = __require("engine/combat.js");
 const { abilityProgress } = __require("engine/meta.js");
@@ -7087,23 +7110,34 @@ function rewardView(ui) {
   if (r.shinyWeapons?.length) cats.push({ key: "shinyWeapons", label: "Chrom-Waffe", kind: "weapons", ids: r.shinyWeapons, title: `Chrom-Fund: Waffe (aktuell: ${cur.name}, Stärke ${cur.power})`, cls: "chrome" });
   cats.push({ key: "cards", label: "Karte", kind: "cards", ids: r.cards, title: "Karte wählen (oder überspringen)" });
   if (r.items.length) cats.push({ key: "items", label: "Item", kind: "items", ids: r.items, title: "Item wählen" });
-  if (r.weapons.length) cats.push({ key: "weapons", label: "Waffe", kind: "weapons", ids: r.weapons, title: `Waffe tauschen? (aktuell: ${cur.name}, Stärke ${cur.power})` });
+  if (r.weapons.length) { const up = r.weapons.includes(run.weapon); cats.push({ key: "weapons", label: up ? "Waffe ▲" : "Waffe", kind: "weapons", ids: r.weapons, cls: up ? "good" : "", title: `${up ? "Waffe aufwerten oder tauschen" : "Waffe tauschen"}? (aktuell: ${build.weapon.name}${(build.weapon.tier ?? 1) > 1 ? ` Stufe ${CONFIG.weaponTiers.names[build.weapon.tier - 1]}` : ""}, Stärke ${build.weapon.power})` }); }
   const sel = cats.find((c) => c.key === ui.tab.reward) ?? cats.find((c) => !t[c.key]) ?? cats[0];
   const slots = sel.kind === "level"
     ? `<div class="items3 lv4">${r.levelChoices.map((c, i) => `<div class="slot"><div class="itemcard upg" style="--rar:${TIER_COLOR[c.tier]}"><div class="i-body"><b>${ico(STAT_ICON[c.stat], 18)} ${fmtStat(c.stat, c.value)}</b><span class="rar" style="color:${TIER_COLOR[c.tier]}">Stufe ${TIER_NAME[c.tier]}</span><span class="d">${esc(STAT_DESC[c.stat])}</span></div></div>${btn("Nehmen", "take-level", String(i), { cls: "small good" })}</div>`).join("")}</div>`
     : sel.kind === "cards"
     ? `<div class="cards3">${sel.ids.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}</div>`).join("")}</div>`
-    : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind)}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
+    : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind, sel.kind === "weapons" && id === run.weapon ? { tier: Math.min(CONFIG.weaponTiers.power.length, (build.weapon.tier ?? 1) + 1) } : {})}${sel.kind === "weapons" ? weaponCompare(build.weapon, CONTENT.get("weapons", id)) : ""}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
   const tabs = cats.length > 1 ? `<div class="tabs">${cats.map((c) => `<span class="tab ${c.key === sel.key ? "on" : ""}"${at("set-tab", "reward", c.key)}>${t[c.key] ? "✓ " : ""}${c.label}</span>`).join("")}</div>` : "";
   return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}${r.overkillGold ? `<span class="muted small">&nbsp;Überschuss +${r.overkillGold}</span>` : ""}${r.midas ? `<span class="chrome small">&nbsp;(Midas x2)</span>` : ""}${r.harvest ? `<span class="muted small">&nbsp;Ernte +${r.harvest}</span>` : ""}</div>${tabs}<span class="grow"></span>${btn("Weiter", "finish-reward", undefined, { cls: "primary" })}</div>
     <div class="rw-body"><h3 class="${sel.cls ?? ""}">${esc(sel.title)}</h3>${slots}</div></div>`;
 }
 
 // ---------------------------------------------------------------- Shop, Rast, Ereignis
+function weaponCompare(cur, def) {                                                 // Waffenvergleich: lohnt sich Aufwerten oder Tausch?
+  const W = CONFIG.weaponTiers, t = cur.tier ?? 1;
+  if (def.id === cur.id) {                                                          // dieselbe Waffe: Aufwertung auf die nächste Stufe
+    if (t >= W.power.length) return `<div class="wcmp same">Höchste Stufe</div>`;
+    const p1 = cur.power - W.power[t - 1] + W.power[t];
+    return `<div class="wcmp up upg">AUFWERTEN: Stufe ${W.names[t - 1]} → ${W.names[t]} · Stärke ${cur.power} → ${p1} (+${p1 - cur.power})</div>`;
+  }
+  const d = def.power - cur.power, extra = def.passives.length - cur.passives.length, cls = d > 0 ? "up" : d < 0 ? "down" : "same";
+  const txt = d === 0 ? `Gleich stark wie ${cur.name} (Stärke ${def.power})` : `Stärke ${def.power} (${d > 0 ? "+" : ""}${d} gegenüber ${cur.name})`;
+  return `<div class="wcmp ${cls}">${esc(txt)}${extra > 0 ? ` · mehr Zusatzwirkungen` : extra < 0 ? ` · weniger Zusatzwirkungen` : ""}${t > 1 ? ` · deine Stufe ${W.names[t - 1]} geht verloren` : ""}</div>`;
+}
 function shopView(ui) {
   const run = ui.run, shop = run.pending.shop, build = buildOf(run);
-  const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""}">${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
-    ${btn(s.sold ? "Verkauft" : s.core ? "Gratis" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
+  const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}">${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
+    <div class="buyrow">${btn(s.sold ? "Verkauft" : s.core ? "Gratis" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold || s.fixed || s.core ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { arg2: "cards", cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { arg2: "cards", cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Karte für die nächste Runde sperren" })}</div></div>`).join("");
   const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}"><div class="itemwrap">${itemHtml(CONTENT.get("items", s.id))}<span class="c-info iinfo"${at("item-info", `items:${s.id}`)} role="button" aria-label="Details">i</span></div>
     <div class="buyrow">${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Item für die nächste Runde sperren" })}</div></div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
@@ -7206,7 +7240,7 @@ function overlayView(ui) {
     const stats = grid + `<div class="chips">${Object.entries(build.stats).filter(([k, v]) => v && !CORE_STATS.includes(k)).map(([k, v]) => `<span class="chip">${ico(STAT_ICON[k] ?? "star", 12)} ${fmtStat(k, v)}</span>`).join(" ")}</div>`;
     const tags = [...new Set([...CONFIG.typeTags, ...Object.keys(CONTENT.elements)])].map((t) => [t, tagCount(build, t)]).filter(([, n]) => n > 0)
       .map(([t, n]) => `<span class="chip">${CONTENT.elements[t] ? ico(elementIconId(t), 12) + " " : ""}${esc(t)} ${n}</span>`).join(" ");
-    return `<div class="overlay"><div class="sheet stack"><h2>Ausrüstung</h2><div class="grid2">${itemHtml(weapon, "weapons")}${run.items.map((id) => itemHtml(CONTENT.get("items", id))).join("")}</div>
+    return `<div class="overlay"><div class="sheet stack"><h2>Ausrüstung</h2><div class="grid2">${itemHtml(tierWeapon(weapon, run.weaponTier ?? 1), "weapons", { tier: run.weaponTier ?? 1 })}${run.items.map((id) => itemHtml(CONTENT.get("items", id))).join("")}</div>
       ${run.items.length ? "" : "<div class='muted'>Noch keine Items.</div>"}<h3>Werte · Stufe ${run.level + 1} (${run.xp}/${xpNeed(run.level)} EP)</h3>${stats}${tags ? `<h3>Typen im Build (für Synergien)</h3><div class="chips">${tags}</div>` : ""}${close}</div></div>`;
   }
   if (o === "pick-remove") return `<div class="overlay"><div class="sheet"><h2>Welche Karte entfernen?</h2><div class="grid">${groupedDeck(run).map((g) =>
@@ -7600,7 +7634,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "take": {
         const fn = { cards: takeCard, items: takeItem, weapons: takeWeapon, shinyItems: takeShinyItem, shinyWeapons: takeShinyWeapon }[arg];
         const r = fn ? fn(run, Number(arg2)) : { ok: false, reason: "Unbekannte Liste" };
-        toast(r.ok ? `Genommen: ${nameAny(r.id)}` : r.reason);
+        toast(r.ok ? (run.upgradeNotice ? `Waffe aufgewertet: ${nameAny(r.id)} Stufe ${CONFIG.weaponTiers.names[run.upgradeNotice.tier - 1]}` : `Genommen: ${nameAny(r.id)}`) : r.reason); run.upgradeNotice = null;
         if (r.ok) {
           ui.tab.reward = null;                                                // nach einer Wahl zum nächsten offenen Reiter
           // Sind alle Auswahlen getroffen, geht es von selbst weiter (kein extra "Weiter" mehr nötig). Wer etwas auslassen will, tippt oben auf "Weiter".
@@ -7614,7 +7648,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
 
       // ---- Shop und Rast
       case "buy": { const r = shopBuy(run, arg, Number(arg2)); toast(r.ok ? `Gekauft: ${nameAny(r.id)}` : r.reason); break; }
-      case "freeze": { const r = shopFreeze(run, Number(arg)); if (!r.ok) toast(r.reason); else toast(r.frozen ? "Item gesperrt: wartet auf den nächsten Händler" : "Sperre aufgehoben"); break; }
+      case "freeze": { const kind = arg2 === "cards" ? "cards" : "items", r = shopFreeze(run, Number(arg), kind); if (!r.ok) toast(r.reason); else toast(r.frozen ? `${kind === "cards" ? "Karte" : "Item"} gesperrt: wartet auf den nächsten Händler` : "Sperre aufgehoben"); break; }
       case "service": { const r = shopService(run, arg); toast(r.ok ? (arg === "heal" ? "Verband angelegt" : "Stärkungstrank getrunken") : r.reason); break; }
       case "reroll": { const r = shopReroll(run); toast(r.ok ? "Angebot neu gewürfelt" : r.reason); break; }
       case "leave-shop": leaveShop(run); break;
