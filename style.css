@@ -573,3 +573,12 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .edge.soft{stroke:var(--accent);opacity:.75;stroke-width:2.5px}.edge:not(.on):not(.soft){opacity:.4}
 .settings .setgroup.full{grid-column:1/-1}.settings .setgroup.full .row{gap:6px}.settings label.btn{cursor:pointer}
 .compact .settings .setgroup.full .px{font-size:9px;padding:3px 6px}
+.toast{pointer-events:none;animation:toastfade 2.2s forwards}@keyframes toastfade{0%,80%{opacity:1}100%{opacity:0}}
+.settings .sheet{overflow:auto}.settings .setgroup .muted.small{display:block;font-size:9px;line-height:1.25}
+.compact .settings .setgroup .muted.small,.tiny .settings .setgroup .muted.small{display:none}.settings .sheet{max-height:96%}
+/* ---- Belohnung mittig (breite und iPad-Bühnen) */
+.rw-body{align-items:center;justify-content:center;text-align:center}
+.rw-body .cards3{grid-template-columns:repeat(3,minmax(0,172px));justify-content:center;width:100%}
+.rw-body .items3{justify-content:center;max-width:640px;width:100%}.rw-body>h3{width:100%}
+.rw-body .list,.rw-body .rw-lists{justify-content:center;width:100%}
+.settings .muted.small.upd{display:block!important;font-size:10px}

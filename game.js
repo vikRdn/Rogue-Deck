@@ -12,7 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "3.2",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "3.7",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 5, maxHp: 70 },
 
   balance: {
@@ -21,7 +21,7 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.57,
+    enemyDmgScale: 0.585,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
@@ -47,6 +47,7 @@ const CONFIG = {
   depthBonus: { selten: 0.03, legendaer: 0.02 },
 
   // Leichte Lenkung: Tags, von denen der Build mind. minCount Stück hat, erhöhen das Gewicht passender Angebote
+  heroItemBias: 2.5,       // Gewicht für Items, die auf den gespielten Helden zugeschnitten sind (bei anderen Helden 1)
   tagBias: { minCount: 2, perMatch: 0.6, cap: 1.2 },
 
   rewards: { cardChoices: 3, wildcardSlots: 1, weaponMinRarity: "ungewoehnlich" },   // Waffen-Beute ist besser als die Startwaffen (gleiche Stufe wie der Start gäbe keinen Grund zum Tausch)   // Wildcard-Slots ignorieren die Lenkung (Vielfalt!)
@@ -58,6 +59,7 @@ const CONFIG = {
     priceVariance: 0.15,   // +-15 % Zufallsschwankung
     startDiscount: 0.5,
     inflationPerFight: 0.04,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
+    afterFight: true, quick: { cards: 3, items: 3 },          // nach JEDEM Kampf ein Schnellladen (kleineres Angebot); Händler-Orte auf der Karte bleiben der große Laden
     services: { heal: { price: 45, pct: 0.3, step: 15 }, vitality: { price: 90, maxHp: 6 } },   // Dienste beim Händler: Verband (heilt, wird teurer) und Stärkungstrank (+Max-HP, einmal je Besuch)
     removeBase: 50, removeIncrement: 25,
     rerollBase: 10, rerollMult: 2,
@@ -87,7 +89,7 @@ const CONFIG = {
     minLayer: { elite: 3, rast: 2, haendler: 2 },
     tierSplit: 4,               // ab dieser Ebene kommen Begegnungen der Stufe 2
   },
-  gold: { kampf: [14, 24], elite: [30, 44], miniboss: [50, 70], boss: [100, 100] },
+  gold: { kampf: [20, 32], elite: [38, 54], miniboss: [60, 80], boss: [100, 100] },
   // Schwierigkeitsstufen. Stufe n wird erst nach einem Sieg auf Stufe n-1 freigeschaltet.
   difficulty: [
     { name: "Normal",   hpMult: 1,    dmgMult: 1 },
@@ -1386,6 +1388,52 @@ __exports.default = {
 
 
 });
+__define("content/packs/helden_items.js", function (__exports, __require) {
+// HELDEN-ITEMS: je Held drei eigene Items (erscheinen bei jedem Helden, sind aber auf ihren Helden zugeschnitten und im Spiel mit "Passt zu" gekennzeichnet), gebaut für seine Stärken. Brotato-Richtung: Items sollen mit dem Helden Synergien bilden.
+__exports.default = {
+  id: "heldenitems",
+  name: "Helden-Items",
+  items: {
+    ritterschwur: { name: "Ritterschwur", rarity: "ungewoehnlich", hero: "nahkaempfer", tags: ["item", "block"], text: "Block-Karte gespielt: 2 Schaden auf einen Gegner (max. 4/Zug).",
+      passives: [{ trigger: "on_card_played", cardTag: "block", action: "damage", value: 2, target: "random_enemy", maxPerTurn: 4 }] },
+    eisenwall: { name: "Eisenwall", rarity: "selten", hero: "nahkaempfer", tags: ["item", "block"], text: "Ab 4 Block-Tags: ALLE Karten +20 % Schaden.",
+      passives: [{ trigger: "damage_calc", requires: { tag: "block", count: 4 }, op: "pct", value: 0.2 }] },
+    siegerhelm: { name: "Siegerhelm", rarity: "selten", hero: "nahkaempfer", tags: ["item", "ruestung"], text: "Gegner besiegt: 4 Block und 2 HP (max. 2/Zug).",
+      passives: [{ trigger: "on_kill", action: "block", value: 4, maxPerTurn: 2 }, { trigger: "on_kill", action: "heal", value: 2, maxPerTurn: 2 }] },
+    sperrfeuer: { name: "Sperrfeuer", rarity: "ungewoehnlich", hero: "fernkaempfer", tags: ["item", "fernkampf"], text: "Fernkampfkarte gespielt: 1 Schaden an ALLE (max. 4/Zug).",
+      passives: [{ trigger: "on_card_played", cardTag: "fernkampf", action: "damage_all", value: 1, maxPerTurn: 4 }] },
+    windlaeufer: { name: "Windläufer", rarity: "ungewoehnlich", hero: "fernkaempfer", tags: ["item", "ausweichen", "fernkampf"], text: "Erster Zug jedes Kampfes: weiche 1 Treffer aus. Fernkampfkarten: +1 Schaden.",
+      passives: [{ trigger: "on_turn_start", action: "player_status", status: "ausweichen", stacks: 1, oncePerCombat: true }, { trigger: "damage_calc", cardTag: "fernkampf", op: "add", value: 1 }] },
+    meisterschuetze: { name: "Meisterschütze", rarity: "selten", hero: "fernkaempfer", tags: ["item", "fernkampf", "debuff"], text: "Kampfbeginn: alle Gegner 2 Züge markiert. Ab 5 Fernkampf-Tags: Fernkampfkarten +30 % Schaden.",
+      passives: [{ trigger: "on_combat_start", action: "status_all", status: "markiert", stacks: 2 }, { trigger: "damage_calc", cardTag: "fernkampf", requires: { tag: "fernkampf", count: 5 }, op: "pct", value: 0.3 }] },
+    arkane_feder: { name: "Arkane Feder", rarity: "ungewoehnlich", hero: "magier", tags: ["item", "zauber"], text: "Zauberkarten: +2 Schaden. Zauberkarte gespielt: 15 % Chance auf +1 Energie (max. 1/Zug).",
+      passives: [{ trigger: "damage_calc", cardTag: "zauber", op: "add", value: 2 }, { trigger: "on_card_played", cardTag: "zauber", action: "energy", value: 1, chance: 0.15, maxPerTurn: 1 }] },
+    elementarkompass: { name: "Elementarkompass", rarity: "selten", hero: "magier", tags: ["item", "zauber"], text: "Kampfbeginn: ziehe 2 Karten. Reaktion: ziehe 1 Karte (max. 1/Zug).",
+      passives: [{ trigger: "on_combat_start", action: "draw", value: 2 }, { trigger: "on_reaction", action: "draw", value: 1, maxPerTurn: 1 }] },
+    prismakrone: { name: "Prismakrone", rarity: "legendaer", hero: "magier", tags: ["item", "zauber"], maxStack: 1, stats: { reaction: 50 }, text: "Reaktionen +50 %. Reaktion: heile 2 HP (max. 2/Zug).",
+      passives: [{ trigger: "on_reaction", action: "heal", value: 2, maxPerTurn: 2 }] },
+    glutherz: { name: "Glutherz", rarity: "ungewoehnlich", hero: "pyromant", tags: ["item", "feuer"], text: "Du wirst getroffen: alle Gegner 2 Verbrennung (max. 2/Zug).",
+      passives: [{ trigger: "on_player_hit", action: "status_all", status: "verbrennung", stacks: 2, maxPerTurn: 2 }] },
+    schmerzkelch: { name: "Schmerzkelch", rarity: "selten", hero: "pyromant", tags: ["item", "feuer"], text: "Zugbeginn: -2 HP. Feuerkarten +4 Schaden.",
+      passives: [{ trigger: "on_turn_start", action: "hurt", value: 2 }, { trigger: "damage_calc", cardTag: "feuer", op: "add", value: 4 }] },
+    phoenixblut: { name: "Phönixblut", rarity: "legendaer", hero: "pyromant", tags: ["item", "feuer"], maxStack: 1, text: "Kampfbeginn: heile 8 HP. Feuerkarte gespielt: 1 Verbrennung auf ALLE (max. 2/Zug).",
+      passives: [{ trigger: "on_combat_start", action: "heal", value: 8 }, { trigger: "on_card_played", cardTag: "feuer", action: "status_all", status: "verbrennung", stacks: 1, maxPerTurn: 2 }] },
+    goldener_zahn: { name: "Goldener Zahn", rarity: "ungewoehnlich", hero: "aristokrat", tags: ["item", "gold"], stats: { goldPct: 20, ernte: 1 }, text: "+20 % Gold, Ernte 1." },
+    bankier: { name: "Bankier", rarity: "selten", hero: "aristokrat", tags: ["item", "gold"], text: "Alle Karten: +1 Grundschaden je 40 Gold, das du besitzt (max. +12).",
+      passives: [{ trigger: "damage_calc", op: "baseadd", perGold: { step: 40, value: 1 }, cap: 12 }] },
+    kronjuwelen: { name: "Kronjuwelen", rarity: "legendaer", hero: "aristokrat", tags: ["item", "gold"], maxStack: 1, stats: { goldPct: 50, ernte: 3 }, text: "+50 % Gold, Ernte 3." },
+    gruener_daumen: { name: "Grüner Daumen", rarity: "ungewoehnlich", hero: "gaertnerin", tags: ["item", "pflanze"], stats: { regen: 3 }, text: "Pflanzenkarten: +2 Schaden. Heile 3 HP nach jedem Kampf.",
+      passives: [{ trigger: "damage_calc", cardTag: "pflanze", op: "add", value: 2 }] },
+    erntekorb: { name: "Erntekorb", rarity: "ungewoehnlich", hero: "gaertnerin", tags: ["item", "pflanze"], text: "Pflanzenkarte gespielt: heile 1 HP (max. 3/Zug).",
+      passives: [{ trigger: "on_card_played", cardTag: "pflanze", action: "heal", value: 1, maxPerTurn: 3 }] },
+    weltenbaum: { name: "Weltenbaum", rarity: "legendaer", hero: "gaertnerin", tags: ["item", "pflanze"], maxStack: 1, stats: { maxHp: 10 }, text: "+10 Max-HP. Zugbeginn: heile 1 HP pro Pflanzen-Tag (max. 3).",
+      passives: [{ trigger: "on_turn_start", action: "heal", perTag: "pflanze", value: 1, cap: 3 }] },
+  },
+};
+
+
+
+});
 __define("content/index.js", function (__exports, __require) {
 // Hier werden alle Sets geladen. Neues Set = eine Import-Zeile + eine register-Zeile.
 const { createContent } = __require("content/registry.js");
@@ -1408,9 +1456,10 @@ const aristokratGaertner = __require("content/packs/aristokrat_gaertner.js").def
 const waffenStufe2 = __require("content/packs/waffen_stufe2.js").default;
 const helden2 = __require("content/packs/helden2.js").default;
 const story = __require("content/packs/story.js").default;
+const heldenItems = __require("content/packs/helden_items.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 const problems = CONTENT.validate();
@@ -1491,6 +1540,14 @@ const EN_ITEMS = {
   vorratskammer: ["Pantry", "Harvest 4: +4 Gold after every combat."], boerse_des_geizkragens: ["Miser's Purse", "All cards: +1 base damage per 50 Gold you own (max. +15)."],
   midas_fluch: ["Midas Curse", "Doubles all Gold you receive (loot, overkill, harvest, card gold). Item locking in the shop is permanently disabled."],
   nekromanten_pakt: ["Necromancer's Pact", "All healing becomes 0. Instead, a random enemy takes double the amount as damage (outside combat it fizzles)."], wuchernde_wurzeln: ["Overgrown Roots", "End of turn: heal 1 HP per card in hand. Hand size -2."],
+  ritterschwur: ["Knight's Oath", "Block card played: 2 damage to an enemy (max. 4/turn)."], eisenwall: ["Iron Wall", "From 4 Block tags: ALL cards +20% damage."], siegerhelm: ["Victor's Helm", "Enemy defeated: 4 Block and 2 HP (max. 2/turn)."],
+  sperrfeuer: ["Suppressing Fire", "Ranged card played: 1 damage to ALL (max. 4/turn)."], windlaeufer: ["Windrunner", "First turn of every combat: dodge 1 hit. Ranged cards: +1 damage."],
+  meisterschuetze: ["Marksman", "Start of combat: all enemies marked for 2 turns. From 5 Ranged tags: Ranged cards +30% damage."],
+  arkane_feder: ["Arcane Quill", "Spell cards: +2 damage. Spell card played: 15% chance for +1 Energy (max. 1/turn)."], elementarkompass: ["Elemental Compass", "Start of combat: draw 2 cards. Reaction: draw 1 card (max. 1/turn)."],
+  prismakrone: ["Prism Crown", "Reactions +50%. Reaction: heal 2 HP (max. 2/turn)."], glutherz: ["Ember Heart", "You are hit: all enemies 2 Burn (max. 2/turn)."], schmerzkelch: ["Chalice of Pain", "Start of turn: -2 HP. Fire cards +4 damage."],
+  phoenixblut: ["Phoenix Blood", "Start of combat: heal 8 HP. Fire card played: 1 Burn on ALL (max. 2/turn)."], goldener_zahn: ["Golden Tooth", "+20% Gold, Harvest 1."],
+  bankier: ["Banker", "All cards: +1 base damage per 40 Gold you own (max. +12)."], kronjuwelen: ["Crown Jewels", "+50% Gold, Harvest 3."], gruener_daumen: ["Green Thumb", "Plant cards: +2 damage. Heal 3 HP after every combat."],
+  erntekorb: ["Harvest Basket", "Plant card played: heal 1 HP (max. 3/turn)."], weltenbaum: ["World Tree", "+10 Max HP. Start of turn: heal 1 HP per Plant tag (max. 3)."],
 };
 
 __exports.EN_CARDS = EN_CARDS;
@@ -1583,7 +1640,7 @@ const EN_UI = {
   "Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Bessere Waffen findest du später, zum Beispiel nach dem Mini-Boss.": "Every weapon is free to choose and suits one hero best. You'll find better weapons later, for example after the mini-boss.",
   "Kampf": "Combat", "Kampfszene": "Combat scene", "Karte wählen (oder überspringen)": "Choose a card (or skip)", "Klasse:": "Class:", "Kämpfe": "Combats", "Kämpfe:": "Combats:", "Leuchtende Orte sind erreichbar.": "Glowing places are reachable.",
   "Manche Erfolge zeigen sich erst, wenn du sie erreichst.": "Some achievements only appear once you reach them.", "Mehr": "More", "Menü": "Menu", "Mini-Boss": "Mini-boss", "Nachziehstapel": "Draw pile", "Nehmen": "Take", "Gewählt": "Chosen",
-  "Neu freigeschaltet:": "Newly unlocked:", "Neue Erfolge:": "New achievements:", "Neue Varianten und Rahmen schaltest du über Erfolge frei.": "Unlock new variants and frames through achievements.", "Neuer Run": "New run", "Noch keine Items.": "No items yet.",
+  "Neu freigeschaltet:": "Newly unlocked:", "Neue Erfolge:": "New achievements:", "Neue Varianten und Rahmen schaltest du über Erfolge frei. Ein Rahmen umrandet alle Karten und Items im Spiel (Hand, Shop, Beute).": "Unlock new variants and frames through achievements. A frame outlines all cards and items in the game (hand, shop, rewards).", "Neuer Run": "New run", "Noch keine Items.": "No items yet.",
   "Normal": "Normal", "Schwer": "Hard", "Groß": "Large", "Sehr groß": "Extra large", "Rahmen": "Frames", "Rast": "Rest", "Rastplatz": "Campsite", "Run aufgeben": "Abandon run", "Runs und Siege": "Runs and wins", "Sammlung": "Collection", "Schließen": "Close",
   "Schwierigkeit": "Difficulty", "Shiny-Sammlung": "Shiny collection", "Shinys gesehen:": "Shinies seen:", "Sieg! Der Wandler ist gefallen.": "Victory! The Wanderer has fallen.", "Standard": "Default", "Startladen": "Starter shop", "Tippe einen Gegner an": "Tap an enemy",
   "Weiter": "Continue", "Weiterspielen": "Resume", "Wohin als Nächstes?": "Where next?", "Der Weg beginnt": "The journey begins", "Wähle deine Waffe": "Choose your weapon", "Wähle deinen Helden": "Choose your hero", "Zug beenden": "End turn",
@@ -1599,8 +1656,14 @@ const EN_UI = {
   "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel.": "One tap plays the card. Tapping an enemy makes it the main target.", "Erst Karte wählen, dann Gegner antippen.": "Choose a card first, then tap an enemy.",
   "Spielstand": "Save data", "Sichern (Datei)": "Back up (file)", "Laden (Datei)": "Restore (file)", "Ja, ersetzen": "Yes, replace", "Das ist keine Rogue-Deck-Sicherung": "This is not a Rogue-Deck backup", "Spielstand geladen": "Save loaded",
   "Verband angelegt": "Bandage applied", "Stärkungstrank getrunken": "Tonic drunk", "Du bist bei vollen HP": "You are at full HP",
+  "Deutsch": "German", "Englisch": "English",
+  "Vollbild geht auf iPad und iPhone nur als App: Teilen, dann „Zum Home-Bildschirm“.": "On iPad and iPhone, fullscreen only works as an app: Share, then \"Add to Home Screen\".",
+  "Schnellladen": "Quick shop",
+  "Auf Update prüfen": "Check for update", "Jetzt aktualisieren": "Update now", "Neu laden": "Reload", "Prüfe …": "Checking…", "Du hast die neueste Version.": "You have the latest version.",
+  "Update verfügbar! Ein laufender Kampf wird dabei nicht gespeichert.": "Update available! A combat in progress is not saved.", "Prüfen nicht möglich. Lade die Seite neu, um sicher die neueste Version zu haben.": "Can't check. Reload the page to be sure you have the latest version.",
+  "Das Spiel wurde aktualisiert. Dein angefangener Run passt nicht mehr dazu und wurde beendet und gezählt.": "The game was updated. Your run in progress no longer fits and was ended and counted.", "Erfolge, Entdeckungen, Freischaltungen und Shinys sind übernommen.": "Achievements, discoveries, unlocks and Shinies were carried over.", "Neue Version": "New version",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
-  "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet, sobald du keine Karte mehr spielen kannst.": "Automatic: your turn ends as soon as you can't play a card.",
+  "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
   // Heldenwahl / Sammlung
   "Gesperrt ": "Locked", "Erfolg": "Achievement", "Neue Schwierigkeit freigeschaltet": "New difficulty unlocked",
@@ -1620,6 +1683,8 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^Version (.+)$/, (t, v) => `Version ${v}`],
+  [/^(Gewöhnlich|Ungewöhnlich|Selten|Legendär) · Passt zu: (.+)$/, (t, r, c) => `${t(r)} · Fits: ${c}`],
   [/^Verband \+(\d+)% HP \((\d+)\)$/, (t, p, c) => `Bandage +${p}% HP (${c})`], [/^Trank \+(\d+) Max-HP \((\d+)\)$/, (t, m, c) => `Tonic +${m} Max HP (${c})`],
   [/^Sicherung ersetzen\? Siege (\d+), Runs (\d+)(, Run in Arbeit)?\. Dein jetziger Fortschritt wird überschrieben\.$/, (t, w, r, x) => `Replace backup? Wins ${w}, runs ${r}${x ? ", run in progress" : ""}. Your current progress will be overwritten.`],
   [/^Tempo x(\d)$/, (t, n) => `Speed x${n}`], [/^Siege (\d+) · Runs (\d+) · Shinys (\d+)$/, (t, a, b, c) => `Wins ${a} · Runs ${b} · Shinies ${c}`],
@@ -2846,7 +2911,7 @@ function pickOne(ctx, kind, exclude, biased, minIdx = 0) {
   }
   if (!list.length) return null;
   const dom = biased ? dominantTags(ctx.build) : null;
-  return ctx.rng.weighted(list.map((d) => ({ value: d, weight: dom ? biasWeight(d, dom) : 1 })));
+  return ctx.rng.weighted(list.map((d) => ({ value: d, weight: (d.hero === ctx.classId ? CONFIG.heroItemBias : 1) * (dom ? biasWeight(d, dom) : 1) })));          // Helden-Items erscheinen bei jedem Helden, beim passenden Helden öfter
 }
 
 // Jeder gewürfelte Slot kann mit sehr geringer Chance zur Shiny-Variante werden.
@@ -2942,8 +3007,8 @@ function generateStartShop(ctx) {
   return { cards: [...basics, ...cards], items, removeCost: S.removeBase, removals: 0, rerollCost: S.rerollBase, rerolls: 0, start: true };
 }
 
-function generateShop(ctx) {
-  const S = CONFIG.shop, infl = ctx.inflation ?? 1;
+function generateShop(ctx, quick = false) {
+  const S = quick ? { ...CONFIG.shop, cardSlots: CONFIG.shop.quick.cards, itemSlots: CONFIG.shop.quick.items, wildcardCards: 1, wildcardItems: 1 } : CONFIG.shop, infl = ctx.inflation ?? 1;
   // Gesperrte Items der letzten Händlerrunde ("Freeze") kommen zuerst wieder, zu den aktuellen Preisen
   const frozen = (ctx.frozen ?? []).slice(0, S.itemSlots).map((f) => ({ ...slot(ctx.rng, "items", CONTENT.get("items", f.id), infl), frozen: true }));
   const need = S.itemSlots - frozen.length;
@@ -2954,6 +3019,7 @@ function generateShop(ctx) {
     items: [...frozen, ...fresh],
     removeCost: removalCost(ctx.removedCards ?? 0), removals: 0,
     rerollCost: S.rerollBase, rerolls: 0,
+    quick,
     services: [{ id: "heal", price: S.services.heal.price, uses: 0 }, { id: "vitality", price: S.services.vitality.price, sold: false }],
   };
 }
@@ -3277,6 +3343,12 @@ function finishReward(run) {
     countShiny(run, [...shop.cards, ...shop.items].map((s) => ({ id: s.id, kind: s.kind })));
     run.phase = "shop"; run.pending = { shop };
     return ok({ startShop: true });
+  }
+  if (CONFIG.shop.afterFight && run.stats.fights >= 2) {                             // ab dem zweiten Kampf: Schnellladen nach jedem Kampf
+    const shop = generateShop(ctxOf(run), true);
+    countShiny(run, [...shop.cards, ...shop.items].map((s) => ({ id: s.id, kind: s.kind })));
+    run.phase = "shop"; run.pending = { shop };
+    return ok({ quickShop: true });
   }
   backToMap(run);
   return ok();
@@ -3884,8 +3956,9 @@ function resolveRig(spec0, { grid, pal, W, H, shiny }) {
   });
   return { regions, blink, glow };
 }
-const seqValues = (seq) => seq.map(([dx, dy]) => `${dx} ${dy}`).join(";");
-const seqTimes = (seq) => seq.map((_, i) => (i / seq.length).toFixed(3)).join(";");
+const seqValues = (seq) => [...seq, seq[0]].map(([dx, dy]) => `${dx} ${dy}`).join(";");          // zurück zum Anfang, damit die Schleife weich schließt
+const seqTimes = (seq) => [...seq, seq[0]].map((_, i) => (i / seq.length).toFixed(3)).join(";");
+const seqSplines = (seq) => seq.map(() => "0.45 0 0.55 1").join(";");                           // sanftes Beschleunigen und Abbremsen
 function rigTree(rig) {
   const byId = new Map(rig.regions.map((r) => [r.id, { ...r, kids: [], own: [], over: [] }]));
   const depth = (r) => (r.parent ? 1 + depth(byId.get(r.parent)) : 1);
@@ -3934,7 +4007,7 @@ function rigBody(px, rig) {
   rig.blink.forEach((b) => put(b, "blink")); rig.glow.forEach((g) => put(g, "glow"));
   // under: eine feste Kopie des Bereichs liegt darunter, damit beim seitlichen Schwingen nie ein Loch entsteht (nur ein 1-px-Schatten des alten Platzes)
   const render = (r) => {
-    const moving = `<g>${pathsOf(r.own)}${r.over.join("")}${r.kids.map(render).join("")}<animateTransform attributeName="transform" type="translate" calcMode="discrete" values="${seqValues(r.seq)}" keyTimes="${seqTimes(r.seq)}" dur="${r.dur}s" begin="${-(r.phase ?? 0)}s" repeatCount="indefinite"/></g>`;
+    const moving = `<g>${pathsOf(r.own)}${r.over.join("")}${r.kids.map(render).join("")}<animateTransform attributeName="transform" type="translate" calcMode="spline" values="${seqValues(r.seq)}" keyTimes="${seqTimes(r.seq)}" keySplines="${seqSplines(r.seq)}" dur="${r.dur}s" begin="${-(r.phase ?? 0)}s" repeatCount="indefinite"/></g>`;
     return r.under ? `<g>${pathsOf(r.own)}${moving}</g>` : moving;
   };
   return pathsOf(rootOwn) + rootOver.join("") + roots.map(render).join("");
@@ -4119,6 +4192,16 @@ const ITEM_ART = {
   grimoire: ["book", "arkan"], funkenschlag: ["bolt", "blitz"], gedankenstein: ["gem", "arkan", "bolt"], resonanzkristall: ["crystal", "prisma"],
   manaquelle: ["orb", "arkan"], elementarlinse: ["lens", "prisma", "flame"],
 };
+
+// Helden-Items (content/packs/helden_items.js): [Form, Farbe, Zeichen]
+Object.assign(ITEM_ART, {
+  ritterschwur: ["medal", "eisen", null], eisenwall: ["chest", "stein", null], siegerhelm: ["helmet", "blut", "drop"],
+  sperrfeuer: ["quiver", "holz", "bolt"], windlaeufer: ["boot", "leder", "wing"], meisterschuetze: ["scope", "prisma", null],
+  arkane_feder: ["feather", "arkan", "bolt"], elementarkompass: ["globe", "prisma", null], prismakrone: ["crown", "prisma", null],
+  glutherz: ["heart", "schatten", "flame"], schmerzkelch: ["chalice", "blut", "flame"], phoenixblut: ["vial", "feuer", "wing"],
+  goldener_zahn: ["fang", "gold", "coin"], bankier: ["scales", "gold", "coin"], kronjuwelen: ["crown", "gold", "coin"],
+  gruener_daumen: ["clover", "pflanze", "leaf"], erntekorb: ["bowl", "pflanze", "leaf"], weltenbaum: ["log", "pflanze", "leaf"],
+});
 
 __exports.SHAPES = SHAPES;
 __exports.MARKS = MARKS;
@@ -5624,7 +5707,7 @@ function itemHtml(def, kind = "items", o = {}) {
   const text = kind === "weapons" ? describeWeapon(def) : describeItem(def);
   return `<div class="itemcard ${def.shiny ? "shiny sh" : ""}" style="--rar:${rar[1]}">
     <div class="i-art ${kind === "weapons" ? "tall" : ""}">${art}</div>
-    <div class="i-body"><b>${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}</span><span class="d">${esc(text)}</span></div></div>`;
+    <div class="i-body"><b>${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}</span><span class="d">${esc(text)}</span></div></div>`;
 }
 const itemIcon = (def, px = 30, kind = "item") =>
   `<span class="mini ${def.shiny ? "sh" : ""}">${spr(kind, def.id.replace(/:s$/, ""), { shiny: def.shiny, attrs: `width="${px}" height="${px}"` })}</span>`;
@@ -5750,7 +5833,7 @@ function cosmeticsView(ui) {
   const tab = ui.tab.cosm === "rahmen" ? "rahmen" : "farben";
   const body = tab === "farben" ? `<div class="skingrid">${heroes}</div>` : `<div class="px pad"><div class="chips">${frames.join("")}</div></div>`;
   return `<div class="screen collection"><div class="pg-head"><h2>Aussehen</h2><div class="tabs"><span class="tab ${tab === "farben" ? "on" : ""}"${at("set-tab", "cosm", "farben")}>Farben der Helden</span><span class="tab ${tab === "rahmen" ? "on" : ""}"${at("set-tab", "cosm", "rahmen")}>Rahmen</span></div><span class="grow"></span>${btn("Zurück", "to-title", undefined, { cls: "primary small" })}</div>
-    <div class="pg-body">${body}<div class="muted small pad">Neue Varianten und Rahmen schaltest du über Erfolge frei.</div></div></div>`;
+    <div class="pg-body">${body}<div class="muted small pad">Neue Varianten und Rahmen schaltest du über Erfolge frei. Ein Rahmen umrandet alle Karten und Items im Spiel (Hand, Shop, Beute).</div></div></div>`;
 }
 
 // Meldung, die kurz eingeblendet wird, wenn ein Erfolg erreicht wurde
@@ -6373,7 +6456,7 @@ function shopView(ui) {
   const npc = brumm
     ? `<div class="shop-npc"><div class="npc">${spr("npc", "brumm", { attrs: 'width="46" height="62"' })}</div><div class="bubble static"><div class="who">${esc(CONTENT.speakers.brumm.name)}</div><p>${esc(brumm)}</p></div></div>`
     : `<div class="shop-npc plain"><div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="44" height="44"' })}</div></div>`;
-  return `${hud(ui)}<div class="screen shop"><div class="shop-side">${npc}<h2>${shop.start ? "Startladen" : "Händler"}</h2><div class="muted">Dein Gold: <b class="gold">${run.gold}</b></div>
+  return `${hud(ui)}<div class="screen shop"><div class="shop-side">${npc}<h2>${shop.start ? "Startladen" : shop.quick ? "Schnellladen" : "Händler"}</h2><div class="muted">Dein Gold: <b class="gold">${run.gold}</b></div>
       <div class="muted small">Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div>
       ${btn(`${ico("star", 14)} Neu würfeln (${shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: run.gold < shop.rerollCost })}
       ${btn(`${ico("discard", 14)} Schredder (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
@@ -6465,14 +6548,17 @@ function overlayView(ui) {
 }
 // Einstellungen: Sprache, Anzeige, Tempo und Kampf-Bedienung an einem Ort (öffnet sich über jedem Bildschirm, auch im Spiel)
 const chips = (list, cur, action) => `<div class="chips">${list.map(([v, label]) => `<span class="chip ${String(cur) === String(v) ? "on" : ""}"${at(action, String(v))}>${esc(label)}</span>`).join("")}</div>`;
+const fsOk = () => typeof document !== "undefined" && Boolean(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !/iPad|iPhone|iPod/.test(navigator.userAgent) && !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 function settingsView(ui) {
   const s = ui.meta.settings, size = s.size ?? "gross", lang = s.lang ?? "de";
   return `<div class="overlay settings"><div class="sheet mid stack"><h2>Einstellungen</h2>
-    <div class="setgroup"><b>Sprache</b>${chips([["de", "Deutsch"], ["en", "English"]], lang, "set-lang")}</div>
-    <div class="setgroup"><b>Anzeigegröße</b>${chips([["normal", "Normal"], ["gross", "Groß"], ["riesig", "Sehr groß"]], size, "set-size")}${btn("Vollbild", "fullscreen", undefined, { cls: "small" })}<div class="muted small">Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.</div></div>
+    <div class="setgroup"><b>Sprache</b>${chips([["de", "Deutsch"], ["en", "Englisch"]], lang, "set-lang")}</div>
+    <div class="setgroup"><b>Anzeigegröße</b>${chips([["normal", "Normal"], ["gross", "Groß"], ["riesig", "Sehr groß"]], size, "set-size")}${fsOk() ? btn("Vollbild", "fullscreen", undefined, { cls: "small" }) : `<div class="muted small">Vollbild geht auf iPad und iPhone nur als App: Teilen, dann „Zum Home-Bildschirm“.</div>`}<div class="muted small">Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.</div></div>
     <div class="setgroup"><b>Tempo im Kampf</b>${chips(CONFIG.ui.speeds.map((v) => [v, `x${v}`]), ui.speed, "set-speed")}</div>
-    <div class="setgroup"><b>Zug beenden</b>${chips([[1, "Automatisch"], [0, "Von Hand"]], ui.autoEnd ? 1 : 0, "set-autoend")}<div class="muted small">Automatisch: Der Zug endet, sobald du keine Karte mehr spielen kannst.</div></div>
+    <div class="setgroup"><b>Zug beenden</b>${chips([[1, "Automatisch"], [0, "Von Hand"]], ui.autoEnd ? 1 : 0, "set-autoend")}<div class="muted small">Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.</div></div>
     <div class="setgroup"><b>Ziele wählen</b>${chips([[0, "Automatisch"], [1, "Von Hand"]], ui.manual ? 1 : 0, "set-manual")}<div class="muted small">${ui.manual ? "Erst Karte wählen, dann Gegner antippen." : "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel."}</div></div>
+    <div class="setgroup full"><b>Version ${esc(CONFIG.version)}</b><div class="row wrap">${btn("Auf Update prüfen", "check-update", undefined, { cls: "small" })}${ui.updateStatus === "new" || ui.updateStatus === "error" ? btn(ui.updateStatus === "new" ? "Jetzt aktualisieren" : "Neu laden", "reload-page", undefined, { cls: "small good" }) : ""}</div>
+      ${ui.updateStatus ? `<div class="muted small upd">${{ checking: "Prüfe …", current: "Du hast die neueste Version.", new: "Update verfügbar! Ein laufender Kampf wird dabei nicht gespeichert.", error: "Prüfen nicht möglich. Lade die Seite neu, um sicher die neueste Version zu haben." }[ui.updateStatus] ?? ""}</div>` : ""}</div>
     <div class="setgroup full"><b>Spielstand</b><div class="row wrap">${btn("Sichern (Datei)", "export-save", undefined, { cls: "small" })}<label class="btn small">Laden (Datei)<input type="file" accept=".json,application/json" data-import hidden></label></div>
       ${ui.importPending ? `<div class="px pad stack"><div>Sicherung ersetzen? Siege ${ui.importPending.wins}, Runs ${ui.importPending.runs}${ui.importPending.hasRun ? ", Run in Arbeit" : ""}. Dein jetziger Fortschritt wird überschrieben.</div><div class="row">${btn("Ja, ersetzen", "import-yes", undefined, { cls: "danger small" })}${btn("Abbrechen", "import-no", undefined, { cls: "small" })}</div></div>` : ""}</div>
     ${btn("Schließen", "close-settings", undefined, { cls: "primary" })}</div></div>`;
@@ -6519,7 +6605,7 @@ const { CONFIG } = __require("data/config.js");
 const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
 const { playCard, endPlayerTurn, useItem, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
-const { createMeta, normalizeMeta, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
+const { createMeta, normalizeMeta, recordRun, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
 const { evaluateAchievements } = __require("engine/achievements.js");
 const { bannerHtml } = __require("ui/achview.js");
 const { storyLines } = __require("engine/story.js");
@@ -6552,7 +6638,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
-    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, settingsOpen: false, importPending: null, reloadNeeded: false,
+    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, settingsOpen: false, updateStatus: null, importPending: null, reloadNeeded: false,
     auto: false, speed: CONFIG.ui.speeds.includes(meta.settings.speed) ? meta.settings.speed : 1, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
   };
   applyContentLanguage(CONTENT, meta.settings.lang ?? "de");                  // gespeicherte Sprache anwenden
@@ -6564,7 +6650,9 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     if (peekSave(rawSave).ok) ui.hasSave = true;
     else {
       remove(KEY_RUN);
-      ui.notice = { title: "Neue Version", lines: ["Das Spiel wurde aktualisiert. Dein angefangener Run passt nicht mehr dazu und wurde verworfen.", "Freischaltungen und Shinys bleiben erhalten."] };
+      let old = null; try { old = JSON.parse(rawSave); } catch { /* ignorieren */ }
+      if (old?.classId) { try { recordRun(meta, { classId: old.classId, difficulty: old.difficulty ?? 0, weapon: old.weapon ?? old.startWeapon }, false); write(KEY_META, meta); } catch { /* ignorieren */ } }   // der Run wird als beendet gezählt
+      ui.notice = { title: "Neue Version", lines: ["Das Spiel wurde aktualisiert. Dein angefangener Run passt nicht mehr dazu und wurde beendet und gezählt.", "Erfolge, Entdeckungen, Freischaltungen und Shinys sind übernommen."] };
     }
   }
 
@@ -6673,7 +6761,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         Object.assign(ui.meta, createMeta());
         remove(KEY_RUN); ui.hasSave = false; ui.confirmReset = false; toast("Spielstand gelöscht");
         break;
-      case "abandon": { const wasPreview = ui.preview; endPreview(); if (!wasPreview) { remove(KEY_RUN); ui.hasSave = false; } ui.run = null; ui.screen = "title"; ui.overlay = null; break; }
+      case "abandon": { const wasPreview = ui.preview; endPreview(); if (!wasPreview) { if (run && run.phase !== "won" && run.phase !== "lost") recordRun(ui.meta, run, false); remove(KEY_RUN); ui.hasSave = false; } ui.run = null; ui.screen = "title"; ui.overlay = null; break; }
       case "orientation": ui.landscape = arg === "landscape"; break;
 
       // ---- Geschichte
@@ -6739,6 +6827,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       }
       case "import-no": ui.importPending = null; break;
       case "open-settings": ui.settingsOpen = true; break;                          // Einstellungen (Titel und Spiel)
+      case "reload-page": ui.reloadNow = true; break;                          // main.js lädt die Seite mit frischem Cache neu
       case "close-settings": ui.settingsOpen = false; break;
       case "set-lang": ui.meta.settings = { ...ui.meta.settings, lang: arg === "en" ? "en" : "de" }; applyContentLanguage(CONTENT, ui.meta.settings.lang); break;
       case "set-size": ui.meta.settings = { ...ui.meta.settings, size: ["normal", "gross", "riesig"].includes(arg) ? arg : "gross" }; break;
@@ -6872,14 +6961,16 @@ const STAGE_SIZES = { normal: 400, gross: 360, riesig: 330 };      // Anzeigegr�
 const STAGE_MIN_W = 720, STAGE_MAX_W = 960;
 const devHeight = Number(new URLSearchParams(window.location.search).get("h")) || 0;     // nur zum Testen (?h=360)
 function fit() {
-  const STAGE_H = devHeight || STAGE_SIZES[ctrl.ui.meta.settings.size ?? "gross"] || 400;
+  const BASE_H = devHeight || STAGE_SIZES[ctrl.ui.meta.settings.size ?? "gross"] || 400;
   const cs = window.getComputedStyle(probe);                                    // Sicherheitsabstände (Notch) aus CSS lesen
   const L = parseFloat(cs.paddingLeft) || 0, R = parseFloat(cs.paddingRight) || 0, T = parseFloat(cs.paddingTop) || 0, B = parseFloat(cs.paddingBottom) || 0;
   const vw = window.innerWidth - L - R, vh = window.innerHeight - T - B;
+  const sW = vw / STAGE_MIN_W;                                                  // Skalierung, wenn die Breite begrenzt (iPad, 4:3)
+  const STAGE_H = devHeight ? BASE_H : BASE_H + Math.max(0, Math.min(BASE_H * 0.25, (vh / sW - BASE_H) * 0.6));   // ungenutzte Höhe: Bühne bis 25 % höher (kaum schwarze Balken auf dem iPad)
   const s = Math.min(vh / STAGE_H, vw / STAGE_MIN_W);
   const W = Math.min(STAGE_MAX_W, Math.floor(vw / s));
   stage.style.width = `${W}px`; stage.style.height = `${STAGE_H}px`;
-  stage.classList.toggle("compact", STAGE_H <= 360); stage.classList.toggle("tiny", STAGE_H <= 330);     // bei größerer Anzeige werden dichte Bildschirme (Shop) kompakter
+  stage.classList.toggle("compact", BASE_H <= 360); stage.classList.toggle("tiny", BASE_H <= 330);     // bei größerer Anzeige werden dichte Bildschirme (Shop) kompakter
   stage.style.transform = `translate(${L + (vw - W * s) / 2}px, ${T + (vh - STAGE_H * s) / 2}px) scale(${s})`;
   document.body.classList.toggle("portrait", window.innerHeight > window.innerWidth * 1.08);
   const changed = ctrl.ui.stageW !== W;
@@ -6914,6 +7005,7 @@ function scheduleAuto() {
 
 function render() {
   root.innerHTML = ctrl.render();
+  if (ctrl.ui.toast) { const tt = ctrl.ui.toast; setTimeout(() => { if (ctrl.ui.toast === tt) { ctrl.ui.toast = null; document.querySelector(".toast")?.remove(); } }, 2200); }      // Meldungen blenden sich nach 2 Sekunden aus
   translateDom(document.body);                                     // Sprache Englisch: alle Texte der Oberfläche übersetzen (auch Hinweise und Meldungen außerhalb der App-Fläche)
   showBanners();
   scheduleAuto();
@@ -6933,12 +7025,20 @@ root.addEventListener("click", (ev) => {
     try { Promise.resolve((d.requestFullscreen ?? d.webkitRequestFullscreen)?.call(d)).then(() => window.screen.orientation?.lock?.("landscape")).catch(() => {}); } catch { /* nicht unterstützt */ }
     return;
   }
+  if (el.dataset.action === "check-update") {                      // Prüfen, ob die Seite eine neuere Version hat (Kennung in der Adresse von game.js)
+    ctrl.ui.updateStatus = "checking"; render();
+    const cur = (document.querySelector('script[src*="game.js"]')?.getAttribute("src") ?? "").match(/v=([a-z0-9]+)/)?.[1];
+    (cur ? fetch(`${window.location.pathname}?nocache=${Date.now()}`, { cache: "no-store" }).then((r) => r.text()).then((h) => { const m = h.match(/game\.js\?v=([a-z0-9]+)/); return m ? (m[1] === cur ? "current" : "new") : "error"; }) : Promise.resolve("error"))
+      .catch(() => "error").then((st) => { ctrl.ui.updateStatus = st; render(); });
+    return;
+  }
   if (el.dataset.action === "export-save") {                       // Sicherung als Datei herunterladen
     const blob = new Blob([ctrl.exportSave()], { type: "application/json" }), a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = `rogue-deck-sicherung-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     return;
   }
   const res = ctrl.dispatch(el.dataset.action, el.dataset.arg, el.dataset.arg2);
+  if (ctrl.ui.reloadNow) { ctrl.exportSave(); window.location.href = `${window.location.pathname}?r=${Date.now()}${window.location.hash}`; return; }
   if (ctrl.ui.reloadNeeded) { setTimeout(() => window.location.reload(), 400); }
   if (el.dataset.action === "cycle-size" || el.dataset.action === "set-size") fit();                  // neue Höhe sofort anwenden
   if (res !== false) render();
