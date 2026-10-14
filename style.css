@@ -589,3 +589,29 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 /* ---- Sammlung, Statistik */
 .dextile{position:relative}.dextile.found:not(.sh){cursor:pointer}.shbadge{position:absolute;right:1px;top:0;font-size:10px;color:#ffe58a;text-shadow:0 0 3px #000,0 0 3px #000}
 .statcols{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}.compact .statcols{gap:2px 10px;font-size:11px}.ach[data-action]{cursor:pointer}
+
+/* ---- Signatur-Fähigkeit */
+.abilitybtn{position:relative;display:inline-flex;align-items:center;gap:5px;height:46px;padding:0 10px 0 8px;border:3px solid var(--line);background:linear-gradient(180deg,var(--hi),transparent),var(--panel2);color:var(--ink);font:800 12px/1 inherit;cursor:pointer}
+.abilitybtn .abname{font-size:11px;max-width:92px;text-align:left;line-height:1.1}.abilitybtn .abcd{min-width:22px;text-align:center;font-size:12px;background:#17121f;color:#fff;padding:2px 4px;border:2px solid var(--line)}
+.abilitybtn.ready{border-color:var(--accent);box-shadow:0 0 8px var(--accent);animation:abready 1.6s ease-in-out infinite}.abilitybtn.ready .abcd{background:var(--accent)}.abilitybtn:disabled{opacity:.7;cursor:default}
+@keyframes abready{50%{box-shadow:0 0 14px var(--accent)}}
+.fieldbadge{position:absolute;left:50%;top:4px;transform:translateX(-50%);z-index:5;background:#17121f;color:#fff;border:2px solid var(--accent);padding:2px 10px;font:800 11px/1.2 inherit;pointer-events:none}
+.scene.field-on::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 60%,rgba(120,60,200,.22),rgba(20,0,40,.38));mix-blend-mode:screen;z-index:2}
+.abtext{min-height:2.4em}
+
+.abclass{margin:6px 0}.abrow{margin:4px 0;padding:6px 8px}.abhead{display:flex;justify-content:space-between;gap:8px}.abtask{margin-top:4px}.abdone{color:#2f8a3d;font-weight:800;margin-top:4px}
+.abtask .bar{height:8px;background:var(--panel2);border:2px solid var(--line);margin:3px 0}.abtask .bar i{display:block;height:100%;background:var(--accent)}
+
+/* ---- Sieges-Posen (je Klasse), danach erscheint das Sieg-Fenster */
+.mover.victory{transform-box:fill-box;transform-origin:50% 100%;animation-duration:1.4s;animation-fill-mode:forwards;animation-timing-function:ease-out}
+.mover.vic-nahkaempfer{animation-name:vicHunter}.mover.vic-fernkaempfer{animation-name:vicScout}.mover.vic-magier{animation-name:vicSorcerer;filter:drop-shadow(0 0 5px #b07cff)}
+.mover.vic-pyromant{animation-name:vicPyro;filter:drop-shadow(0 0 6px #ff8a3c)}.mover.vic-aristokrat{animation-name:vicNoble}.mover.vic-gaertnerin{animation-name:vicHerb}
+@keyframes vicHunter{0%{transform:none}25%{transform:translateY(-12px) scale(1.06)}45%{transform:translateY(0) scale(1.1) rotate(-4deg)}100%{transform:scale(1.1) rotate(-4deg)}}
+@keyframes vicScout{0%{transform:none}30%{transform:translateY(-14px) scaleX(-1)}60%{transform:translateY(0) scaleX(1)}80%{transform:translateY(-6px) scaleX(-1)}100%{transform:scaleX(1)}}
+@keyframes vicSorcerer{0%{transform:none}60%{transform:translateY(-14px)}100%{transform:translateY(-12px)}}
+@keyframes vicPyro{0%{transform:none}20%{transform:scale(.94,1.04)}45%{transform:translateY(-10px) scale(1.14)}100%{transform:scale(1.08)}}
+@keyframes vicNoble{0%{transform:none}40%{transform:rotate(14deg)}65%{transform:rotate(14deg)}100%{transform:rotate(0)}}
+@keyframes vicHerb{0%{transform:none}20%{transform:translateY(-8px) rotate(-6deg)}40%{transform:translateY(0) rotate(6deg)}60%{transform:translateY(-6px) rotate(-5deg)}100%{transform:rotate(0)}}
+.victorybanner{position:absolute;left:50%;top:22%;transform:translateX(-50%);z-index:6;pointer-events:none;font:900 28px/1 inherit;letter-spacing:2px;color:#fff;text-shadow:0 0 12px var(--accent),2px 2px 0 #000;animation:vicBanner 1.4s ease-out both}
+@keyframes vicBanner{0%{opacity:0;transform:translateX(-50%) scale(.4)}25%{opacity:1;transform:translateX(-50%) scale(1.15)}100%{opacity:1;transform:translateX(-50%) scale(1)}}
+@media (prefers-reduced-motion:reduce){.mover.victory{animation:none}}

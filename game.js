@@ -12,7 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "5.5",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "6.0",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 5, maxHp: 70 },
 
   balance: {
@@ -21,7 +21,7 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.66,
+    enemyDmgScale: 0.74,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
@@ -113,7 +113,7 @@ const CONFIG = {
   ],
 
   // Typ-Tags, die für Vielfalts-Effekte und Lenkung zählen (Element-IDs kommen automatisch dazu)
-  ui: { speeds: [1, 2] },   // Kampf-Tempo: Tempo 3 war zu schnell. Bei Bedarf wieder [1, 2, 3] eintragen, die Logik kann es noch.
+  ui: { speeds: [1, 2], victoryMs: 1500 },   // Kampf-Tempo: Tempo 3 war zu schnell. Bei Bedarf wieder [1, 2, 3] eintragen, die Logik kann es noch.
   economy: { overkillPerGold: 5 },   // Überschuss-Schaden beim Töten wird zu Gold (5 Überschuss = 1 Gold)
   typeTags: ["feuer", "gift", "blut", "block", "dornen", "pakt", "heilung", "ruestung"],   // diese Tags zählen für Synergien und die Beute-Lenkung
 };
@@ -126,7 +126,7 @@ __define("content/registry.js", function (__exports, __require) {
 // Ein neues Set = eine neue Datei in content/packs + eine Zeile in content/index.js.
 const { CONFIG } = __require("data/config.js");
 
-const KINDS = ["cards", "weapons", "items", "enemies", "encounters", "classes", "events", "reactions", "speakers", "stories", "skins", "frames", "achievements"];
+const KINDS = ["cards", "weapons", "items", "enemies", "encounters", "classes", "abilities", "events", "reactions", "speakers", "stories", "skins", "frames", "achievements"];
 const uniq = (a) => [...new Set(a)];
 
 function normalize(kind, id, def, packId) {
@@ -143,7 +143,8 @@ function normalize(kind, id, def, packId) {
   if (kind === "enemies") out.elements = def.elements ?? [];
   if (kind === "achievements") { out.group = def.group ?? "runs"; out.secret = Boolean(def.secret); }
   if (kind === "classes") { out.stats = def.stats ?? {}; out.starterWeapons = def.starterWeapons ?? [def.weapon]; out.shopBasics = def.shopBasics ?? []; out.passive = def.passive ?? null;
-    out.passives = def.passives ?? []; out.perks = def.perks ?? []; out.cardPools = def.cardPools ?? [out.id]; }      // passives: Klassen-Passive als Daten, perks: Vor- und Nachteile für die Anzeige, cardPools: welche Kartenpools der Held findet
+    out.passives = def.passives ?? []; out.perks = def.perks ?? []; out.cardPools = def.cardPools ?? [out.id]; out.abilities = def.abilities ?? []; }      // passives: Klassen-Passive als Daten, perks: Vor- und Nachteile für die Anzeige, cardPools: welche Kartenpools der Held findet
+  if (kind === "abilities") { out.levels = def.levels ?? []; out.cooldown = def.cooldown ?? 4; }
   if (kind === "reactions") out.key = [...def.pair].sort().join("+");   // ungeordnetes Elementpaar
   if (kind === "encounters") { out.kind = def.kind ?? "normal"; out.tier = def.tier ?? 1; }   // normal | elite | miniboss | boss
   return out;
@@ -175,7 +176,7 @@ function makeShiny(def) {
 }
 
 function createContent() {
-  const c = { packs: [], elements: {}, relations: [], matrix: {}, cards: {}, weapons: {}, items: {}, enemies: {}, encounters: {}, classes: {}, events: {}, reactions: {}, reactionIndex: {}, speakers: {}, stories: {}, skins: {}, frames: {}, achievements: {} };
+  const c = { packs: [], elements: {}, relations: [], matrix: {}, cards: {}, weapons: {}, items: {}, enemies: {}, encounters: {}, classes: {}, abilities: {}, events: {}, reactions: {}, reactionIndex: {}, speakers: {}, stories: {}, skins: {}, frames: {}, achievements: {} };
   const shinyCache = {};
   c.clearShinyCache = () => { for (const k of Object.keys(shinyCache)) delete shinyCache[k]; };         // nach Sprachwechsel: Chrom-Namen neu bilden
 
@@ -273,6 +274,8 @@ function createContent() {
     }
     for (const r of Object.values(c.reactions)) for (const el of r.pair) if (!c.elements[el]) p.push(`Reaktion ${r.id}: unbekanntes Element ${el}`);
     for (const cl of Object.values(c.classes)) for (const pool of cl.cardPools) if (pool !== "alle" && !has("classes", pool)) p.push(`Klasse ${cl.id}: unbekannter Kartenpool ${pool}`);
+    for (const a of Object.values(c.abilities)) if (!has("classes", a.class)) p.push(`Fähigkeit ${a.id}: unbekannte Klasse ${a.class}`);
+    for (const cl of Object.values(c.classes)) for (const a of cl.abilities) if (!has("abilities", a)) p.push(`Klasse ${cl.id}: unbekannte Fähigkeit ${a}`);
     for (const w of Object.values(c.weapons)) if (w.signature && !has("classes", w.signature)) p.push(`Waffe ${w.id}: unbekannte Signatur-Klasse ${w.signature}`);
     const REWARD_KINDS = ["items", "weapons", "cards", "skins", "frames"];
     const starters = new Set(Object.values(c.classes).flatMap((cl) => [cl.weapon, ...cl.starterWeapons]));
@@ -343,7 +346,7 @@ __exports.default = {
 
   classes: {
     nahkaempfer: {
-      name: "Nahkämpfer", hp: 90, stats: { armor: 1, meleeDmg: 2 }, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
+      abilities: ["steinschere", "donnerjojo"], name: "Nahkämpfer", hp: 90, stats: { armor: 1, meleeDmg: 2 }, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
       perks: ["+ Viel Leben: 90 Max-HP", "+ Unbeugsam: 25 % des Blocks wird zu Schaden (max. 2)", "+ Rüstung 1, Nahkampfschaden +2", "- Kein Fern- oder Zauberbonus"],
       passive: { id: "unbeugsam", name: "Unbeugsam", text: "Am Zugende gehen 25 % deines übrigen Blocks als Schaden an den ersten Gegner (höchstens 2)." },
       deck: ["hieb", "hieb", "hieb", "hieb", "wuchtschlag", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung", "deckung"],
@@ -812,9 +815,9 @@ __exports.default = {
 
   classes: {
     fernkaempfer: {
-      name: "Fernkämpfer", hp: 68, stats: { handSize: 1, dodge: 6, crit: 6, rangedDmg: 2 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
+      abilities: ["seelenpfeil", "schattentausch"], name: "Fernkämpfer", hp: 84, stats: { handSize: 1, dodge: 6, crit: 6, rangedDmg: 2 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
       deck: ["schnellschuss", "schnellschuss", "schnellschuss", "schnellschuss", "zielen", "praezisionsschuss", "praezisionsschuss"], shopBasics: ["rolle", "rolle"],
-      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "+ Ausweichen 6 %, Krit 6 %, Fernkampfschaden +2", "- Weniger Leben: 68 Max-HP"],
+      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "+ Ausweichen 6 %, Krit 6 %, Fernkampfschaden +2", "- Weniger Leben: 84 Max-HP"],
       weapon: "kurzbogen", starterWeapons: ["kurzbogen", "armbrust", "giftbogen"], items: [],
     },
   },
@@ -907,7 +910,7 @@ __exports.default = {
 
   classes: {
     magier: {
-      name: "Magier", hp: 70, stats: { elementDmg: 3, crit: 8 }, blurb: "Mischen wird belohnt: Zwei verschiedene Elemente nacheinander lösen Reaktionen aus. Wenig HP, viel Kombo.",
+      abilities: ["fluchblitz", "domain"], name: "Magier", hp: 70, stats: { elementDmg: 3, crit: 8 }, blurb: "Mischen wird belohnt: Zwei verschiedene Elemente nacheinander lösen Reaktionen aus. Wenig HP, viel Kombo.",
       deck: ["funke", "funke", "tropfen", "tropfen", "ranke", "frostnadel", "arkanblitz"], shopBasics: ["manaschild", "manaschild"],
       perks: ["+ Reaktionen: 2 Elemente nacheinander = Zusatzeffekt", "+ Elementarschaden +3, Krit 8 %", "- Wenig Leben: 70 Max-HP"],
       weapon: "zauberstab", starterWeapons: ["zauberstab", "runenstab", "flammenstab"], items: [],
@@ -1297,7 +1300,7 @@ __exports.default = {
   name: "Neue Helden",
   classes: {
     pyromant: {
-      name: "Pyromant", hp: 80, stats: { regen: 2, elementDmg: 3, crit: 5 },
+      abilities: ["feuerfaust", "hoellenflamme"], name: "Pyromant", hp: 80, stats: { regen: 2, elementDmg: 3, crit: 5 },
       blurb: "Spielt mit dem Schmerz: Jeder Verlust an HP setzt Gegner in Brand, und je mehr ihm fehlt, desto härter schlägt er zu. Dafür hat er wenig Leben.",
       perks: ["+ Schmerzensglut: HP-Verlust = 1 Verbrennung für alle", "+ Lodernder Schmerz im Startdeck", "- Pechfackel verletzt dich jeden Zug", "+ Elementarschaden +3, Krit 5 %", "- Nur 80 Max-HP"],
       passive: { id: "schmerzensglut", name: "Schmerzensglut", text: "Wenn du HP verlierst, erhalten alle Gegner 1 Verbrennung (höchstens 2x pro Zug)." },
@@ -1307,7 +1310,7 @@ __exports.default = {
       weapon: "pechfackel", items: [], unlock: { type: "achievement", id: "g50" },
     },
     aristokrat: {
-      name: "Aristokrat", hp: 118, stats: { goldPct: 30, ernte: 2, regen: 3, luck: 3, armor: 1 }, startGold: 40, shopDiscount: 0.1, restHealPct: 0.2,
+      abilities: ["tor_der_schaetze", "absoluter_befehl"], name: "Aristokrat", hp: 118, stats: { goldPct: 30, ernte: 2, regen: 3, luck: 3, armor: 1 }, startGold: 40, shopDiscount: 0.1, restHealPct: 0.2,
       blurb: "Gold ist Macht: mehr Beute, billigere Händler und festes Einkommen. Dafür kämpft er schlecht und erholt sich kaum an der Rast.",
       perks: ["+ 30 % Gold, Ernte 2, 40 Startgold", "+ Mäzen: Händlerpreise -10 %", "- Schwaches Startdeck und schwache Waffe", "+ Glück 3, Rüstung 1", "- Rast heilt nur 20 %"],
       passive: { id: "maezen", name: "Mäzen", text: "Händlerpreise -10 %." },
@@ -1316,7 +1319,7 @@ __exports.default = {
       weapon: "stockdegen", items: [], unlock: { type: "achievement", id: "k25" },
     },
     gaertnerin: {
-      name: "Gärtnerin", hp: 64, stats: { regen: 3, handSize: -1, lifesteal: 4, elementDmg: 1, dodge: 8 },
+      abilities: ["heilende_ranken", "wuchernder_wald"], name: "Gärtnerin", hp: 64, stats: { regen: 3, handSize: -1, lifesteal: 4, elementDmg: 1, dodge: 8 },
       blurb: "Geduldig: Pflanzenkarten und Heilung, nach jedem Kampf erholt sie sich. Dafür hat sie wenig Leben und eine kleine Hand.",
       perks: ["+ Nach jedem Kampf +3 HP", "+ Wurzelwerk: Pflanzenkarten +1 Schaden", "- Nur 4 Handkarten", "+ Lebensraub 4 %, Ausweichen 8 %", "- Nur 64 Max-HP"],
       passive: { id: "wurzelwerk", name: "Wurzelwerk", text: "Pflanzenkarten machen +1 Schaden." },
@@ -1456,6 +1459,96 @@ __exports.default = {
 
 
 });
+__define("content/packs/abilities.js", function (__exports, __require) {
+// SIGNATUR-FÄHIGKEITEN (an bekannte Anime-Fähigkeiten angelehnt): Jede Klasse wählt vor dem Run genau eine. Kosten keine Energie, nur einen Cooldown in eigenen Zügen.
+// Stufe 2 gibt es NUR über Meta-Aufgaben im Hauptmenü (nie im Run): levels[0] überschreibt Werte (ganze Felder wie effects/forms/cost/cooldown werden ersetzt).
+// effects: damage {base, weaponScale, hits, target "one"|"all", ignoreBlock, element, tags, status}, status {status, stacks, target "target"|"all"|"strongest"}, playerStatus, heal {pct}, block, draw, field {turns, xmult}.
+// forms: Fähigkeit wechselt bei jedem Einsatz die Form (reihum). cost: {hp, gold}. unlock.stat: uses | damage | fieldDamage (Meta-Zähler).
+__exports.default = {
+  id: "abilities",
+  name: "Fähigkeiten",
+  abilities: {
+    // ---- Hunter (Nahkämpfer): Nen-Techniken
+    steinschere: { name: "Stein-Schere-Papier", class: "nahkaempfer", icon: "sword", cooldown: 5,
+      text: "Wechselt bei jedem Einsatz die Form: Stein (Riesenschlag, ignoriert Block), Schere (3 Treffer mit Blutung), Papier (Schaden an ALLE und 4 Block). Alle 5 Züge.",
+      forms: [
+        { name: "Stein", effects: [{ type: "damage", base: 14, weaponScale: 3, target: "one", ignoreBlock: true }] },
+        { name: "Schere", effects: [{ type: "damage", base: 4, weaponScale: 1, hits: 3, target: "one", status: { status: "blutung", stacks: 2 } }] },
+        { name: "Papier", effects: [{ type: "damage", base: 6, weaponScale: 1, target: "all" }, { type: "block", value: 4 }] }],
+      levels: [{ unlock: { stat: "uses", count: 40 }, task: "Setze Stein-Schere-Papier 40 Mal in Kämpfen ein.", reward: "Der Cooldown sinkt auf 4 Züge.", cooldown: 4,
+        text: "Wechselt bei jedem Einsatz die Form: Stein (Riesenschlag, ignoriert Block), Schere (3 Treffer mit Blutung), Papier (Schaden an ALLE und 4 Block). Alle 4 Züge." }] },
+    donnerjojo: { name: "Donner-Jojo", class: "nahkaempfer", icon: "bolt", cooldown: 5,
+      text: "Elektro-Jojos treffen ALLE Gegner (8 + 2x Waffe, ignoriert Block) und betäuben den stärksten: er überspringt seine nächste Aktion (Bosse sind immun). Alle 5 Züge.",
+      effects: [{ type: "damage", base: 8, weaponScale: 2, target: "all", ignoreBlock: true }, { type: "status", status: "aussetzen", stacks: 1, target: "strongest" }],
+      levels: [{ unlock: { stat: "damage", count: 3000 }, task: "Verursache 3.000 Schaden mit dem Donner-Jojo.", reward: "Der Cooldown sinkt auf 4 Züge.", cooldown: 4,
+        text: "Elektro-Jojos treffen ALLE Gegner (8 + 2x Waffe, ignoriert Block) und betäuben den stärksten: er überspringt seine nächste Aktion (Bosse sind immun). Alle 4 Züge." }] },
+    // ---- Scout (Fernkämpfer)
+    seelenpfeil: { name: "Seelenpfeil", class: "fernkaempfer", icon: "bolt", cooldown: 3,
+      text: "Ein Geisterpfeil, den kein Block aufhält: 18 + 3x Waffe Schaden und das Ziel wird 3 Züge markiert. Alle 3 Züge.",
+      effects: [{ type: "damage", base: 18, weaponScale: 3, target: "one", ignoreBlock: true }, { type: "status", status: "markiert", stacks: 3, target: "target" }],
+      levels: [{ unlock: { stat: "uses", count: 45 }, task: "Setze den Seelenpfeil 45 Mal in Kämpfen ein.", reward: "Der Schaden steigt auf 26 + 3x Waffe.",
+        effects: [{ type: "damage", base: 26, weaponScale: 3, target: "one", ignoreBlock: true }, { type: "status", status: "markiert", stacks: 3, target: "target" }],
+        text: "Ein Geisterpfeil, den kein Block aufhält: 26 + 3x Waffe Schaden und das Ziel wird 3 Züge markiert. Alle 3 Züge." }] },
+    schattentausch: { name: "Schattentausch", class: "fernkaempfer", icon: "wind", cooldown: 5,
+      text: "Du tauschst den Platz mit deinem Schatten: weiche den nächsten 2 Angriffen aus und ziehe 3 Karten. Alle 5 Züge.",
+      effects: [{ type: "playerStatus", status: "ausweichen", stacks: 2 }, { type: "draw", value: 3 }],
+      levels: [{ unlock: { stat: "uses", count: 30 }, task: "Setze den Schattentausch 30 Mal in Kämpfen ein.", reward: "Du weichst 3 Angriffen aus.",
+        effects: [{ type: "playerStatus", status: "ausweichen", stacks: 3 }, { type: "draw", value: 3 }],
+        text: "Du tauschst den Platz mit deinem Schatten: weiche den nächsten 3 Angriffen aus und ziehe 3 Karten. Alle 5 Züge." }] },
+    // ---- Sorcerer (Fluchmagier)
+    fluchblitz: { name: "Fluchblitz", class: "magier", icon: "bolt", cooldown: 3,
+      text: "Ein Zauber-Schlag, den kein Block aufhält: 14 + 2x Waffe Schaden an einem Gegner. Alle 3 Züge.",
+      effects: [{ type: "damage", base: 14, weaponScale: 2, target: "one", ignoreBlock: true, tags: ["zauber"] }],
+      levels: [{ unlock: { stat: "uses", count: 50 }, task: "Setze den Fluchblitz 50 Mal in Kämpfen ein.", reward: "Der Schaden steigt auf 22 + 2x Waffe.",
+        effects: [{ type: "damage", base: 22, weaponScale: 2, target: "one", ignoreBlock: true, tags: ["zauber"] }],
+        text: "Ein Zauber-Schlag, den kein Block aufhält: 22 + 2x Waffe Schaden an einem Gegner. Alle 3 Züge." }] },
+    domain: { name: "Sphärenentfaltung", class: "magier", icon: "star", cooldown: 6,
+      text: "2 Züge lang ignorieren alle deine Treffer den Block der Gegner und machen x1,5 Endschaden. Alle 6 Züge.",
+      effects: [{ type: "field", turns: 2, xmult: 0.5 }],
+      levels: [{ unlock: { stat: "fieldDamage", count: 5000 }, task: "Verursache 5.000 Gesamtschaden, während die Sphärenentfaltung aktiv ist.", reward: "Der Cooldown sinkt auf 5 Züge.", cooldown: 5,
+        text: "2 Züge lang ignorieren alle deine Treffer den Block der Gegner und machen x1,5 Endschaden. Alle 5 Züge." }] },
+    // ---- Pyromancer
+    feuerfaust: { name: "Feuerfaust", class: "pyromant", icon: "flame", cooldown: 3,
+      text: "Eine brennende Faust: 12 + 2x Waffe Feuerschaden an einem Gegner und 3 Verbrennung. Alle 3 Züge.",
+      effects: [{ type: "damage", base: 12, weaponScale: 2, target: "one", element: "feuer", status: { status: "verbrennung", stacks: 3 } }],
+      levels: [{ unlock: { stat: "uses", count: 50 }, task: "Setze die Feuerfaust 50 Mal in Kämpfen ein.", reward: "Die Verbrennung steigt auf 5.",
+        effects: [{ type: "damage", base: 12, weaponScale: 2, target: "one", element: "feuer", status: { status: "verbrennung", stacks: 5 } }],
+        text: "Eine brennende Faust: 12 + 2x Waffe Feuerschaden an einem Gegner und 5 Verbrennung. Alle 3 Züge." }] },
+    hoellenflamme: { name: "Höllenflamme", class: "pyromant", icon: "flame", cooldown: 5, cost: { hp: 6 },
+      text: "Du zahlst 6 HP (nie unter 1): 10 + 2x Waffe Feuerschaden an ALLE Gegner und 8 Verbrennung auf alle. Alle 5 Züge.",
+      effects: [{ type: "damage", base: 10, weaponScale: 2, target: "all", element: "feuer", status: { status: "verbrennung", stacks: 8 } }],
+      levels: [{ unlock: { stat: "uses", count: 25 }, task: "Setze die Höllenflamme 25 Mal in Kämpfen ein.", reward: "Sie kostet nur noch 4 HP.", cost: { hp: 4 },
+        text: "Du zahlst 4 HP (nie unter 1): 10 + 2x Waffe Feuerschaden an ALLE Gegner und 8 Verbrennung auf alle. Alle 5 Züge." }] },
+    // ---- Noble
+    tor_der_schaetze: { name: "Tor der Schätze", class: "aristokrat", icon: "coin", cooldown: 4, cost: { gold: 10 },
+      text: "Du öffnest dein Schatzhaus (10 Gold): 22 + 2x Waffe Schaden an ALLE Gegner, ignoriert Block. Alle 4 Züge.",
+      effects: [{ type: "damage", base: 22, weaponScale: 2, target: "all", ignoreBlock: true }],
+      levels: [{ unlock: { stat: "uses", count: 35 }, task: "Öffne das Tor der Schätze 35 Mal in Kämpfen.", reward: "Es kostet nur noch 6 Gold.", cost: { gold: 6 },
+        text: "Du öffnest dein Schatzhaus (6 Gold): 22 + 2x Waffe Schaden an ALLE Gegner, ignoriert Block. Alle 4 Züge." }] },
+    absoluter_befehl: { name: "Absoluter Befehl", class: "aristokrat", icon: "bolt", cooldown: 5,
+      text: "Der stärkste Gegner gehorcht: er überspringt seine nächste Aktion (Bosse sind immun), und alle Gegner werden 3 Züge verwundbar. Alle 5 Züge.",
+      effects: [{ type: "status", status: "aussetzen", stacks: 1, target: "strongest" }, { type: "status", status: "verwundbar", stacks: 3, target: "all" }],
+      levels: [{ unlock: { stat: "uses", count: 20 }, task: "Gib den Absoluten Befehl 20 Mal in Kämpfen.", reward: "Der Cooldown sinkt auf 4 Züge.", cooldown: 4,
+        text: "Der stärkste Gegner gehorcht: er überspringt seine nächste Aktion (Bosse sind immun), und alle Gegner werden 3 Züge verwundbar. Alle 4 Züge." }] },
+    // ---- Herbalist
+    heilende_ranken: { name: "Heilende Ranken", class: "gaertnerin", icon: "heart", cooldown: 5,
+      text: "Ranken umhüllen dich: heile 20 % deiner Max-HP und erhalte Dornen 3. Alle 5 Züge.",
+      effects: [{ type: "heal", pct: 20 }, { type: "playerStatus", status: "dornen", stacks: 3 }],
+      levels: [{ unlock: { stat: "uses", count: 30 }, task: "Setze die Heilenden Ranken 30 Mal in Kämpfen ein.", reward: "Sie heilen 30 % deiner Max-HP.",
+        effects: [{ type: "heal", pct: 30 }, { type: "playerStatus", status: "dornen", stacks: 3 }],
+        text: "Ranken umhüllen dich: heile 30 % deiner Max-HP und erhalte Dornen 3. Alle 5 Züge." }] },
+    wuchernder_wald: { name: "Wuchernder Wald", class: "gaertnerin", icon: "leaf", cooldown: 4,
+      text: "Ein Wald bricht aus dem Boden: 7 + 2x Waffe Pflanzenschaden an ALLE Gegner und 4 Blutung auf alle. Alle 4 Züge.",
+      effects: [{ type: "damage", base: 7, weaponScale: 2, target: "all", element: "pflanze", status: { status: "blutung", stacks: 4 } }],
+      levels: [{ unlock: { stat: "damage", count: 2500 }, task: "Verursache 2.500 Schaden mit dem Wuchernden Wald.", reward: "Die Blutung steigt auf 6.",
+        effects: [{ type: "damage", base: 7, weaponScale: 2, target: "all", element: "pflanze", status: { status: "blutung", stacks: 6 } }],
+        text: "Ein Wald bricht aus dem Boden: 7 + 2x Waffe Pflanzenschaden an ALLE Gegner und 6 Blutung auf alle. Alle 4 Züge." }] },
+  },
+};
+
+
+
+});
 __define("content/packs/stat_items.js", function (__exports, __require) {
 // WERT-ITEMS (Brotato-Richtung): Items geben Werte, oft mit Plus UND Minus. Dazu skalieren drei Items mit einem Wert (perStat).
 // ADAPT: bestehende Items werden auf die Werte umgebaut (ersetzen ihre alten Boni).
@@ -1584,11 +1677,12 @@ const waffenStufe2 = __require("content/packs/waffen_stufe2.js").default;
 const helden2 = __require("content/packs/helden2.js").default;
 const story = __require("content/packs/story.js").default;
 const heldenItems = __require("content/packs/helden_items.js").default;
+const abilityPack = __require("content/packs/abilities.js").default;
 const statItems = __require("content/packs/stat_items.js").default;
 const thema = __require("content/packs/thema_anime.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems, abilityPack].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; if (patch.text) d.text = patch.text; if (patch.maxStack) d.maxStack = patch.maxStack; } }     // bestehende Items auf die Werte umbauen
@@ -1598,6 +1692,22 @@ const problems = CONTENT.validate();
 if (problems.length) throw new Error("Content-Fehler:\n- " + problems.join("\n- "));
 
 __exports.CONTENT = CONTENT;
+
+});
+__define("engine/abilities.js", function (__exports, __require) {
+// Signatur-Fähigkeiten: Daten auf eine Stufe auflösen. Stufe 1 = Grundwerte, Stufe 2 = levels[0] überschreibt (nur über Meta-Meilensteine).
+const { CONTENT } = __require("content/index.js");
+function abilityAt(id, level = 1) {
+  const base = CONTENT.abilities[id];
+  if (!base) return null;
+  let def = { ...base };
+  for (let i = 0; i < Math.min(level - 1, base.levels.length); i++) def = { ...def, ...base.levels[i] };
+  return def;
+}
+const maxAbilityLevel = (id) => 1 + (CONTENT.abilities[id]?.levels.length ?? 0);
+
+__exports.abilityAt = abilityAt;
+__exports.maxAbilityLevel = maxAbilityLevel;
 
 });
 __define("ui/en_cards_items.js", function (__exports, __require) {
@@ -1708,7 +1818,7 @@ const EN_SKINS = { rotgardist: "Red Guard", nachtwache: "Night Watch", herbstlae
 const EN_FRAMES = { bronze: "Bronze", eisen: "Iron", efeu: "Ivy", frost: "Frost", gold: "Gold", flamme: "Flame", prisma: "Prism", blut: "Blood", chrom: "Chrome" };
 const EN_CLASSES = {
   nahkaempfer: { name: "Hunter", blurb: "Sturdy and straightforward: Block, weapon power and Bleed. Forgives mistakes.", perks: ["+ Lots of life: 90 Max HP", "+ Unyielding: 25% of Block becomes damage (max. 2)", "+ Armor 1, Melee Damage +2", "- No ranged or spell bonus"], passive: { name: "Unyielding", text: "At the end of your turn, 25% of your remaining Block is dealt as damage to the first enemy (at most 2)." } },
-  fernkaempfer: { name: "Scout", blurb: "Fast and fragile: the more cards you play, the stronger each hit. Marking, multi-hits, dodging.", perks: ["+ One more card in hand (6)", "+ Multi-hits and Marking", "+ Dodge 6%, Crit 6%, Ranged Damage +2", "- Less life: 68 Max HP"] },
+  fernkaempfer: { name: "Scout", blurb: "Fast and fragile: the more cards you play, the stronger each hit. Marking, multi-hits, dodging.", perks: ["+ One more card in hand (6)", "+ Multi-hits and Marking", "+ Dodge 6%, Crit 6%, Ranged Damage +2", "- Less life: 84 Max HP"] },
   magier: { name: "Sorcerer", blurb: "Mixing is rewarded: two different elements in a row trigger Reactions. Low HP, lots of combos.", perks: ["+ Reactions: 2 elements in a row = bonus effect", "+ Elemental Damage +3, Crit 8%", "- Low life: 70 Max HP"] },
   pyromant: { name: "Pyromancer", blurb: "Plays with pain: every loss of HP sets enemies on fire, and the more he is missing, the harder he hits. In return he has little life.", perks: ["+ Pain Glow: losing HP = 1 Burn on all", "+ Burning Pain in the starting deck", "- Pitch Torch hurts you every turn", "+ Elemental Damage +3, Crit 5%", "- Only 80 Max HP"], passive: { name: "Pain Glow", text: "When you lose HP, all enemies get 1 Burn (at most 2x per turn)." } },
   aristokrat: { name: "Noble", blurb: "Gold is power: more loot, cheaper merchants and fixed income. In return he fights poorly and hardly recovers at rests.", perks: ["+ 30% Gold, Harvest 2, 40 starting Gold", "+ Patron: merchant prices -10%", "- Weak starting deck and weak weapon", "+ Luck 3, Armor 1", "- Rest heals only 20%"], passive: { name: "Patron", text: "Patron: merchant prices -10%." } },
@@ -1761,6 +1871,32 @@ const EN_STORIES = {
   outro: ["You did it! The Gate Lord is defeated, and the Mana Core sings again.", "By the way, Brumm claims he planned all of this. Don't believe a word."],
 };
 const EN_REACTIONS = { dampf: "Steam Burst", flaechenbrand: "Wildfire", wachstum: "Growth", schmelzen: "Melt", frostschock: "Frost Shock", dornenfrost: "Thorn Frost" };
+const EN_ABILITIES = {
+  steinschere: { name: "Rock-Paper-Scissors", forms: ["Rock", "Scissors", "Paper"], text: "Changes form with every use: Rock (huge punch, ignores Block), Scissors (3 hits with Bleed), Paper (damage to ALL and 6 Block). Every 4 turns.",
+    levels: [{ task: "Use Rock-Paper-Scissors 40 times in combat.", reward: "Cooldown drops to 3 turns.", text: "Changes form with every use: Rock (huge punch, ignores Block), Scissors (3 hits with Bleed), Paper (damage to ALL and 6 Block). Every 3 turns." }] },
+  donnerjojo: { name: "Thunder Yo-Yo", text: "Electric yo-yos hit ALL enemies (8 + 2x weapon, ignores Block) and stun the strongest: it skips its next action (bosses are immune). Every 5 turns.",
+    levels: [{ task: "Deal 3,000 damage with the Thunder Yo-Yo.", reward: "Cooldown drops to 4 turns.", text: "Electric yo-yos hit ALL enemies (8 + 2x weapon, ignores Block) and stun the strongest: it skips its next action (bosses are immune). Every 4 turns." }] },
+  seelenpfeil: { name: "Soul Arrow", text: "A ghost arrow no Block can stop: 18 + 3x weapon damage and the target is marked for 3 turns. Every 3 turns.",
+    levels: [{ task: "Use the Soul Arrow 45 times in combat.", reward: "Damage rises to 26 + 3x weapon.", text: "A ghost arrow no Block can stop: 26 + 3x weapon damage and the target is marked for 3 turns. Every 3 turns." }] },
+  schattentausch: { name: "Shadow Swap", text: "You swap places with your shadow: dodge the next 2 attacks and draw 3 cards. Every 5 turns.",
+    levels: [{ task: "Use the Shadow Swap 30 times in combat.", reward: "You dodge 3 attacks.", text: "You swap places with your shadow: dodge the next 3 attacks and draw 3 cards. Every 5 turns." }] },
+  fluchblitz: { name: "Curse Bolt", text: "A spell strike no Block can stop: 14 + 2x weapon damage to one enemy. Every 3 turns.",
+    levels: [{ task: "Use Curse Bolt 50 times in combat.", reward: "Damage rises to 22 + 2x weapon.", text: "A spell strike no Block can stop: 22 + 2x weapon damage to one enemy. Every 3 turns." }] },
+  domain: { name: "Domain Expansion", text: "For 2 turns all your hits ignore enemy Block and deal x1.5 final damage. Every 6 turns.",
+    levels: [{ task: "Deal 5,000 total damage while Domain Expansion is active.", reward: "Cooldown drops to 5 turns.", text: "For 2 turns all your hits ignore enemy Block and deal x1.5 final damage. Every 5 turns." }] },
+  feuerfaust: { name: "Fire Fist", text: "A burning fist: 14 + 3x weapon fire damage to one enemy and 4 Burn. Every 3 turns.",
+    levels: [{ task: "Use the Fire Fist 50 times in combat.", reward: "Burn rises to 6.", text: "A burning fist: 14 + 3x weapon fire damage to one enemy and 6 Burn. Every 3 turns." }] },
+  hoellenflamme: { name: "Hellflame", text: "You pay 6 HP (never below 1): 10 + 2x weapon fire damage to ALL enemies and 8 Burn on all. Every 5 turns.",
+    levels: [{ task: "Use Hellflame 25 times in combat.", reward: "It only costs 4 HP.", text: "You pay 4 HP (never below 1): 10 + 2x weapon fire damage to ALL enemies and 8 Burn on all. Every 5 turns." }] },
+  tor_der_schaetze: { name: "Gate of Treasures", text: "You open your treasury (10 Gold): 22 + 2x weapon damage to ALL enemies, ignores Block. Every 4 turns.",
+    levels: [{ task: "Open the Gate of Treasures 35 times in combat.", reward: "It only costs 6 Gold.", text: "You open your treasury (6 Gold): 22 + 2x weapon damage to ALL enemies, ignores Block. Every 4 turns." }] },
+  absoluter_befehl: { name: "Absolute Command", text: "The strongest enemy obeys: it skips its next action (bosses are immune), and all enemies become Vulnerable for 2 turns. Every 6 turns.",
+    levels: [{ task: "Give the Absolute Command 20 times in combat.", reward: "Cooldown drops to 5 turns.", text: "The strongest enemy obeys: it skips its next action (bosses are immune), and all enemies become Vulnerable for 2 turns. Every 5 turns." }] },
+  heilende_ranken: { name: "Healing Vines", text: "Vines wrap around you: heal 20% of your Max HP and gain Thorns 3. Every 5 turns.",
+    levels: [{ task: "Use the Healing Vines 30 times in combat.", reward: "They heal 30% of your Max HP.", text: "Vines wrap around you: heal 30% of your Max HP and gain Thorns 3. Every 5 turns." }] },
+  wuchernder_wald: { name: "Overgrown Forest", text: "A forest bursts from the ground: 7 + 2x weapon plant damage to ALL enemies and 4 Bleed on all. Every 4 turns.",
+    levels: [{ task: "Deal 2,500 damage with the Overgrown Forest.", reward: "Bleed rises to 6.", text: "A forest bursts from the ground: 7 + 2x weapon plant damage to ALL enemies and 6 Bleed on all. Every 4 turns." }] },
+};
 
 __exports.EN_WEAPONS = EN_WEAPONS;
 __exports.EN_ENEMIES = EN_ENEMIES;
@@ -1773,6 +1909,7 @@ __exports.EN_ACH = EN_ACH;
 __exports.EN_SPEAKERS = EN_SPEAKERS;
 __exports.EN_STORIES = EN_STORIES;
 __exports.EN_REACTIONS = EN_REACTIONS;
+__exports.EN_ABILITIES = EN_ABILITIES;
 
 });
 __define("ui/en_ui.js", function (__exports, __require) {
@@ -1828,6 +1965,9 @@ const EN_UI = {
   "Preise %": "Prices %", "Reroll-Preis %": "Reroll price %", "Freie Rerolls": "Free rerolls", "Schaden gegen Bosse %": "Damage vs bosses %", "Gift-Stärke": "Poison power", "Brenn-Stärke": "Burn power", "Blutungs-Stärke": "Bleed power", "Heilung %": "Healing %", "Doppel-Gold %": "Double Gold %", "Fluch": "Curse", "Werte": "Stats",
   "Sammlung": "Collection", "Statistik": "Statistics", "Runs": "Runs", "Siege": "Wins", "Niederlagen": "Losses", "Siegrate": "Win rate", "Beste Stage": "Best stage", "Gegner besiegt": "Enemies defeated", "Kämpfe gewonnen": "Combats won", "Gold verdient": "Gold earned", "Elite besiegt": "Elites defeated", "Chrom-Gegner": "Chrome enemies",
   "Letzte Runs": "Recent runs", "Noch nicht freigeschaltet": "Not unlocked yet", "Freigeschaltet (Datum unbekannt)": "Unlocked (date unknown)", "Sieg": "Victory",
+  "Fähigkeit": "Ability", "BEREIT": "READY", "Keine Fähigkeit gewählt": "No ability chosen",
+  "Fähigkeiten": "Abilities", "Maximale Stufe": "Max level", "Fähigkeit verbessert": "Ability upgraded", "Fähigkeiten werden nur hier verbessert: durch Aufgaben mit der jeweiligen Fähigkeit, nie während eines Runs.": "Abilities are only upgraded here: by tasks with that ability, never during a run.",
+  "Sieg!": "Victory!", "Niederlage": "Defeat",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -1849,6 +1989,8 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^Stufe (\d+)\/(\d+)$/, (t, a, b) => `Level ${a}/${b}`], [/^(.+) ist jetzt Stufe (\d+)\.$/, (t, n, l) => `${n} is now level ${l}.`], [/^([\d.,]+) \/ ([\d.,]+) · Belohnung: (.+)$/, (t, a, b, r) => `${a} / ${b} · Reward: ${r}`],
+  [/^(.+) · St\. (\d+)$/, (t, n, l) => `${n} · Lv ${l}`], [/^Noch (\d+) Züge Cooldown$/, (t, n) => `${n} more turns of cooldown`],
   [/^(Items|Waffen|Gegner): (\d+) von (\d+) entdeckt · (\d+) Shiny$/, (t, k, a, b, c) => `${t(k)}: ${a} of ${b} discovered · ${c} Shiny`], [/^Freigeschaltet am (.+)$/, (t, d) => `Unlocked on ${d}`],
   [/^(\d+) Runs · (\d+) Siege · Stage (\d+) · (.+)$/, (t, r, w, s, d) => `${r} runs · ${w} wins · Stage ${s} · ${t(d)}`], [/^Niederlage in Stage (\d+) · (\d+) Kämpfe$/, (t, s, f) => `Defeat in Stage ${s} · ${f} combats`], [/^Sieg · (\d+) Kämpfe$/, (t, f) => `Victory · ${f} combats`],
   [/^(.+) · (Normal|Schwer|Albtraum)$/, (t, c, d) => `${c} · ${t(d)}`],
@@ -1888,14 +2030,14 @@ __exports.EN_PATTERNS = EN_PATTERNS;
 __define("ui/i18n_en.js", function (__exports, __require) {
 // Englische Texte. EN_UI: genauer deutscher Text -> englisch (Oberfläche, ui/en_ui.js). EN_PATTERNS: Texte mit Zahlen. EN_CONTENT: Inhalte nach Art und ID (ui/en_cards_items.js, ui/en_world.js).
 const { EN_CARDS, EN_ITEMS } = __require("ui/en_cards_items.js");
-const { EN_WEAPONS, EN_ENEMIES, EN_ENCOUNTERS, EN_SKINS, EN_FRAMES, EN_CLASSES, EN_EVENTS, EN_ACH, EN_SPEAKERS, EN_STORIES, EN_REACTIONS } = __require("ui/en_world.js");
+const { EN_WEAPONS, EN_ENEMIES, EN_ENCOUNTERS, EN_SKINS, EN_FRAMES, EN_CLASSES, EN_EVENTS, EN_ACH, EN_SPEAKERS, EN_STORIES, EN_REACTIONS, EN_ABILITIES } = __require("ui/en_world.js");
 const { EN_UI, EN_PATTERNS } = __require("ui/en_ui.js");
 
 const obj = (src, names) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, Object.fromEntries(names.map((n, i) => [n, v[i]]))]));
 const named = (src) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, { name: v }]));
 const EN_CONTENT = {
   cards: obj(EN_CARDS, ["name", "text"]), items: obj(EN_ITEMS, ["name", "text"]), weapons: named(EN_WEAPONS), enemies: named(EN_ENEMIES), encounters: named(EN_ENCOUNTERS),
-  skins: named(EN_SKINS), reactions: named(EN_REACTIONS), frames: named(EN_FRAMES), classes: EN_CLASSES, achievements: obj(EN_ACH, ["name", "text"]), events: EN_EVENTS, speakers: EN_SPEAKERS, stories: EN_STORIES,
+  skins: named(EN_SKINS), abilities: EN_ABILITIES, reactions: named(EN_REACTIONS), frames: named(EN_FRAMES), classes: EN_CLASSES, achievements: obj(EN_ACH, ["name", "text"]), events: EN_EVENTS, speakers: EN_SPEAKERS, stories: EN_STORIES,
 };
 
 __exports.EN_UI = EN_UI;
@@ -1937,7 +2079,7 @@ function translateDom(root) {
 }
 
 // Inhalte: je Art die Felder, die übersetzt werden. Die deutschen Originale werden beim ersten Tausch gemerkt.
-const FIELDS = { cards: ["name", "text"], items: ["name", "text"], weapons: ["name"], enemies: ["name"], encounters: ["name"], classes: ["name", "blurb", "perks"], skins: ["name"], frames: ["name"], achievements: ["name", "text"], events: ["name", "text"], speakers: ["name", "title"], reactions: ["name"] };
+const FIELDS = { cards: ["name", "text"], items: ["name", "text"], weapons: ["name"], enemies: ["name"], encounters: ["name"], classes: ["name", "blurb", "perks"], skins: ["name"], frames: ["name"], achievements: ["name", "text"], events: ["name", "text"], abilities: ["name", "text"], speakers: ["name", "title"], reactions: ["name"] };
 function swap(obj, fields, en) {
   if (!orig.has(obj)) orig.set(obj, Object.fromEntries(fields.map((f) => [f, structuredClone(obj[f])])));
   const o = orig.get(obj);
@@ -1948,6 +2090,11 @@ function applyContentLanguage(CONTENT, to) {
   CONTENT.clearShinyCache?.();
   for (const [kind, fields] of Object.entries(FIELDS)) for (const [id, def] of Object.entries(CONTENT[kind] ?? {})) swap(def, fields, EN_CONTENT[kind]?.[id]);
   for (const [id, def] of Object.entries(CONTENT.classes ?? {})) if (def.passive) swap(def.passive, ["name", "text"], EN_CONTENT.classes?.[id]?.passive);   // Klassen-Passiv
+  for (const [id, def] of Object.entries(CONTENT.abilities ?? {})) {
+    const en = EN_CONTENT.abilities?.[id];
+    (def.forms ?? []).forEach((f, i) => swap(f, ["name"], { name: en?.forms?.[i] }));
+    def.levels.forEach((lv, i) => { swap(lv, ["text", "task", "reward"], en?.levels?.[i]); (lv.forms ?? []).forEach((f, j) => swap(f, ["name"], { name: en?.forms?.[j] })); });
+  }         // Stufen-Texte der Fähigkeiten
   for (const def of Object.values(CONTENT.events ?? {})) (def.choices ?? []).forEach((c, i) => swap(c, ["label"], { label: EN_CONTENT.events?.[def.id]?.choices?.[i] }));
   for (const [id, story] of Object.entries(CONTENT.stories ?? {})) swap(story, ["lines"], { lines: EN_CONTENT.stories?.[id] });
   if (typeof document !== "undefined" && document.documentElement) document.documentElement.lang = lang;
@@ -2288,6 +2435,7 @@ __exports.computeDamage = computeDamage;
 });
 __define("engine/combat.js", function (__exports, __require) {
 // Rundenbasierter Kampf. Der State ist ein einfaches Objekt, die UI liest ihn nur.
+const { abilityAt } = __require("engine/abilities.js");
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
 const { createRng } = __require("engine/rng.js");
@@ -2323,7 +2471,8 @@ function createCombat({ spec, encounterId, seed = 1, playerHp, verbose = false, 
     lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null, once: {}, overkill: 0, hpLostThisTurn: false, healTriedThisTurn: false,
     gold: spec.gold ?? 0, goldStart: spec.gold ?? 0, goldGained: 0, maxHpGain: 0,    // Gold im Kampf (Börse, Taschendiebstahl, Bestechung) und dauerhafte Max-HP (Photosynthese)
     // Zähler für Erfolge: höchster Einzeltreffer, erlittener Schaden, Karten/Reaktionen pro Zug, höchster Status-Stapel
-    metrics: { plays: 0, reactions: 0, reactionIds: [], maxHit: 0, damageTaken: 0, maxPlaysTurn: 0, reactionsTurn: 0, maxReactionsTurn: 0, maxStatus: {} },
+    metrics: { plays: 0, reactions: 0, reactionIds: [], maxHit: 0, damageTaken: 0, maxPlaysTurn: 0, reactionsTurn: 0, maxReactionsTurn: 0, maxStatus: {}, abilityUses: {}, abilityDamage: {}, fieldDamage: 0 },
+    ability: spec.ability ? { id: spec.ability, level: spec.abilityLevel ?? 1, def: abilityAt(spec.ability, spec.abilityLevel ?? 1), cd: 0, form: 0 } : null, field: null,
     piles: {
       draw: rng.shuffle(build.cards.map((def, uid) => ({ uid, def }))),
       hand: [], discard: [], exhaust: [],        // exhaust: verbrauchte Karten (weg bis zum Kampfende)
@@ -2388,7 +2537,8 @@ function checkProgress(s) {
   if (aliveEnemies(s).length === 0) {
     if (s.waveIndex + 1 < s.encounter.waves.length) spawnNextWave(s);
     else {
-      s.result = "won";
+      emit(s, "on_combat_victory", {}, 0);                                // Siegesereignis für Passive/Items (vor dem Ergebnis, sonst laufen sie nicht)
+      s.result = "won"; fx(s, { t: "victory" });                           // Anzeige: Sieges-Pose
       s.player.hp = Math.min(s.player.maxHp, s.player.hp + ((s.build.stats.healToDamage ?? 0) > 0 ? 0 : healAmount(s, s.build.stats.regen)));   // Regeneration nach dem Kampf (auch sie wird durch healLoss gemindert)
     }
   }
@@ -2409,6 +2559,8 @@ function draw(s, n) {
 
 function startPlayerTurn(s) {
   s.turn++;
+  if (s.ability && s.ability.cd > 0) s.ability.cd--;                                      // Cooldown zählt eigene Züge
+  if (s.field && --s.field.turnsLeft <= 0) { log(s, `  ${s.field.name} endet`); fx(s, { t: "field", on: false }); s.field = null; }
   s.counters = {};
   s.playsThisTurn = 0;
   s.metrics.reactionsTurn = 0;
@@ -2460,7 +2612,7 @@ function loseHp(s, v) {
   return lost;
 }
 
-function dealDamage(s, enemy, amount, source, { pierce = false, note = "", depth = 0 } = {}) {
+function dealDamage(s, enemy, amount, source, { pierce = false, ignoreBlock = false, note = "", depth = 0 } = {}) {
   const wasAlive = enemy.hp > 0;
   // Panzerplatten: Jeder Karten-Treffer (nicht Gift/Blutung/Item-Effekte) zerbricht nur eine Platte
   if (!pierce && enemy.plates > 0) {
@@ -2475,13 +2627,14 @@ function dealDamage(s, enemy, amount, source, { pierce = false, note = "", depth
     return 0;
   }
   let rest = amount, blocked = 0;
-  if (!pierce) {
+  if (!pierce && !ignoreBlock) {
     blocked = Math.min(enemy.block, rest);
     enemy.block -= blocked;
     rest -= blocked;
   }
   const hpBefore = enemy.hp;
   enemy.hp = Math.max(0, enemy.hp - rest);
+  if (s.field) s.metrics.fieldDamage += rest;                                          // Meta: Schaden, während die Sphärenentfaltung aktiv ist
   if (wasAlive && enemy.hp === 0 && rest > hpBefore) s.overkill += rest - hpBefore;      // Überschuss-Schaden beim Töten wird nach dem Kampf zu Gold
   log(s, `  ${source}: ${enemy.name} -${rest}${note}${enemy.hp === 0 ? " (besiegt)" : ` (HP ${enemy.hp})`}`);
   fx(s, { t: "hit", uid: enemy.uid, amount: rest, blocked, pierce, strong: note.includes("sehr"), weak: note.includes("resistent") });
@@ -2645,7 +2798,8 @@ function runActions(s, def, chosen) {
           s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
           const note = (detail.elem > 1 ? " [sehr effektiv]" : detail.elem < 1 ? " [resistent]" : "") + (crit ? " [KRITISCH]" : "");
           const wasAlive = t.hp > 0;
-          const lost = dealDamage(s, t, amount, def.name, { note });
+          if (s.field?.xmult) amount = Math.floor(amount * (1 + s.field.xmult));                 // Sphärenentfaltung: x1,5 Endschaden
+          const lost = dealDamage(s, t, amount, def.name, { note, ignoreBlock: Boolean(s.field?.ignoreBlock) });
           const ls = s.build.stats.lifesteal ?? 0;                                                // Lebensraub (Wert): Anteil des Kartenschadens als Heilung, Reste werden gesammelt
           if (ls > 0 && lost > 0) { s.lsAcc = (s.lsAcc ?? 0) + (lost * ls) / 100; const h = Math.floor(s.lsAcc); if (h > 0) { s.lsAcc -= h; healPlayer(s, h); } }
           if (action.lifesteal && lost > 0) healPlayer(s, lost);                                   // Blutsauger-Ranke: Heilung in Höhe des verursachten Schadens
@@ -2701,6 +2855,56 @@ function chainReaction(s, def, chosen) {
 const activeDef = (item) => ({ id: item.id, name: item.name, cost: item.active.cost, element: item.active.element ?? null, tags: ["item", "aktiv"], play: item.active.play, isItem: true });
 const activeItems = (s) => s.build.items.map((item, index) => ({ index, item })).filter((x) => x.item.active)
   .map((x) => ({ ...x, def: activeDef(x.item), used: s.usedItems.includes(x.index) }));
+
+// Signatur-Fähigkeit einsetzen: kostet keine Energie, nur einen Cooldown (und je nach Fähigkeit HP oder Gold)
+function abilityReady(s) { return Boolean(s.ability && !s.result && s.ability.cd === 0); }
+function abilityAffordable(s, margin = 0) {                                       // Autopilot nutzt margin, damit er sich nicht mit HP-Kosten selbst umbringt
+  const c = s.ability?.def.cost; return !c || ((!c.gold || s.gold >= c.gold) && (!c.hp || s.player.hp > c.hp + margin));
+}
+const abilityForm = (a) => (a.def.forms ? a.def.forms[a.form % a.def.forms.length] : a.def);          // aktuelle Form (Stein/Schere/Papier) oder die Fähigkeit selbst
+const abilityNeedsAttack = (a) => abilityForm(a).effects.some((e) => e.type === "field");              // Felder lohnen nur mit Angriffskarten
+function useAbility(s, targetUid) {
+  const a = s.ability;
+  if (!a) return { ok: false, reason: "Keine Fähigkeit gewählt" };
+  if (s.result) return { ok: false, reason: "Kampf beendet" };
+  if (a.cd > 0) return { ok: false, reason: `Noch ${a.cd} Züge Cooldown` };
+  const d = a.def;
+  if (d.cost?.gold && s.gold < d.cost.gold) return { ok: false, reason: "Zu wenig Gold" };
+  const form = abilityForm(a), label = d.forms ? `${d.name}: ${form.name}` : d.name;
+  const alive = aliveEnemies(s), target = alive.find((e) => e.uid === targetUid) ?? alive[0];
+  a.cd = d.cooldown; a.form++; s.metrics.abilityUses[a.id] = (s.metrics.abilityUses[a.id] ?? 0) + 1;
+  if (d.cost?.gold) loseGold(s, d.cost.gold);
+  if (d.cost?.hp) loseHp(s, d.cost.hp);                                                    // nie unter 1 HP
+  log(s, `> ${label} (Fähigkeit)`);
+  fx(s, { t: "play", name: label, tags: [], element: null, target: target?.uid, all: form.effects.some((e) => e.target === "all" || e.type === "field"), ability: true });
+  let total = 0;
+  for (const e of form.effects) {
+    if (s.result) break;
+    const foes = aliveEnemies(s);
+    if (e.type === "damage") {
+      const targets = e.target === "all" ? foes : target && target.hp > 0 ? [target] : [];
+      for (let h = 0; h < (e.hits ?? 1); h++) for (const x of targets) {
+        if (x.hp <= 0) continue;
+        const card = { name: d.name, element: e.element ?? null, tags: [...(e.tags ?? []), ...(e.element ? [e.element] : [])] };
+        const { amount } = computeDamage({ build: s.build, card, action: { base: e.base, weaponScale: e.weaponScale, element: e.element }, target: x, playsBefore: s.playsThisTurn, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
+        s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
+        total += dealDamage(s, x, amount, d.name, { ignoreBlock: e.ignoreBlock ?? false }) ?? 0;     // Panzerplatten bleiben ein Treffer-Zähler
+        if (e.status && x.hp > 0) applyStatus(s, x, e.status.status, e.status.stacks, 0);
+      }
+    } else if (e.type === "status") {
+      const targets = e.target === "all" ? foes : e.target === "strongest" ? [[...foes].sort((p, q) => q.hp - p.hp)[0]].filter(Boolean) : target ? [target] : [];
+      for (const x of targets) applyStatus(s, x, e.status, e.stacks, 0);
+    } else if (e.type === "playerStatus") {
+      s.player.statuses[e.status] = (s.player.statuses[e.status] ?? 0) + e.stacks; log(s, `  ${label}: +${e.stacks} ${e.status}`);
+    } else if (e.type === "heal") healPlayer(s, Math.ceil((s.player.maxHp * e.pct) / 100));
+    else if (e.type === "block") { s.player.block += e.value; log(s, `  ${label}: +${e.value} Block`); fx(s, { t: "block", amount: e.value }); }
+    else if (e.type === "draw") draw(s, e.value);
+    else if (e.type === "field") { s.field = { id: a.id, name: d.name, turnsLeft: e.turns, xmult: e.xmult, ignoreBlock: true }; log(s, `  ${d.name}: ${e.turns} Züge lang ignorieren deine Treffer Block, Endschaden x${1 + e.xmult}`); fx(s, { t: "field", on: true, name: d.name }); }
+  }
+  s.metrics.abilityDamage[a.id] = (s.metrics.abilityDamage[a.id] ?? 0) + total;
+  checkProgress(s);
+  return { ok: true };
+}
 
 function useItem(s, index, targetUid) {
   if (s.result) return { ok: false, reason: "Kampf beendet" };
@@ -2837,6 +3041,11 @@ __exports.effectiveAction = effectiveAction;
 __exports.actionAllowed = actionAllowed;
 __exports.activeDef = activeDef;
 __exports.activeItems = activeItems;
+__exports.abilityReady = abilityReady;
+__exports.abilityAffordable = abilityAffordable;
+__exports.abilityForm = abilityForm;
+__exports.abilityNeedsAttack = abilityNeedsAttack;
+__exports.useAbility = useAbility;
 __exports.useItem = useItem;
 __exports.playCard = playCard;
 __exports.endPlayerTurn = endPlayerTurn;
@@ -2882,6 +3091,7 @@ const createMeta = () => ({
   runs: 0, wins: 0, highestWon: -1, bossKills: 0, unlocked: {}, dex: createDex(),
   // Zähler für Erfolge
   stats: { kills: 0, fightsWon: 0, elites: 0, minibosses: 0, shinyEnemies: 0, winsByClass: {}, winsByWeapon: {}, bestStage: 0, goldTotal: 0, fightsTotal: 0, byClass: {}, maxDiffByClass: {} },
+  abilities: {},                                       // je Fähigkeit: Stufe und Zähler (Einsätze, Schaden in der Sphäre), nur hier steigen Stufen auf
   history: [],                                        // die letzten Runs (Held, Sieg, Stage, Kämpfe, Datum)
   // Was schon einmal gefunden/erlebt wurde (Grundlage für "alle Items gefunden" usw.), Schlüssel = Basis-ID ohne Shiny-Endung
   discovered: { items: {}, cards: {}, weapons: {}, enemies: {}, reactions: {} },
@@ -2897,6 +3107,8 @@ function normalizeMeta(meta) {
     if (meta[k] === undefined) meta[k] = base[k];
     else if (base[k] && typeof base[k] === "object" && !Array.isArray(base[k])) meta[k] = { ...base[k], ...meta[k] };
   }
+  meta.abilities ??= {};
+  for (const id of Object.keys(CONTENT.abilities ?? {})) meta.abilities[id] = { level: 1, uses: 0, damage: 0, fieldDamage: 0, ...(meta.abilities[id] ?? {}) };
   if (!Object.keys(meta.stats.maxDiffByClass ?? {}).length && meta.highestWon >= 0) {        // ältere Spielstände: Schwierigkeit gilt nur für Helden, mit denen schon gewonnen wurde
     meta.stats.maxDiffByClass = {};
     for (const c of Object.keys(meta.stats.winsByClass ?? {})) if (meta.stats.winsByClass[c] > 0) meta.stats.maxDiffByClass[c] = meta.highestWon;
@@ -2987,6 +3199,25 @@ function recordRun(meta, run, won) {
   return { unlocks, newDifficulty: won && after > before0 ? CONFIG.difficulty[after]?.name : null };
 }
 
+// ---- Fähigkeiten: Zähler und Meta-Stufen (nie im Run)
+function trackAbilities(meta, combat) {                       // nach jedem Kampf: Einsätze und Sphären-Schaden dem Fortschritt zuschlagen
+  const a = combat.ability; if (!a) return;
+  const m = (meta.abilities[a.id] ??= { level: 1, uses: 0, damage: 0, fieldDamage: 0 });
+  m.uses += combat.metrics.abilityUses?.[a.id] ?? 0; m.damage = (m.damage ?? 0) + (combat.metrics.abilityDamage?.[a.id] ?? 0);
+  const base = CONTENT.abilities[a.id], effs = [...(base?.effects ?? []), ...(base?.forms ?? []).flatMap((f) => f.effects)];
+  if (effs.some((e) => e.type === "field")) m.fieldDamage += combat.metrics.fieldDamage ?? 0;
+}
+function abilityProgress(meta, id) {                           // Stand und nächste Aufgabe
+  const def = CONTENT.abilities[id], m = meta.abilities[id] ?? { level: 1, uses: 0, damage: 0, fieldDamage: 0 }, next = def.levels[m.level - 1];
+  if (!next) return { level: m.level, max: true };
+  return { level: m.level, max: false, task: next.task, reward: next.reward, goal: next.unlock.count, count: Math.min(next.unlock.count, m[next.unlock.stat] ?? 0), done: (m[next.unlock.stat] ?? 0) >= next.unlock.count };
+}
+function evaluateAbilityLevels(meta) {                         // Stufen freischalten, wenn die Aufgabe erfüllt ist
+  const ups = [];
+  for (const id of Object.keys(CONTENT.abilities)) for (let g = 0; g < 5; g++) { const p = abilityProgress(meta, id); if (p.max || !p.done) break; meta.abilities[id].level++; ups.push({ id, level: meta.abilities[id].level }); }
+  return ups;
+}
+
 __exports.createMeta = createMeta;
 __exports.normalizeMeta = normalizeMeta;
 __exports.statValue = statValue;
@@ -2997,6 +3228,9 @@ __exports.isUnlocked = isUnlocked;
 __exports.describeUnlock = describeUnlock;
 __exports.evaluateUnlocks = evaluateUnlocks;
 __exports.recordRun = recordRun;
+__exports.trackAbilities = trackAbilities;
+__exports.abilityProgress = abilityProgress;
+__exports.evaluateAbilityLevels = evaluateAbilityLevels;
 
 });
 __define("engine/achievements.js", function (__exports, __require) {
@@ -3351,7 +3585,7 @@ const { generateMap, findNode } = __require("engine/map.js");
 const { resolveBuild } = __require("engine/modifiers.js");
 const { createCombat, goldMult } = __require("engine/combat.js");
 const { recordShiny } = __require("engine/dex.js");
-const { recordRun, discover, recordCombat, isUnlocked } = __require("engine/meta.js");
+const { recordRun, discover, recordCombat, isUnlocked, trackAbilities, evaluateAbilityLevels } = __require("engine/meta.js");
 const { evaluateAchievements } = __require("engine/achievements.js");
 const { generateCardReward, generateItemChoices, generateWeaponChoices, generateShinyItemChoices, generateShop, generateStartShop, rerollShop, toggleFreeze, buy, payRemoval, goldDrop, generateShinyWeaponChoices } = __require("engine/loot.js");
 
@@ -3363,7 +3597,7 @@ const ok = (extra = {}) => ({ ok: true, ...extra });
 // Shiny-Held: wird beim Run-Start einmal gewürfelt (bewusst NICHT vom Seed abhängig, damit man keine Seeds "farmen" kann).
 const rollShinyHero = (rand = Math.random) => rand() < CONFIG.shiny.heroChance;
 
-function createRun({ classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
+function createRun({ ability, classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
   const cls = CONTENT.classes[classId];
   const startWeapon = cls.starterWeapons.includes(weapon) ? weapon : cls.weapon;      // jede Klasse darf jede Startwaffe wählen
   const rng = createRng(seed);
@@ -3374,7 +3608,7 @@ function createRun({ classId = "nahkaempfer", seed = (Date.now() >>> 0), difficu
     deck: [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
-    xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
+    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
     stats: { fights: 0, elites: 0, minibosses: 0, nodes: 0, shinyEnemies: 0, shinyLoot: 0, goldEarned: 0, purchases: 0 },
   };
   run.maxHp = computeMaxHp(run);
@@ -3415,7 +3649,7 @@ const specOf = (run) => {
   const cls = CONTENT.classes[run.classId];
   const stats = { ...cls.stats, luck: (cls.stats.luck ?? 0) + (run.shinyHero ? CONFIG.shiny.heroLuck : 0) };   // Chrom-Held: +1 Glück
   for (const [k, v] of Object.entries(run.upStats ?? {})) stats[k] = (stats[k] ?? 0) + v;                    // Wert-Aufstiege aus Erfahrung
-  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold, stage: run.stage };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
+  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold, stage: run.stage, ability: run.ability ?? null, abilityLevel: run.meta?.abilities?.[run.ability]?.level ?? 1 };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
 };
 const buildOf = (run) => resolveBuild(specOf(run));
 const computeMaxHp = (run) => Math.max(1, CONTENT.classes[run.classId].hp + run.bonusMaxHp + buildOf(run).stats.maxHp);
@@ -3534,6 +3768,7 @@ function completeCombat(run) {
   if (run.phase !== "combat") return fail("Kein Kampf aktiv");
   const { combat, kind } = run.pending;
   if (!combat.result) return fail("Kampf läuft noch");
+  if (run.meta) { trackAbilities(run.meta, combat); const up = evaluateAbilityLevels(run.meta); if (up.length) run.abilityNotice = up; }          // Fähigkeiten: Zähler und Meta-Stufen (auch nach einer Niederlage)
   run.hp = Math.max(0, combat.player.hp);
   run.gold = Math.max(0, run.gold + (combat.gold - combat.goldStart));                       // Gold aus dem Kampf (Taschendiebstahl, Bestechung)
   run.stats.goldEarned += combat.goldGained;
@@ -3862,7 +4097,7 @@ __define("engine/autoplay.js", function (__exports, __require) {
 // Keine feste Reihenfolge, sondern eine Bewertung: erwarteter Schaden (inkl. Kill-Bonus), nötiger Block, Debuffs, Reaktionen, Kartenzug.
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
-const { aliveEnemies, intentOf, activeItems, effectiveAction, actionAllowed, freezeThreshold } = __require("engine/combat.js");
+const { abilityReady, abilityAffordable, abilityNeedsAttack, aliveEnemies, intentOf, activeItems, effectiveAction, actionAllowed, freezeThreshold } = __require("engine/combat.js");
 const { computeDamage } = __require("engine/modifiers.js");
 
 // Braucht die Karte ein einzelnes Ziel? (Flächen-, Block- und Zieh-Karten nicht)
@@ -3870,6 +4105,7 @@ const needsTarget = (def) =>
   def.play.some((a) => ["damage", "status", "multiplyStatus"].includes(a.action) && a.target !== "all");
 
 function hasPlayable(s) {
+  if (abilityReady(s)) return true;                                                  // eine bereite Fähigkeit zählt als spielbar (Zug nicht automatisch beenden)
   return s.playsThisTurn < CONFIG.balance.maxCardsPerTurn && s.piles.hand.some((c) => c.def.cost <= s.player.energy);
 }
 
@@ -3960,6 +4196,10 @@ function itemWorthIt(s, def) {
 
 // Nächster Schritt: { type: "play", index, targetUid } | { type: "item", index, targetUid } | { type: "end" }
 function nextAction(s) {
+  if (!s.result && abilityReady(s) && aliveEnemies(s).length) {                       // Fähigkeit zuerst: Burst auf den stärksten Gegner, Sphäre nur mit Angriffskarten auf der Hand
+    const attack = s.piles.hand.some((c) => c.def.cost <= s.player.energy && c.def.play.some((a) => a.action === "damage"));
+    if (abilityAffordable(s, 8) && (!abilityNeedsAttack(s.ability) || attack)) return { type: "ability", targetUid: aliveEnemies(s).sort((a, b) => b.hp - a.hp)[0].uid };
+  }
   if (s.result || !hasPlayable(s)) return { type: "end" };
   const th = threat(s);
   let best = null;
@@ -4015,9 +4255,9 @@ function nameAny(id) {
 // ---- Automatische Beschreibung für Passive (Fallback, wenn kein "text" gepflegt ist)
 const TRIGGER = {
   on_combat_start: "Kampfbeginn", on_turn_start: "Zugbeginn", on_turn_end: "Zugende", on_card_played: "Karte gespielt",
-  on_status_applied: "Status aufgetragen", on_kill: "Gegner besiegt", on_player_hit: "Du wirst getroffen", on_reaction: "Reaktion", on_hp_lost: "Du verlierst HP",
+  on_status_applied: "Status aufgetragen", on_kill: "Gegner besiegt", on_player_hit: "Du wirst getroffen", on_reaction: "Reaktion", on_hp_lost: "Du verlierst HP", on_combat_victory: "Kampf gewonnen",
 };
-const TRIGGER_EN = { on_combat_start: "Combat start", on_turn_start: "Start of turn", on_turn_end: "End of turn", on_card_played: "Card played", on_status_applied: "Status applied", on_kill: "Enemy defeated", on_player_hit: "You are hit", on_reaction: "Reaction", on_hp_lost: "You lose HP" };
+const TRIGGER_EN = { on_combat_start: "Combat start", on_turn_start: "Start of turn", on_turn_end: "End of turn", on_card_played: "Card played", on_status_applied: "Status applied", on_kill: "Enemy defeated", on_player_hit: "You are hit", on_reaction: "Reaction", on_hp_lost: "You lose HP", on_combat_victory: "Combat won" };
 const TAG_EN = { feuer: "Fire", wasser: "Water", pflanze: "Plant", eis: "Ice", gift: "Poison", blut: "Blood", fernkampf: "Ranged", nahkampf: "Melee", zauber: "Spell", block: "Block", angriff: "Attack", flaeche: "Area", item: "Item", waffe: "Weapon" };
 const STATUS_EN = { gift: "Poison", markiert: "Marked", blutung: "Bleed", verwundbar: "Vulnerable", verbrennung: "Burn", frost: "Chill", ausweichen: "Dodge", dornen: "Thorns", aussetzen: "Skip" };
 const en = () => getLang() === "en";
@@ -4733,31 +4973,31 @@ __define("ui/art/enemies2.js", function (__exports, __require) {
 // ERZEUGT von tools/figures/enemies.mjs (nicht von Hand ändern). Gegner im detaillierten Stil, jeder mit eigener Pixelgröße px.
 const R = (rows) => rows.map((r) => [...r]);
 const ENEMIES2 = {
-  ratte: { w: 36, h: 18, cells: R(["....................................","....................................",".........n..........................","........ppn.........................",".......ppppn........................",".......ppppn...MMMMMMMnn............",".....MMnppnnMMMMNNNNNNNNMnn.........","...MMMNNnnnnMNNNNNNNNNNNNNNnn......p","...MwNNNNnNnNNNNNNNNNNNNNNNNnn.....p","..MMnkNNNNNNnNNNNNNNNNNNNNNNNnn...p.","..MMnNNNNNNNnNNNNNNNNNNNNNNNNnn...p.","ppMNnNNNNNNnnNNNNNNNNNNNNNNNnnn..p..","..nNnNNNNNNnNNNNNNNNNNNNNNnnnnpppp..","...wwNNNNnnnnnNNNNNNNNNnnnnnn.......",".....nnnnn.nnnnnnnnnnnnnnnn.........","...........nn..nnnnnnnnnnn..nn......","...........nn...nn......nn..nn......","...........nn...nn......nn..nn......"]), px: 1.5, pal: {"p":"#e86f9a"} },
-  goblin: { w: 26, h: 36, cells: R(["..........................","..........................","..........................","..........................","..........GGGGGf..........","Gf......GGGFFFFFGf......Gf","GFG....GGFFFFFFFFFf....GGf","fFFGf.GGffFFFFFFffFf.GGGff",".GFFFfGFFFFFFFFFFFFfGGFFf.",".GFFFfGFFYkFFFFkYFFfGFFFf.",".ffFFfGFFFFFFFFFFFFffFfff.","...fffGFFFFFffFFFFFffff...","......GFFFFFFFFFFFFf......","......fFFkkkkkkkkFff......",".......fFFwFFFFwFff.......","........ffFFFFFfff........","..........ffffff..........",".......MMMnGGGGMMMn.......","...GGf.MNNnFFFFMNNn.GGf...","...GFf.MNNnFFFFMNNn.GFf...","...GFf.MNNnFFFFMNNn.GFf...","...GFf.MNNnFFFFMNNn.GFf...","...Gff.MNnnFFFFnNNn.fFf...","..GGf.MMNnFFFFFFMNNn.GFf..","..GFf.MNNnFFFFFFMNNn.GFf..","..GFf.MNNnFFFFFFMNNn.GFf..","..fff.xxxxxxYYxxxxxx.fff..","...f..xxxxxxxxxxxxxx..f...","..GGf...GFFf..GFFf...GGf..",".fGFff..GFFf..GFFf..fGFff.","..fff...GFFf..GFFf...fff..","...f....GFFf..GFFf....f...","........nFFf..GFFn........",".....MMMMMMn..MMMMMMn.....",".....MNNNNNn..MNNNNNn.....",".....nnnnnnn..nnnnnnn....."]), px: 1.55 },
-  skelett: { w: 26, h: 46, cells: R(["..........................","..........................",".........wwwwwwwB.........","........wwmmmmmmmB........",".......wwmmmmmmmmmB.......",".......wmmmmmmmmmmB.......","......wwmkkmmmmkkmmB......","......wmkkkkmmkkkkmB......","......wmkJkkmmkJkkmB......","......wmkkkkmmkkkkmB......","......BmmkkmmmmkkmBB......",".......wmmmmkkmmmmB.......",".......BmmmmmmmmmBB.......","........BwwwwwwwBB........",".........wkmkmkmB.........","......wwwBBBBBBBBwwB......","...wB.BBBBBBBBBBBBBB.wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB..wwwwwwwwwwwB..wB...","...wB..BBBBBBBBBBBB..wB...","...wB.......BB.......wB...","...wB...wwwwBBwwB....wB...","...wB...wmmmmmmmB....wB...","..wwmB..BmmmmmmBB...wwmB..","..wmmB...BBBBBBBB...wmmB..","..BmBB...wB....wB...BmBB..","...BB....wB....wB....BB...",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".......wwBB....BwwB.......","......BBBB......BBBB......",".........................."]), px: 1.5 },
-  bandit: { w: 28, h: 44, cells: R(["............................","...........ggggxx...........",".........gggWWWWWxx.........","........ggWWWWWWWWxx........","........gWWWWWWWWWxx........",".......ggWWWWWWWWWWxx.......",".......gWWWWxxxxWWWxx.......","......ggWWxxxxxxxxWWxx......","......gWWxxxxxxxxxxWxx......","......gWWxxxxxxxxxxWxx......","......gWWOOOOOOOOOrWxx......","......xWxOYYRRRRYYrxxx......",".......gWORRRRRRRRrxx.......",".......xWrrrrrrrrrrxx.......","........gxxxxxxxxxxx........","......ggxxxxxxxxxxxxx.......","......gWWxxxxxxxxxxxx.......","......gWWWWxxxxxxWWxx.......","......gWWWWWWWWWWWWxx.......",".....ggWWWWWWWWWWWWWxx......",".....gWWWWWWWWWWWWWWxx......",".....gWWWWWWWWWWWWWWxx....i.",".....gWWWWWWWWWWWWWWxx....i.",".....gWWWWWWWWWWWWWWxx...i..",".....gWWWWWWWWWWWWWWxx...i..",".....gWWWWWWWWWWWWWWxx...i..",".....gWWWWWWWWWWWWWWxx..i...","....ggWWnnnnnYYnnnnnWxx.i...","....MMnWnnnnnnnnnnnnWMMi....","...MMNNnWWWWWWWWWWWWMMNin...","...MNNNnWWWWWWWWWWWWMNNNn...","...nNNnnWWWWWWWWWWWWnNNnn...","....nnnWWWWWWWWWWWWWWnnn....","....gWWWWWWWWWWWWWWWWxx.....","....gWWWWWWWWWWWWWWWWxx.....","...ggWWWWWWWWWWWWWWWWWxx....","...xxxxxxxxxxxxxxxxxxxxx....","...xxxxxxxxxxxxxxxxxxxxx....",".........gWWx..gWWx.........",".........gWWx..gWWx.........",".......WWWWkx..xWWWWk.......",".......Wxxxk....Wxxxk.......","......kkkkkk....kkkkkk......","............................"]), px: 1.5, pal: {"W":"#4a4468","g":"#7a7498","x":"#2b2433"} },
-  funke: { w: 18, h: 18, cells: R(["..................","........Yo........","........Yo........",".......YYOo.......",".......YOOo.......","......YYYYYo......","...YYYYYzzzYYYo...",".oYYOYYzzzzzYOOoo.","..oOOYzzwwzzYOoo..","...oYYzkwwkzYYo...","....oYzzzzzzYo....",".....YzzzzzYY.....",".....YYzzzYYo.....","....YYOYYYYOOo....","....YOoooooOOo....","....ooo....ooo....","...oo........oo...",".................."]), px: 1.6 },
-  dornenranke: { w: 26, h: 42, cells: R(["..........................","..........................","..........OOOOOrr.........",".......OOOORRRRRROrr......","......OORRRRRRRRRRRrr.....",".....OORYkRRRRRRRkYRrr....","....OORRRRRRRRRRRRRRRrr...","...OORRRRRRRRWRRRRRRRRrr..","...ORRRRRRWWWWWWWRRRRRrr..","..OORRRRRwWwWwWwWwRRRRRrr.","..ORRRRRWWWWWWWWWWWRRRRrr.","..ORRRRWWWWWWWWWWWWWRRRrr.","..ORRRRWWWWWWWWWWWWWRRRrr.","..rRRRRWWWWWWWWWWWWWRRrrr.","...ORRRWWWWWRRWWWWWWRRrr..","...rRRRWWWWWRRWWWWWWRrrr..","....rRRRWWWWWWWWWWWRrrr...",".....rRRwWwWwWwWwWwrrr....","......rrrRWWWWWWWrrrr.....",".......rrrrrrWrrrrrr......","..........rrrrrrr.........","..........................","..........................","..........................","...........GGGf...........","...........GFFf...........","...........GFFf......GGf..","..Gf.......GFFf.....GGFf..","..GFGf....yGFFf...GGGFFff.",".fGFFFf....GFFf..GGFFFFf..","..GFFFFf...GFFfGyGFFFFff..","..fFFFFFGf.GFFfGFFFFFFf...","...GFFFFFFfGFFFGFFFFFff...","...fFFFFFFfFFFFGFFffff....","....fffFFfyFFFFffff.......",".......fffGFFFFf..........","..........GFFFFfy.........","..........GFFFFf..........","..........GFFFFfn.........","........MMffffffNMn.......",".......nMNNNNNNNNNnn......","........nnnnnnnnnnn......."]), px: 1.6 },
-  glutgeist: { w: 26, h: 38, cells: R(["..........................","............oo............","............oo............","...........YYoo...........","...........YOoo...........","..........YYOOoo..........","..........YOOOoo..........",".........YYOOOOoo.........",".......YYYOOOOOOOoo.......","......YYOOOOOOOOOOoo......","......YOOOOOOOOOOOoo......","......oOOOOOOOOOOooo......",".......YOOOOOOOOOoo.......",".......YOOOOOOOOOoo.......",".......YOOOOOOOOOoo.......","......YYOOOOOOOOOOoo......",".....YYOOOOzzzOOOOOoo.....","....YYOOOzzzYYYzOOOOoo....","....YOOOzzYYYYYYYOOOoo....","...YYOOzzYYYYYYYYYOOOoo...","..YYOOOzYYYYYYYYYYOOOOoo..","..YOOOzzYYYYYYYYYYYOOOoo..","..oOOOzYYwkYYYYwkYYOOooo..","...YOOzYYkkYYYYkkYYOOoo...","...YOOzYYYYYYYYYYYYOOoo...","...YOOzYYYYYYYYYYYYOOoo...","...YOOzYYYYYYYYYYYYOOoo...","...oOOzYYYYYYYYYYYYOooo...","....YOzYYYYkkkkYYYYOoo....","....YOOYYYYYYYYYYYOOoo....","....oOOzYYYYYYYYYYOooo....",".....oOOYYYYYYYYYOOoo.....","......YOOYYYYYYYOOoo......","......oOOOOYYYOOOooo......",".......ooooOOOOoooo.......","........oooooooooo........","..........................",".........................."]), px: 1.5 },
-  flussgeist: { w: 26, h: 38, cells: R(["..........................","............uu............","............uu............","...........VVuu...........","...........VUuu...........","..........VVUUuu..........","..........VUUUuu..........",".........VVUUUUuu.........",".........VUUUUUuu.........","........VVUUUUUUuu..J.....","........VUUUUUUUuu........",".......VVUUUUUUUUuu.......",".....J.VUUUUUUUUUuu.......","......VVUUUUUUUUUUuu......","......VUUUUUUUUUUUuu......",".....VVUUUUUUUUUUUUuu.....",".....VUUUUUUUUUUUUUuuJ....","....VVUUUUUUUUUUUUUUuu....","....VUUUUUUUUUUUUUUUuu....","....VUUJJUUUUUUUUUUUuu....","....VJJJwwwwUUUwwwwUuu....","....VJVVwwwwUUUwwwwUuu....","....JJVwwwkwwUwwwkwwuu....","...VJVVVwwkwUUUwwkwUUuu...","...VJVVVwwwwUUUwwwwUUuu...","...VJVVVVVVVUUUUUUUUUuu...","...VUVVVVVVUUUUUUUUUUuu...","...VUJVVVVVUUUUUUUUUUuu...","...uUUUVVUUUUUUUUUUUuuu...","....VUUUUUkUUUUkUUUUuu....","....uUUUUUUkkkkUUUUuuu....",".....VUJUUUUUUUUUUUuu.....",".....uUUUUUUUUUUUUuuu.....","......VUUUUUUUUUUUuu......","......uuuUUUUUUuuuuu......",".......uuuuuuuuuuuu.......","..........uuuuuu..........",".........................."]), px: 1.6 },
-  sumpfgeist: { w: 40, h: 36, cells: R(["........................................","........................................","........................................",".................GGGGff.................","...............GGGFFFFFff...............","............GGGGFFFFFFFFFGff............","..........GGGFFFFFFFFFFFFFFFff..........",".........GGFFFFFFFkkkkkFFFFFFff.........",".........GFFFFFFkkkkkkkkkFFFFff.........","........GGFFFFkkkkkkkkkkkkkFFFff........",".......GGFFFFFkkkkkkkkkkkkkFFFff........",".......GFFFFFkkkkkkkkkkkkkkkFFFff.......","......GGGFFFFkkkkkkkkkkkkkkkFFFFGf......",".....GGFFFFFkkkkkkkkkkkkkkkkkFFFff......",".....GFFFFFFkkkYYkkkkkkYYkkkkFFFFff.....","....GGFFFFFFkkkYYkkkkkkYYkkkkFFFFff.....","...GGFFFFFFFkkkkkkkkkkkkkkkkkFFFFFff....","...GFFFFFFFFkkkkkkkkkkkkkkkkkFFFFFff....","..GGFFFFFFFFFkkkkkkkkkkkkkkkFFFFFFFff...","..GFFFFFFFFFFkkkkkkkkkkkkkkkFFFFFFFff...","..GFFFFFFFFFFFkkwkkkwkkkwkkFFFFFFFFff...","..GFFFFFFFFFFFkkkkwkkkwkkkkFFFFFFFFff...","..GFFFFFFFFFFFFFkkkkkkkkkFFFFFFFFFFff...","..GFFFFFFFFFFFFFFFkkkkkFFFFFFFFFFFFff...","..GFFFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFff...","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFff..","..GFffFFFFFFffFFFFFFffFFFFFFffFFFFFFff..","..fffffFFFFffffFFFFffffFFFFffffFFFFFff..","..fff..fFFfff..fFFfff..fFFfff..fFFffff..","..f.....ffff....ffff....ffff....fffff...",".........ff......ff......ff......ff.....","........................................"]), px: 1.5 },
-  knochenhauptmann: { w: 38, h: 58, cells: R(["......................................","................iiOOOOOOOr............","..............iiiOORRRRRRr............",".............iihhORRRRRRRRr...........","............iihhrrrrrRRRRRr...........","...........iihhhhhhhhrrrrrrr..........","...........ihhhhhhhhhhhhhhhg..........","..........iihhhhhhhhhhhhhhhhg.........","..........ihhhhhhhhhhhhhhhhhg.........","..........ihhhhhhhhhhhhhhhhhg.........","..........ihhhkkkkhhhkkkkhhhg.........","..........ghggkkkkgggkkkkhggg.........","...........igmkJkkmmmkJkkigB..........","...........igmkkkkmmmkkkkig...........","...........ggmkkkkmmmkkkkgg...........","............BmmmmmmmmmmmmBB...........",".............BmmmmkkkmmmBB............","..............BmmmmmmmmBB.............","....OOOOOOOOOOOBBmmmmBBBOOOOOOOOrr....","....ORiiiigRRRRRRBBBBBRRRRRiiiigrr....","....Oiihhhhgiiiiiiiiiiiiigiihhhhgr....","....iihhhhhhghhhhhhhhhhhhiihhhhhhg....","....ihhhhhhhghhhhhhhhhhhhihhhhhhhg....","....ghhhhhhgghhhhhhhhhhhhghhhhhhgg....","...OOghhhhgghhhhhhhhhhhhhgghhhhggrr...","...ORwwBgggihhhhhhhhhhhhhgggggwwBrr...","...ORwmBRRRihhhhhhhhhhhhhggRRRwmBrr...","...ORwmBRRRihhhhhhhhhhhhhggRRRwmBrr...","...ORwmBRRRghhhhhhhhhhhhgggRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRnnnnnnnnnnnnnnnRRRwmBrr...","...ORwmBRRRRnnnnnnnnnnnnnnnRRRwmBrr...","..OORwmBRRRRggggggggggggggRRRRwmBRrr..","..ORRwmBRRRRRRwwwwwwwwwBRRRRRRwmBRrr..","..ORRwmBRRRRRRwmmmmmmmmBRRRRRRwmBRrr..","..ORRwwBRRRRRRBmmmmmmmBBRRRRRRwwBRrr..","..ORwwmmBRRRRRRwmmmmmmBRRRRRRwwmmBrr..","..ORwmmmBRRRRRwBBBBBBBBBRRRRRwmmmBrr..","..ORBmmBBRRRRRwmBRRRRwmBRRRRRBmmBBrr..","..ORRBBBRRRRRRwmBRRRRwmBRRRRRRBBBRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..",".OORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".ORRRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".ORRRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".rrrrrrrrrrrrrwmBrrrrwmBrrrrrrrrrrrrr.",".rrrrrrrrrrrrrwmBrrrrwmBrrrrrrrrrrrrr.","..............wmB....wmB..............","..............wmB....wmB..............","............wwwBB....BwwwB............","...........wwmmB......wmmmB...........","..........BBBBBB......BBBBBB..........","......................................"]), px: 1.75 },
-  steingolem: { w: 42, h: 54, cells: R(["..........................................","..........................................","..........................................","..........................................",".................iiiiiiig.................","................iihhhhhhhg................","...............iihhhhhhhhhg...............","..............Fggggggggggggg..............","..............iggggggggggggg..............","..............ihhhhhhhhhhhhF..............",".............gihhOOhhhhOOhhgg.............","..............ihhOOhhhhOOhhg..............","..............ihhhhhhhhhhhhg..............","..............ghhhhhhhhhhhgg..............","...............ghhhhhhhhhgg...............","......iiiig.....ghkhkhkhgg.....iiiig......","....iiihhhhig....gggggggg....iiihhhhig....","...iihhhhhhhhg..............iihhhhhhhhg...","..iihhhhhhGGfhgiiiiiiiiiiiiiihhhhhhhhhhg..","..ihhhhhGGGFFGfhhhhhhhhhhhhihhfhhhhhhhhg..",".ighhhhhGFFFFFfhhhhhhhhhhhhGGGGGGfhhhhggg.",".ihghhhhffFFfffhhhhhhhhhhhhGFFFFFfhhhgghg.",".ihhgghhhhfffhhhhhhhhhhhhhhfffffffhggghhg.",".ihhhhggggghhhhhhhhhhhhhhhhhhhfggggghhhhg.",".ihhhhhghhhhhhghhhzzzzzohhhhhhghggihhhhhg.","iihhhhhghhhhhhhhhzzOOOOOohhhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzzOOOOOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhgzOOOzzOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzOOOzzOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzOOOOOOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhoOOOOOOOoohhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhoOOOOOoohhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhoooooohhhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhghhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhgihhhhhhg","ihhhhhhghhhghhhhhhhhhhhhhhhghhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhhhhhhhhhihhhhhhg","ihhhghhghhhhhhhhhhhhhhhhhhhhhhhhhhihhghhhg","iiiiiiigggggggggggggggggggggFgggggiiiiiigg","iihhhhhhgggggggggggggggggggggggggiihhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgiihhhhhhhg","ihhhhhhhhgihFFhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhggihhhhhhg......ihhhhhhgghhhhhhhhg","ghhhhhhgg.ihhhhhhg......ihhhhhhg.ghhhhhhgg",".ggggggg..ihhhhhhg......ihhhhhhg..ggggggg.","....g...FFihhhhhhg......ihhhhhhg.....g....","..........iiiiiigg......iiiiiiig..........","........iiihhhhhhig....iiihhhhhhig........",".......gihhhhhhhhhgg..gihhhhhhhhhgg.......","........ggggggggggg....ggggggggggg........"]), px: 1.65 },
-  frostwolf: { w: 52, h: 34, cells: R(["....................................................","....................................................","....................................................","....................................................","....................................................","....................................................",".........JJJU.......................................",".........UVVVU...........wV.............wV..........","..........JVVU......wV...wV........wV...wV..........","........JJUUUU......wV...wV...wV...wV...wV..........","......JJJVVVVJU.....wV...wV...wV...wV...wV..........",".....JJVVVVVVVVU...VVVV.VVVVJVVVVJVVVV.VVVV......U..","....JJVVVVVVVVVVU....JJJJJVVVVVVVVVVJJUU........JU..","...JJUVVVVVVVVVVVU.JJJVVVVVVVVVVVVVVVVVVUU....JJJVU.","...JJJUVYkVVVVVVVUJJVVVVVVVVVVVVVVVVVVVVVVUU.JJVVVU.","..JJJVUVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVUUJVVVVU.",".JJVVVUVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVVUUVVVUU.","kkUVVVUVVVVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVUUVUU..","...UUVVUVVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUUU...","...w.wUUVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUU.....","......UUVVVVUUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUU.....","........UUUUU.UVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUU.....","...............UVVVVVVVVVVVVVVVVVVVVVVVVVVVUUU......","................UUVVVVVVVVVVVVVVVVVVVVVVVUUUU.......",".................UUUVVVVVVVVVVVVVVVVVVVUUUUU........",".................JVUUUUUVVVVVVVVVVVUUUUUUUVU........",".................JVU.UUUUUUUUUUUUUUUUUUU.JVU........",".................JVU..JVUUUUUUUUUUUUJVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................UUU..UUU...........UUU..UUU........","....................................................","...................................................."]), px: 1.4 },
-  elementarwandler: { w: 64, h: 64, cells: R(["................................................................","........m..............................................m........","........mm............................................mm........",".........mm...............m..........m...............mm.........",".........mmm..............m..........m..............mmm.........",".........mmmm.cccccaa....mm..........mm....cccccaa.mmmm.........",".........mmmmmcbbbbbbaa..mm..........mm..cccbbbbbbmmmmm.........","..........mmcbbbbbbbbbaammm..........mmmccbbbbbbbbbamm..........","..........ccbbbbbbbbbbbaa..............ccbbbbbbbbbbbaa..........",".........ccbbbbbbbbbbbbbaa............ccbbbbbbbbbbbbbaa.........",".........cbbbbbbbbbbbbbbaa............cbbbbbbbbbbbbbbaa.........","........ccbbbbbbbbbbbbbbbaa..........ccbbbbbbbbbbbbbbbaa........","........cbbbbbbbbbbbbbbbbaa..........cbbbbbbbbbbbbbbbbaa........","........cbbbbeebbbbbeebbbaa..........cbbbbeebbbbbeebbbaa........","........cbbbbeebbbbbeebbbaa..........cbbbbeebbbbbeebbbaa........","........cbbbbbbbbbbbbbbbbaa..........cbbbbbbbbbbbbbbbbaa........","........cbbbbbbbbbbbbbbbbaa..........cbbbbbbbbbbbbbbbbaa........","........abbbbbbbbbbbbbbbaaa..........abbbbbbbbbbbbbbbaaa........",".........cbbbbbbbbbbbbbbaa............cbbbbbbbbbbbbbbaa.........",".........abbbbmbmbmbbbbaaa............abbbbbbmbmbmbbaaa.........","..........abbbbbbbbbbbaaa..............abbbbbbbbbbbaaa..........","..........caabbbbbbbaaaa................aabbbbbbbaaaaa..........","..........cbaaaaaaaaaaa..................aaaaaaaaaaaba..........",".........ccbbbaaaaaaacca................cccaaaaaaabbbba.........",".........cbbbbbbbbbbbbbbccca........cccccbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........","....ccccccbbbbbbbbbbbbbbbbbacccccccccbbbbbbbbbbbbbbbbbbaccca....","....cbbbcbbbbbbbbbbbbbbbbbbabbbbbbbbcbbbbbbbbbbbbbbbbbbabbba....","....cbbbaaaaaaaaaabbbbbbbbbabbbbbbbbcbbbbbbbbaaaaaaaaaaabbba....","....cbbbbbbbbabbbbaaaaaaaaaabbbbbbbbaaaaaaaaaabbbacbbbbbbbba....","....cbbbbbbbbabbbbbbbbbbbbbbbbkkkkkbbbbbbbbbbbbbbacbbbbbbbba....","....cbbbbbbbaabbbbbbbbbbbbbbkkkkkkkkkbbbbbbbbbbbbbabbbbbbbba....","...ccbbbbbbbabbbbbbbbbbbbbkkkkeeeeekkkkbbbbbbbbbbbacbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbbbkkeeeeeeeeekkbbbbbbbbbbbacbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbbkkeeeeeeeeeeekkbbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbbkkeeeeeweeeeekkbbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeewwwwwwweeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbbbbkkeeeewwwwweeeekkbbbbbbbbbbcbbbbbbbba...","...cbbbbbbbaabbbbbbbbbbbbkkeeeeeweeeeekkbbbbbbbbbbbabbbbbbbba...","...cbbbbbbbabbbbbbbbbbbbbkkeeeeeeeeeeekkbbbbbbbbbbbbcbbbbbbba...","..ccbbbbbbbabbbbbbbbbbbbbbkkeeeeeeeeekkbbbbbbbbbbbbbcbbbbbbbba..","..cbbbbbbbbabbbbbbbbbbbbbbkkkkeeeeekkkkbbbbbbbbbbbbbcbbbbbbbba..","..cbbbbbbbbabbbbbbbbbbbbbbbbkkkkkkkkkbbbbbbbbbbbbbbbcbbbbbbbba..","..cbbbaaaaaabbbbbbbbbbbbbbbbbbkkkkkbbbbbbbbbbbbbbbbbaaaaabbbba..","..aaaaacbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaa..",".......aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.......","..m...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...m..","...m.m....ccccccccccca....................ccccccccccca....m.m...","..........cbbbbbbbbbba....................cbbbbbbbbbba..........",".........ccbbbbbbbbbba....................cbbbbbbbbbbba.........",".........cbbbbbbbbbbba....................cbbbbbbbbbbba.........","........ccbbbbbbbbbbba....................cbbbbbbbbbbbba........","........cbbbbbbbbbbbba....................cbbbbbbbbbbbba........","........cbbbbbbbbbbbba....................cbbbbbbbbbbbba........",".......ccbbbbbbbbbbbba....................cbbbbbbbbbbbbba.......",".......cbbbbbbbbbbbbba....................cbbbbbbbbbbbbba.......","......aaaaaaaaaaaaaaaa....................aaaaaaaaaaaaaaaa......","......k..k..k......................................k..k..k......","................................................................"]), px: 1.7, pal: {"a":"#4a2a6a","b":"#8a4fc0","c":"#c79af0","e":"#ffe58a"} },
+  ratte: { w: 36, h: 18, cells: R(["....................................",".........ppn.........Pq.............","........ppppn........Pq.............","........ppppn..Pq...PPQq............",".......nppppnn.Pq...PQQq...q........",".......pppppn..PqMMqqqqqq..Pq.......",".....MMnnppnnMqqqqNNNNNNMnPPq.......","...MMMNNnnnnMNNNNNNNNNNNNNqqqq.....p","...MwNNNNnNnNNNNNNNNNNNNNNNNnn.....p","..MMRRNNNNNNnNNNNNNNNNNNNNNNNnn...p.","..MMnNNNNNNNnNNNNNNNNNNNNNNNNnn...p.","ppMNnNNNNNNnnNNNNNNNNNNNNNNNnnn..p..","..nNnNNNNNNnNNNNNNNNNNNNNNnnnnpppp..","...wwNNNNnnnnnNNNNNNNNNnnnnnn.......",".....nnnnn.nnnnnnnnnnnnnnnn.........","...........nn..nnnnnnnnnnn..nn......","...........nn...nn......nn..nn......","...........nn...nn......nn..nn......"]), px: 1.5, pal: {"p":"#e86f9a"} },
+  goblin: { w: 26, h: 36, cells: R(["..........................","..........................","..........................",".........zzzzzzzy.........",".......zzzYYYkYYYzy.......","Gf....zzYYYYkYYYYYYy....Gf","GFG..zzYYYYYYYYYYYYYy..GGf","fFFGfzYYYYYYYYYYYYYYyGGGff",".GFFFyyyyyyyyyyyyyyyyGFFf.",".GFFFyyyyyyyyyyyyyyyyFFFf.",".ffFFfGFFFFFFFFFFFFffFfff.","...fffGFFFFFffFFFFFffff...","......GFFFFFFFFFFFFf......","......fFFkkkkkkkkFff......",".......fFFwFFFFwFff.......","........ffFFFFFfff........","..........ffffff..........",".......YYYoGGGGYYYo.......","...GGf.YOOoFFFFYOOo.GGf...","...GFf.YOOoFFFFYOOo.GFf...","...GFf.YwOoFFFFYOwo.GFf...","...GFf.YOOoFFFFYOOo.GFf...","...Gff.YOooFFFFoOOo.fFf...","..GGf.YYOoFFFFFFYOOo.GFf..","..GFf.YOwoFFFFFFYwOo.GFf..","..GFf.YOOoFFFFFFYOOo.GFf..","..fff.YOOoxxYYxxYOOo.fff..","...f..ooooxxxxxxoooo..f...","..GGf...GFFf..GFFf...GGf..",".fGFff..GFFf..GFFf..fGFff.","..fff...GFFf..GFFf...fff..","...f....GFFf..GFFf....f...","........nFFf..GFFn........",".....MMMMMMn..MMMMMMn.....",".....MNNNNNn..MNNNNNn.....",".....nnnnnnn..nnnnnnn....."]), px: 1.55 },
+  skelett: { w: 26, h: 46, cells: R(["..........................","..........gggggx..........","........gggWWWWWgx........",".......ggWWWWWWWWWx.......","......ggWWWWWWWWWWWx......","......gWWWWWWWWWWWWx......",".....xgWWWWWWWWWWWWxx.....","......xxxxxxxxxxxxxx......","......wmJJkkmmkJkkmB......","......wmJkkkmmkJkkmB......","......BmmkkmmmmkkmBB......",".......wmmmmkkmmmmB.......",".......BmmmmmmmmmBB.......","........BwwwwwwwBB........",".........wkmkmkmB.........","......wwwBBBBBBBBwwB......","...wB.BggggggggggxBB.wB...","...wB..gWwWWWWWWwx...wB...","...wB..gWWwWWWWwWxB..wB...","...wB..gWWwWWWWwWxB..wB...","...wB..gWWWwWWwWWx...wB...","...wB..gWWWwWWwWWxB..wB...","...wB..gWWWWwwWWWxB..wB...","...wB..xWWWWwwWWxx...wB...","...wB..wgWWWwwWWxwB..wB...","...wB..BgWWWwwWWxBB..wB...","...wB...gWWwWWwWx....wB...","...wB..wgWWwWWwWxwB..wB...","...wB..BgWYWWWWYxBB..wB...","...wB...gWwWWWWwx....wB...","...wB...xwxxxxxxw....wB...","...wB...wmmmmmmmB....wB...","..wwmB..BmmmmmmBB...wwmB..","..wmmB...BBBBBBBB...wmmB..","..BmBB...wB....wB...BmBB..","...BB....wB....wB....BB...",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".........wB....wB.........",".......wwBB....BwwB.......","......BBBB......BBBB......",".........................."]), px: 1.5 },
+  bandit: { w: 28, h: 44, cells: R(["............................","...........ggggxx...........",".........gggWWWWWxx.........","........ggWWWWWWWWxx........","........gWWWWWWWWWxx........",".......ggWWWWWWWWWWxx.......",".......gWWWWxxxxWWWxx.......","......ggWWxxxxxxxxWWxx......","......gWWxxxxxxxxxxWxx......","......gWWxxxxxxxxxxWxx......","......gWWkgkkkkkgkkWxx......","......xWxkkkkkkkkkkxxx......",".......gWkkkkkkkkkkxx.......",".......xWrrrrrrrrrrxx.......","........gxxxxxxxxxxx........","......ggxxxwwwwwwwwmm.......","......gWWxxwwwwwwBBmx.......","......gWWWWwYwwYwBmmx.......","......gWWWWWwYYwwBmxx.......",".....ggWWWWWwwwwBmmWxx......",".....gWWWWWWwwwwmmWWxx......",".....gWWWWWWwwwwmWWWxx....i.",".....gWWWWWWwwwmmWWWxx....i.",".....gWWWWWWWwmmWWWWxx...i..",".....gWWWWWWWwmWWWWWxx...i..",".....gWWWWWWWwmWWWWWxx...i..",".....gWWWWWWWwWWWWWWxx..i...","....ggWWnnnnnYYnnnnnWxx.i...","....MMnWnnnnnnnnnnnnWMMi....","...MMNNnWWWWWWWWWWWWMMNin...","...MNNNnWWWWWWWWWWWWMNNNn...","...nNNnnWWWWWWWWWWWWnNNnn...","....nnnWWWWWWWWWWWWWWnnn....","....gWWWWWWWWWWWWWWWWxx.....","....gWWWWWWWWWWWWWWWWxx.....","...ggWWWWWWWWWWWWWWWWWxx....","...xxxxxxxxxxxxxxxxxxxxx....","...xxxxxxxxxxxxxxxxxxxxx....",".........gWWx..gWWx.........",".........gWWx..gWWx.........",".......WWWWkx..xWWWWk.......",".......Wxxxk....Wxxxk.......","......kkkkkk....kkkkkk......","............................"]), px: 1.5, pal: {"W":"#4a4468","g":"#7a7498","x":"#2b2433"} },
+  funke: { w: 18, h: 18, cells: R(["..................","........Yo........",".w......Yo......w.","..w....YYOo....w..",".w.....YOOo.....w.","......YYYYYo......","...YYYYYzzzYYYo...",".oYYOYYzzzzzYOOoo.","..oOOYwzwwzwYOoo..","...oYYzkwwkzYYo...","....oYzzzzzzYo....",".....YzzzzzYY.....",".....YYzzzYYo.....",".w..YYOYYYYOOo..w.","..w.YOoooooOOo.w..","....ooo....ooo....","...oo........oo...",".................."]), px: 1.6 },
+  dornenranke: { w: 26, h: 42, cells: R(["..........................","..........................","..........PPPPPqq.........",".......PPPPQQYQQQPqq......","......PPQQQQQQQQQQQqq.....",".....PPQYkQQQQQQQkYQqq....","....PPQQQQQQQQQQQQQQQqq...","...PPQQQQQQQQWQQQQQQQQqq..","...PYQQQQQWWWWWWWQQQQYqq..","..PPQQQQQwWwWwWwWwQQQQQqq.","..PQQQQQWWWWWWWWWWWQQQQqq.","..PQQQQWWWWWWWWWWWWWQQQqq.","..PQQQQWWWWWWWWWWWWWQQQqq.","..qQQQQWWWWWWWWWWWWWQQqqq.","...PQQQWWWWWRRWWWWWWQQqq..","...qQQQWWWWWRRWWWWWWQqqq..","....qQYQWWWWWWWWWWWYqqq...",".....qQQwWwWwWwWwWwqqq....","......qqqQWWWWWWWqqqq.....",".......qqqqqqWqqqqqq......","..........qqqqqqq.........","..........................","..........................","..........................","...........GGGf...........","...........GFFf...........","...........GFFf......GGf..","..Gf.......GFFf.....GGFf..","..GFGf....yGFFf...GGGFFff.",".fGFFFf....GFFf..GGFFFFf..","..GFFFFf...GFFfGyGFFFFff..","..fFFFFFGf.GFFfGFFFFFFf...","...GFFFFFFfGFFFGFFFFFff...","...fFFFFFFfFFFFGFFffff....","....fffFFfyFFFFffff.......",".......fffGFFFFf..........","..........GFFFFfy.........","..........GFFFFf..........","..........GFFFFfn.........","........MMffffffNMn.......",".......nMNNNNNNNNNnn......","........nnnnnnnnnnn......."]), px: 1.6 },
+  glutgeist: { w: 26, h: 38, cells: R(["..........................","............qq............","............qq............","...........PPqq...........","...........PQqq...........","..........PPQQqq..........","..........PQQQqq..........",".........PPQQQQqq.........",".......PPPQQQQQQQqq.......","......PPQQQQQQQQQQqq......","......PQQQQQQQQQQQqq......","......qQQQQQQQQQQqqq......",".......PQQQQQQQQQqq.......",".......PQQQQQQQQQqq.......",".......PQQQQQQQQQqq.......","......PPQQQQQQQQQQqq......",".....PPQQQQwwwVQQQQqq.....","....PPQQQwwwJJJwVQQQqq....","....PQQQwwJJJJJJJVQQqq....","...PPQQwwJJJJJJJJJVQQqq...","..PPQQQwJJJJJJJJJJVQQQqq..","..PQQQwwJJJJJJJJJJJVQQqq..","..qQQQwJJwkJJJJwkJJVQqqq..","...PQQwJJkkJJJJkkJJVQqq...","...PQQwJJJJJJJJJJJJVQqq...","...PQVwJJJJJJJJJJJJVVqq...","...PQQwJJJJJJJJJJJJVQqq...","...qQQwJJJJJJJJJJJJVqqq...","....PQwJJJJkkkkJJJJVqq....","....PQVJJJJJJJJJJJVVqq....","....qQQwJJJJJJJJJJVqqq....",".....qQVJJJJJJJJJVVqq.....","......PQVJJJJJJJVVqq......","......qQQVVJJJVVVqqq......",".......qqqqVVVVqqqq.......","........qqqqqqqqqq........","..........................",".........................."]), px: 1.5 },
+  flussgeist: { w: 26, h: 38, cells: R(["............Yo............","............Yo............","...........YYOo...........","...........YOOo...........","..........YYOOOo..........","..........wwwwww..........",".........YYOOOOOo.........",".........YOOOOOOo.........","........owwwwwwwwo........","........VVUUUUUUuu..J.....","........VUUUUUUUuu........",".......VVUUUUUUUUuu.......",".....J.VUUUUUUUUUuu.......","......VVUUUUUUUUUUuu......","......VUUUUUUUUUUUuu......",".....VVUUUUUUUUUUUUuu.....",".....VUUUUUUUUUUUUUuuJ....","....VVUUUUUUUUUUUUUUuu....","....VUUUUUUUUUUUUUUUuu....","....VUUJJUUUUUUUUUUUuu....","....VJJJwwwwUUUwwwwUuu....","....VJVVwwwwUUUwwwwUuu....","....JJVwwwkwwUwwwkwwuu....","...VJVVVwwkwUUUwwkwUUuu...","...VJVVVwwwwUUUwwwwUUuu...","...VJVVVVVVVUUUUUUUUUuu...","...VUVVVVVVUUUUUUUUUUuu...","...VUJVVVVVUUUUUUUUUUuu...","...uUUUVVUUUUUUUUUUUuuu...","....VUUUUUkUUUUkUUUUuu....","....uUUUUUUkkkkUUUUuuu....",".....VUJUUUUUUUUUUUuu.....",".....uUUUUUUUUUUUUuuu.....","......VUUUUUUUUUUUuu......","......uuuUUUUUUuuuuu......",".......uuuuuuuuuuuu.......","..........uuuuuu..........",".........................."]), px: 1.6 },
+  sumpfgeist: { w: 40, h: 36, cells: R(["..........g.......iiiiiig...............","........iiiig....iihhhhhhg.....g........",".......iihhhhg...ghhhhhhgg...iiiig......","......gihhhhhgg..hghhhhgg...iihhhhg.....",".......ghhhhgg.hhhggggggx...ihhhhhg.....","........ggggghhhggggggggghxxghhhhgg.....","..........ghhgggggggggggggggxggggg......",".........hhgggggggkkkkkggggggxxg........",".........hggggggkkkkkkkkkggggxx.........","........hhggggkkkkkkkkkkkkkgggxx........",".......hhgggggkkkkkkkkkkkkkgggxx........",".......hgggggkkkkkkkkkkkkkkkgggxx.......","......hhGggggkkkkkkkkkkkkkkkggggGx......",".....hhgggggkkkkkkkkkkkkkkkkkgggxx......",".....hggggggkkkYYkkkkkkYYkkkkggggxx.....","....hhggggggkkkYYkkkkkkYYkkkkggggxx.....","...hhgggggggkkkkkkkkkkkkkkkkkgggggxx....","...hggggggggkkkkkkkkkkkkkkkkkgggggxx....","..hhgggggggggkkkkkkkkkkkkkkkgggggggxx...","..hggggggggggkkkkkkkkkkkkkkkgggggggxx...","..hgggggggggggkkwkkkwkkkwkkggggggggxx...","..hgggggggggggkkkkwkkkwkkkkggggggggxx...","..hgggggggggggggkkkkkkkkkggggggggggxx...","..hgggggggggggggggkkkkkggggggggggggxx...","..hgggGggggggggggggggggggggggggggggxx...","..hgggggggggggggggggggggggggggggggggxx..","..hgggggggggggggggggggggggggggggggGgxx..","..hgggggggggggggggggggggggggggggggggxx..","..hgggggggggggggggggggggggggggggggggxx..","..hgggggggggggggggggggggggggggggggggxx..","..hgxxggggggxxggggggxxggggggxxggggggxx..","..xxxxxggggxxxxggggxxxxggggxxxxgggggxx..","..xxx..xggxxx..xggxxx..xggxxx..xggxxxx..","..x.....xxxx....xxxx....xxxx....xxxxx...",".........xx......xx......xx......xx.....","........................................"]), px: 1.5 },
+  knochenhauptmann: { w: 38, h: 58, cells: R(["......................................","................gggggkkOOr............",".............ggggxxxxxxgkk............","............ggxxxxxxxxxxxkk...........","...........ggxxxxxxxxxxxxxkk..........","..........ggxxxxxxxxxxxxxxxkk.........","..........gxxxxxxxYYYxxxxxxkk.........","..........gxxxxxxxxxxxxxxxxkk.........","..........gxxxxxxxxxxxxxxxxkk.........","..........kkkkkkkkkkkkkkkkkkk.........","..........iggggggggggggggggxg.........","..........ggWWWWWWWWWWWWWWWxg.........","...........xxxxxxxxxxxxxxxxx..........","...........igmkkkkmmmkkkkig...........","...........ggmkkkkmmmkkkkgg...........","............BmmmmmmmmmmmmBB...........",".............BmmmmkkkmmmBB............","..............BmmmmmmmmBB.............","....OOOOOOOOOOOBBmmmmBBBOOOOOOOOrr....","....ORiiiigRRRRRRBBBBBRRRRRiiiigrr....","....OiiYYYhgiiiiiiiiiiiiigiiYYYhgr....","....iihYYYhhghhhhhhhhhhhhiihYYYhhg....","....ihhhhhhhghhhhhhhhhhhhihhhhhhhg....","....ghhhhhhgghhhhhhhhhhhhghhhhhhgg....","...OOghhhhgghhhhhhhhhhhhhgghhhhggrr...","...ORwwBgggihYhYhhhhhhhYhYggggwwBrr...","...ORwmBRRRihhhhhhhhhhhhhggRRRwmBrr...","...ORwmBRRRihhhhhhhhhhhhhggRRRwmBrr...","...ORwmBRRRghhhhhhhhhhhhgggRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRihhhhhhhhhhhggRRRRwmBrr...","...ORwmBRRRRnnnnnnnnnnnnnnnRRRwmBrr...","...ORwmBRRRRnnnnnnnnnnnnnnnRRRwmBrr...","..OORwmBRRRRggggggggggggggRRRRwmBRrr..","..ORRwmBRRRRRRwwwwwwwwwBRRRRRRwmBRrr..","..ORRwmBRRRRRRwmmmmmmmmBRRRRRRwmBRrr..","..ORRwwBRRRRRRBmmmmmmmBBRRRRRRwwBRrr..","..ORwwmmBRRRRRRwmmmmmmBRRRRRRwwmmBrr..","..ORwmmmBRRRRRwBBBBBBBBBRRRRRwmmmBrr..","..ORBmmBBRRRRRwmBRRRRwmBRRRRRBmmBBrr..","..ORRBBBRRRRRRwmBRRRRwmBRRRRRRBBBRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..","..ORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRrr..",".OORRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".ORRRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".ORRRRRRRRRRRRwmBRRRRwmBRRRRRRRRRRRrr.",".rrrrrrrrrrrrrwmBrrrrwmBrrrrrrrrrrrrr.",".rrrrrrrrrrrrrwmBrrrrwmBrrrrrrrrrrrrr.","..............wmB....wmB..............","..............wmB....wmB..............","............wwwBB....BwwwB............","...........wwmmB......wmmmB...........","..........BBBBBB......BBBBBB..........","......................................"]), px: 1.75 },
+  steingolem: { w: 42, h: 54, cells: R(["..........................................","..........................................","..........................................","..........................................",".................iiiiiiig.................","................iihhhhhhhg................","...............iihhhhhhhhhg...............","..............iggggggggggggg..............",".........M....iggggggggggggg...M..........","...M.....N....ihhhhhhhhhhhhg...N....M.....","...N.....N...gihhOOhhhhOOhhgg..N....N.....","....N.....N...ihhOOhhhhOOhhg..N....N......","....N.....N...ihhhhhhhhhhhhg..N....N......",".....N....N...ghhhhhhhhhhhgg..N....N......",".....N....N....ghhhhhhhhhgg...N...N.......","......NiiigN....ghkhkhkhgg...N.iiiNg......","....iiNhhhhNg....gggggggg....NiihNhhig....","...iihhNhhhNhg..............iNhhhNhhhhg...","..iihhhNhhhhhhgiiiiiiiiiiiiiihhhhhhhhhhg..","..ihhhhhhhhhhhghhhhhhhhhhhhihhhhhhhhhhhg..",".ighhhhhhhhhhgghhhhhhhhhhhhghhhhhhhhhhggg.",".ihghhhhhhhhgghhhhhhhhhhhhhhghhhhhhhhgghg.",".ihhgghhhhggghhhhhhhhhhhhhhhhgghhhhggghhg.",".ihhhhggggghhhhhhhhhhhhhhhhhhhhggggghhhhg.",".ihhhhhghhhhhhghhhzzzzzohhhhhhghggihhhhhg.","iihhhhhghhhhhhhhhzzOOOOOohhhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzzOOOOOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhgzOOOzzOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzOOOzzOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhzOOOOOOOOohhhhhhggihhhhhhg","ihhhhhhghhhhhhhhoOOOOOOOoohhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhoOOOOOoohhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhoooooohhhhhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhhhghhhhhhgihhhhhhg","ihhhhhhghhhhhhhhhhhhhhhhqhqhhhhhhgihhhhhhg","ihhhhhhghhhhyyhhhhyyhhhhyqhqhhyyhgihyyhhhg","ihhhhhhghhhyyyhhhyyyhhhyyyhghyyyhgiyyyhhhg","ihhhhhhghhhyyhhhhyyhhhhyyhhhhyyhhgiyyhhhhg","ihhhhhhghhyyyhhhyyyhhhyyyhhhyyyhhhyyyhhhhg","ihhhghhghyyyhhhyyyhhhyyyhhhyyyhhhyyyhghhhg","iiiiiiiggyyggggyyggggyyggggyyggggyyiiiiigg","iihhhhhhyyygggyyygggyyygggyyygggyyyhhhhhhg","ihhhhhhhyyihhhyyhg..yy..ihyyhhhgyyhhhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhhgihhhhhhg......ihhhhhhgihhhhhhhhg","ihhhhhhhggihhhhhhg......ihhhhhhgghhhhhhhhg","ghhhhhhgg.ihhhhhhg......ihhhhhhg.ghhhhhhgg",".ggggggg..ihhhhhhg......ihhhhhhg..ggggggg.","....g.....ihhhhhhg......ihhhhhhg.....g....","..........iiiiiigg......iiiiiiig..........","........iiihhhhhhig....iiihhhhhhig........",".......gihhhhhhhhhgg..gihhhhhhhhhgg.......","........ggggggggggg....ggggggggggg........"]), px: 1.65 },
+  frostwolf: { w: 52, h: 34, cells: R(["....................................................","....................................................","....................................................","....................................................","....................................................","...............wV...................................",".........JJJU..wV..wV...............................",".........UVVVU.wV..wV....wV.............wV..........","..........JVVU.wV.wwVV...wV........wV...wV..........","........JJUUUUwwJVwJVV...wV...wV...wV...wV..........","......JJJVVVVJVVVwwJJV...wV...wV...wV...wV..........",".....JJVVVVVVVVU.VVVVVV.VVVVJVVVVJVVVV.VVVV......U..","....JJVVVVVVVVVVU....JJJJJVVVVVVVVVVJJUU........JU..","...JJUVVVVVVVVVVVU.JJJVVVVVVVVVVVVVVVVVVUU....JJJVU.","...JJJUVwJVVVVVVVUJJVVVVVVVVVVVVVVVVVVVVVVUU.JJVVVU.","..JJJVUVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVUUJVVVVU.",".JJVVVUVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVVUUVVVUU.","kkUVVVUVVVVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVUUVUU..","...UUVVUVVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUUU...","..wwwwwUVVVVVVUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUU.....","......UUVVVVUUUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUU.....","........UUUUU.UVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUU.....","...............UVVVVVVVVVVVVVVVVVVVVVVVVVVVUUU......","................UUVVVVVVVVVVVVVVVVVVVVVVVUUUU.......",".................UUUVVVVVVVVVVVVVVVVVVVUUUUU........",".................JVUUUUUVVVVVVVVVVVUUUUUUUVU........",".................JVU.UUUUUUUUUUUUUUUUUUU.JVU........",".................JVU..JVUUUUUUUUUUUUJVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................JVU..JVU...........JVU..JVU........",".................UUU..UUU...........UUU..UUU........","....................................................","...................................................."]), px: 1.4 },
+  elementarwandler: { w: 64, h: 64, cells: R(["................................................................","........m..............................................m........","........mm.....................ca.....................mm........",".........mm...............m....ma....m...............mm.........",".........mmm..............m....ca....m..............mmm.........",".........mmmm.cccccaa....mm...ccma...mm....cccccaa.mmmm.........",".........mmmmmcbbbbbbaa..mm...cbba...mm..cccbbbbbbmmmmm.........","..........mmcbbbbbbbbbaammm...abaa...mmmccbbbbbbbbbamm..........","..........ccbbbbbbbbbbbaa......ca......ccbbbbbbbbbbbaa..........",".........ccbbbbbbbbbbbbbaca....ca....cacbbbbbbbbbbbbbaa.........",".........cbbbbbbbbbbbbbbaca....ca....cabbbbbbbbbbbbbbaa.........","........ccbbbbbbbbbbbbbbccba...aa...ccbabbbbbbbbbbbbbbaa........","........cbbbbbbbbbbbbbbbcbba........cbbabbbbbbbbbbbbbbaa........","........cbbbbeebbbbbeebbabaa........abaabbeebbbbbeebbbaa........","........cbbbbeebbbbbeebbbca..........cabbbeebbbbbeebbbaa........","........cbbbbbbbbbbbbbbbbaa..........aabbbbbbbbbbbbbbbaa........","........cbbbbbbbbbbbbbbbbaa..........cbbbbbbbbbbbbbbbbaa........","........abbbbbbbbbbbbbbbaaa..........abbbbbbbbbbbbbbbaaa........",".........cbbbbbbbbbbbbbbaa............cbbbbbbbbbbbbbbaa.........",".........abbbbmbmbmbbbbaaa............abbbbbbmbmbmbbaaa.........","..........abbbbbbbbbbbaaa..............abbbbbbbbbbbaaa..........","..........caabbbbbbbaaaa................aabbbbbbbaaaaa..........","..........cbaaaaaaaaaaa..................aaaaaaaaaaaba..........",".........ccbbbaaaaaaacca................cccaaaaaaabbbba.........",".........cbbbbbbbbbbbbbbccca........cccccbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........",".........cbbbbbbbbbbbbbbbbba........cbbbbbbbbbbbbbbbbba.........","....ccccccbbbbbbbbbbbbbbbbbaccccmccccbbbbbbbbbbbbbbbbbbaccca....","....cbbbcbbbbbbbbbbbbbbbbbbacccccccccbbbbbbbbbbbbbbbbbbabbba....","....cbbbaaaaaaaaaabbbbbbbbcccccccccccccbbbbbbaaaaaaaaaaabbba....","....cbbbbbbbbabbbbaaaaaaaccccbbbbbbbccccaaaaaabbbacbbbbbbbba....","....cbbbbbbbbabbbbbbbbbbmccbbbkkkkkbbbcccbbbbbbbbacbbbbbbbba....","....cbbbbbbbaabbbbbbbbbcccbbkkkkkkkkkbbcccbbbbbbbbabbbbbbbba....","...ccbbbbbbbabbbbbbbbbcccbkkkkeeeeekkkkbcccbbbbbbbacbbbbbbbba...","...cbbbbbbbbabbbbbbbbbccbbkkeeeeeeeeekkbbccbbbbbbbacbbbbbbbba...","...cbbbbbbbbabbbbbbbbcccbkkeeeeeeeeeeekkbcccbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbccbbkkeeeeeweeeeekkbbccbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbccbkkeeeewwwwweeeekkbccbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbccbkkeeeewwwwweeeekkbccbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbmccbkkeeewwwwwwweeekkbccmbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbccbkkeeeewwwwweeeekkbccbbbbbbbcbbbbbbbba...","...cbbbbbbbbabbbbbbbbccbkkeeeewwwwweeeekkbccbbbbbbbcbbbbbbbba...","...cbbbbbbbaabbbbbbbbccbbkkeeeeeweeeeekkbbccbbbbbbbabbbbbbbba...","...cbbbbbbbabbbbbbbbbcccbkkeeeeeeeeeeekkbcccbbbbbbbbcbbbbbbba...","..ccbbbbbbbabbbbbbbbbbccbbkkeeeeeeeeekkbbccbbbbbbbbbcbbbbbbbba..","..cbbbbbbbbabbbbbbbbbbcccbkkkkeeeeekkkkbcccbbbbbbbbbcbbbbbbbba..","..cbbbbbbbbabbbbbbbbbbbcccbbkkkkkkkkkbbcccbbbbbbbbbbcbbbbbbbba..","..cbbbaaaaaabbbbbbbbbbbbcccbbbkkkkkbbbccmbbbbbbbbbbbaaaaabbbba..","..aaaaacbbbbbbbbbbbbbbbbbccccbbbbbbbccccbbbbbbbbbbbbbbbaaaaaaa..",".......aaaaaaaaaaaaaaaaaaacccccccccccccaaaaaaaaaaaaaaaaaa.......","..m...aaaaaaaaaaaaaaaaaaaaaacccccccccaaaaaaaaaaaaaaaaaaaaa...m..","...m.m....ccccccccccca..........m.........ccccccccccca....m.m...","..........cbbbbbbbbbba....................cbbbbbbbbbba..........",".........ccbbbbbbbbbba....................cbbbbbbbbbbba.........",".........cbbbbbbbbbbba....................cbbbbbbbbbbba.........","........ccbbbbbbbbbbba....................cbbbbbbbbbbbba........","........cbbbbbbbbbbbba....................cbbbbbbbbbbbba........","........cbbbbbbbbbbbba....................cbbbbbbbbbbbba........",".......ccbbbbbbbbbbbba....................cbbbbbbbbbbbbba.......",".......cbbbbbbbbbbbbba....................cbbbbbbbbbbbbba.......","......aaaaaaaaaaaaaaaa....................aaaaaaaaaaaaaaaa......","......k..k..k......................................k..k..k......","................................................................"]), px: 1.7, pal: {"a":"#4a2a6a","b":"#8a4fc0","c":"#c79af0","e":"#ffe58a"} },
 };
 const RIGS3 = {
   ratte: {"rel":true,"regions":[{"id":"head","box":[0,0,0.3429,0.8824],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":1.6,"under":true},{"id":"ear","parent":"head","box":[0.1714,0.0588,0.3429,0.4118],"seq":[[0,0],[0,0],[0,1],[0,0],[0,0]],"dur":2.4,"under":true},{"id":"tail","box":[0.8286,0.2353,1,0.7647],"seq":[[0,0],[0,1],[0,0],[0,-1]],"dur":0.9,"under":true}]},
   goblin: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.6857],"seq":[[0,0],[0,1]],"dur":1.3},{"id":"earl","parent":"up","box":[0,0.0857,0.2,0.3429],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2,"under":true},{"id":"earr","parent":"up","box":[0.8,0.0857,1,0.3429],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2,"under":true,"phase":0.9}],"blink":[{"cells":[[0.36,0.2571],[0.4,0.2571],[0.6,0.2571],[0.64,0.2571]],"color":"F","every":3.4,"at":0.5}]},
   skelett: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7111],"seq":[[0,0],[0,1]],"dur":1.6},{"id":"jaw","parent":"up","box":[0.32,0.2889,0.68,0.3333],"seq":[[0,0],[0,1],[0,0],[0,1],[0,0],[0,0],[0,0],[0,0]],"dur":2.4},{"id":"al","parent":"up","box":[0.08,0.3556,0.2,0.7556],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.2,"under":true},{"id":"ar","parent":"up","box":[0.8,0.3556,0.92,0.7556],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.2,"phase":1.1,"under":true}],"glow":[{"letters":"J","color":"w","max":0.7,"dur":1.8}]},
-  bandit: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.8372],"seq":[[0,0],[0,1]],"dur":1.5},{"id":"hood","parent":"up","box":[0.1481,0,0.8519,0.4651],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.6,"under":true},{"id":"hem","box":[0,0.7907,1,0.9535],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.2,"under":true}],"blink":[{"cells":[[0.3704,0.2558],[0.4074,0.2558],[0.5926,0.2558],[0.6296,0.2558]],"color":"R","every":4.4,"at":1.2}]},
+  bandit: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.8372],"seq":[[0,0],[0,1]],"dur":1.5},{"id":"hood","parent":"up","box":[0.1481,0,0.8519,0.4651],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.6,"under":true},{"id":"hem","box":[0,0.7907,1,0.9535],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.2,"under":true}],"blink":[{"cells":[[0.3704,0.2558],[0.4074,0.2558],[0.5926,0.2558],[0.6296,0.2558]],"color":"x","every":4.4,"at":1.2}]},
   funke: {"rel":true,"regions":[{"id":"s","box":[0,0,1,1],"seq":[[0,0],[0,1],[0,0],[1,0]],"dur":0.8}],"glow":[{"letters":"zw","color":"w","max":0.85,"dur":0.8}]},
-  dornenranke: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7317],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3},{"id":"head","parent":"up","box":[0,0,1,0.4634],"seq":[[0,0],[1,0],[1,0],[0,0],[-1,0],[-1,0]],"dur":2.2,"phase":0.5,"under":true},{"id":"ll","parent":"up","box":[0,0.5854,0.24,0.8293],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":1.2,"under":true},{"id":"lr","parent":"up","box":[0.76,0.5854,1,0.8293],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":1.2,"under":true,"phase":0.6}],"blink":[{"cells":[[0.32,0.122],[0.36,0.122],[0.68,0.122],[0.72,0.122]],"color":"R","every":3.6,"at":1}]},
-  glutgeist: {"rel":true,"regions":[{"id":"tl","box":[0.24,0,0.36,0.1622],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":0.9},{"id":"tc","box":[0.4,0,0.6,0.1622],"seq":[[0,0],[0,0],[0,1],[0,0]],"dur":0.9,"phase":0.3},{"id":"tr","box":[0.64,0,0.76,0.1622],"seq":[[0,0],[0,0],[0,0],[0,1]],"dur":0.9,"phase":0.6},{"id":"hem","box":[0.08,0.8378,0.92,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.1,"under":true}],"blink":[{"cells":[[0.36,0.5946],[0.4,0.5946],[0.36,0.6216],[0.4,0.6216],[0.6,0.5946],[0.64,0.5946],[0.6,0.6216],[0.64,0.6216]],"color":"O","every":3.2,"at":0.7}],"glow":[{"letters":"Y","color":"z","max":0.5,"dur":1.2}]},
+  dornenranke: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7317],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3},{"id":"head","parent":"up","box":[0,0,1,0.4634],"seq":[[0,0],[1,0],[1,0],[0,0],[-1,0],[-1,0]],"dur":2.2,"phase":0.5,"under":true},{"id":"ll","parent":"up","box":[0,0.5854,0.24,0.8293],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":1.2,"under":true},{"id":"lr","parent":"up","box":[0.76,0.5854,1,0.8293],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":1.2,"under":true,"phase":0.6}],"blink":[{"cells":[[0.32,0.122],[0.36,0.122],[0.68,0.122],[0.72,0.122]],"color":"Q","every":3.6,"at":1}]},
+  glutgeist: {"rel":true,"regions":[{"id":"tl","box":[0.24,0,0.36,0.1622],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":0.9},{"id":"tc","box":[0.4,0,0.6,0.1622],"seq":[[0,0],[0,0],[0,1],[0,0]],"dur":0.9,"phase":0.3},{"id":"tr","box":[0.64,0,0.76,0.1622],"seq":[[0,0],[0,0],[0,0],[0,1]],"dur":0.9,"phase":0.6},{"id":"hem","box":[0.08,0.8378,0.92,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.1,"under":true}],"blink":[{"cells":[[0.36,0.5946],[0.4,0.5946],[0.36,0.6216],[0.4,0.6216],[0.6,0.5946],[0.64,0.5946],[0.6,0.6216],[0.64,0.6216]],"color":"V","every":3.2,"at":0.7}],"glow":[{"letters":"w","color":"J","max":0.5,"dur":1.2}]},
   flussgeist: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.8108],"seq":[[0,0],[0,1]],"dur":1.8},{"id":"hem","box":[0.12,0.8378,0.92,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1,"under":true}],"blink":[{"cells":[[0.36,0.5946],[0.4,0.5946],[0.36,0.6216],[0.4,0.6216],[0.64,0.5946],[0.68,0.5946],[0.64,0.6216],[0.68,0.6216]],"color":"U","every":3.9,"at":0.9}]},
   sumpfgeist: {"rel":true,"regions":[{"id":"body","box":[0,0.0571,1,0.9429],"seq":[[0,0],[0,1]],"dur":1.7}],"blink":[{"cells":[[0.3846,0.4],[0.4103,0.4],[0.3846,0.4286],[0.4103,0.4286],[0.5897,0.4],[0.6154,0.4],[0.5897,0.4286],[0.6154,0.4286]],"color":"k","every":3.3,"at":0.6}]},
-  knochenhauptmann: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7018],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"plume","box":[0.4054,0,0.7838,0.1053],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.7,"under":true,"parent":"up"},{"id":"cl","parent":"up","box":[0,0.5965,0.1351,0.9123],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.6,"under":true},{"id":"cr","parent":"up","box":[0.8919,0.5965,1,0.9123],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.6,"phase":1.3,"under":true}],"glow":[{"letters":"J","color":"w","max":0.7,"dur":1.5}]},
+  knochenhauptmann: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7018],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"cl","parent":"up","box":[0,0.5965,0.1351,0.9123],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.6,"under":true},{"id":"cr","parent":"up","box":[0.8919,0.5965,1,0.9123],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.6,"phase":1.3,"under":true}],"glow":[{"letters":"J","color":"w","max":0.7,"dur":1.5}]},
   steingolem: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7736],"seq":[[0,0],[0,1]],"dur":3.2}],"glow":[{"letters":"oOz","box":[0.3902,0.434,0.6098,0.6038],"color":"z","max":0.65,"dur":1.6},{"letters":"O","box":[0.3415,0.1698,0.6585,0.2264],"color":"w","max":0.5,"dur":2.2}]},
   frostwolf: {"rel":true,"regions":[{"id":"head","box":[0,0,0.3529,0.8485],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2.6},{"id":"tail","box":[0.8431,0.1818,1,0.6667],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.4,"under":true},{"id":"crest","box":[0.3529,0.1212,0.8235,0.3939],"seq":[[0,0],[0,0],[0,1],[0,0]],"dur":1.9}]},
   elementarwandler: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7302],"seq":[[0,0],[0,1]],"dur":2.8},{"id":"hl","parent":"up","box":[0,0,0.3968,0.381],"seq":[[0,0],[0,1],[0,0],[0,0]],"dur":2.4},{"id":"hr","parent":"up","box":[0.6032,0,1,0.381],"seq":[[0,0],[0,0],[0,1],[0,0]],"dur":2.4},{"id":"kl","box":[0,0.7937,0.1429,1],"seq":[[0,0],[0,1],[0,0]],"dur":1.5,"under":true},{"id":"kr","box":[0.8571,0.7937,1,1],"seq":[[0,0],[0,1],[0,0]],"dur":1.5,"phase":0.7,"under":true}],"glow":[{"letters":"ew","color":"w","max":0.6,"dur":1.4}]},
@@ -6431,7 +6671,7 @@ function timeline(fx) {
 
 // ---------------------------------------------------------------- Kampfszene
 // ctx: { run, c (Kampf), fx (Ereignisse der letzten Aktion), enter ("all" | "enemies" | null), targetable (Set von UIDs), weapon }
-function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), focus = null, ext = 0 }) {
+function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), focus = null, ext = 0, victory = false }) {
   const b = BIOMES[biomeFor(run)];
   const tl = timeline(fx);
   const layout = layoutEnemies(c.enemies);
@@ -6483,7 +6723,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const wsz = sprSize("weapon", wid), wp = weaponPx(wid), [wgx, wgy] = weaponGrip(wid);
   const hx0 = HERO.x - (sz.w * hs) / 2, hy0 = HERO.feet - sz.h * hs;
   const wpn = CONTENT.get("weapons", run.weapon);
-  const hero = `<g class="pos" transform="translate(${hx0} ${hy0})"><g class="mover${enter ? " enter-l" : ""}${anim("hero", "strike", ` strike-${play?.style ?? "slash"}`)}" ${del("hero", "strike")}>
+  const hero = `<g class="pos" transform="translate(${hx0} ${hy0})"><g class="mover${enter ? " enter-l" : ""}${victory ? ` victory vic-${run.classId}` : ""}${anim("hero", "strike", ` strike-${play?.style ?? "slash"}`)}" ${del("hero", "strike")}>
       <ellipse cx="${(sz.w * hs) / 2}" cy="${sz.h * hs - 1}" rx="${sz.w * hs * 0.4}" ry="5" fill="#000" opacity=".42"/><g class="flash${anim("hero", "hurt", " hurtflash")}" ${del("hero", "hurt")}><g class="shake${anim("hero", "hurt", " hurtshake")}" ${del("hero", "hurt")}><g class="bob ${cls === "magier" ? "mv-hover" : "mv-none"}">
       ${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * hs}" height="${sz.h * hs}"` })}
       <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${wkind(run.weapon)}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
@@ -6587,6 +6827,9 @@ const { availableNodes, buildOf, currentLayer, restHealAmount, restPct } = __req
 const { lane: mapLane } = __require("engine/map.js");
 const { findNode } = __require("engine/map.js");
 const { tagCount } = __require("engine/modifiers.js");
+const { abilityAt } = __require("engine/abilities.js");
+const { abilityForm } = __require("engine/combat.js");
+const { abilityProgress } = __require("engine/meta.js");
 const { maxDifficulty, describeUnlock, isUnlocked } = __require("engine/meta.js");
 const { dexProgress } = __require("engine/dex.js");
 const { storyLines, storySpeaker } = __require("engine/story.js");
@@ -6619,7 +6862,7 @@ function titleView(ui) {
   return `<div class="screen title"><div class="bgscene">${menuBackdrop(sceneExt(ui, ui.stageH ?? 400))}</div>
     <div class="title-body"><div class="title-l">${logo()}<div class="tag">Ein Anime-Roguelite-Deckbuilder</div></div>
       <div class="title-r"><div class="menu-buttons">${ui.hasSave ? btn("Run fortsetzen", "continue", undefined, { cls: "good big" }) : ""}
-        ${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}</div>
+        ${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}${btn("Fähigkeiten", "show-abilities", undefined, { cls: "big" })}</div>
         <div class="row wrap center">${btn("Einstellungen", "open-settings", undefined, { cls: "small" })}</div>
         <div class="muted center small">Siege ${m.wins} · Runs ${m.runs} · Shinys ${Object.keys(m.dex.shiny).length}</div>
         <div class="muted center small">Version ${esc(CONFIG.version)}</div></div></div></div>`;
@@ -6653,6 +6896,7 @@ function setupView(ui) {
         <div class="optsbar px"><div class="optrow"><b>Schwierigkeit</b><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
           ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div></div>
           <div class="optrow"><b>Seed</b><input class="seed" inputmode="numeric" placeholder="Zufall" value="${esc(st.seed)}" data-change="set-seed" readonly autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
+          ${cur.abilities.length ? `<div class="optrow abil"><b>Fähigkeit</b><div class="chips">${cur.abilities.map((id) => `<span class="chip ${st.abilityId === id ? "on" : ""}"${at("pick-ability", id)}>${esc(CONTENT.abilities[id].name)} · St. ${abLevel(ui.meta, id)}</span>`).join("")}</div></div><div class="muted small optnote abtext">${esc(abilityAt(st.abilityId, abLevel(ui.meta, st.abilityId)).text)}</div>` : ""}
           <div class="muted small optnote">Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Bessere Waffen findest du später, zum Beispiel nach dem Mini-Boss.</div></div></div></div></div></div>`;
 }
 
@@ -6711,20 +6955,22 @@ function combatView(ui) {
   const info = sel ? `<div class="cardinfo px"><div class="ci-head"><b>${esc(sel.def.name)}</b><span class="ci-cost">${ico("bolt", 14)}${sel.def.cost}</span></div><div class="ci-text">${esc(sel.def.text ?? "")}</div>
       <div class="row">${wantsTarget ? `<span class="grow ci-hint">${ico("pointer", 14)} Tippe einen Gegner an</span>` : btn(affordable ? "Spielen" : "Zu wenig Energie", "play-selected", undefined, { cls: "primary grow small", disabled: !affordable })}
         ${btn("Abbrechen", "select-card", String(ui.selected), { cls: "small" })}</div></div>` : "";
+  const ab = c.ability, abBtn = ab ? `<button class="abilitybtn${ab.cd === 0 && !c.result ? " ready" : ""}"${ab.cd > 0 || c.result ? " disabled" : at("use-ability")} title="${esc(ab.def.text)}" aria-label="${esc(ab.def.name)}">${ico(ab.def.icon ?? "bolt", 22)}<span class="abname">${esc(ab.def.name)}${ab.def.forms ? `<small> · ${esc(abilityForm(ab).name)}</small>` : ""}</span><span class="abcd">${ab.cd === 0 ? "BEREIT" : ab.cd}</span></button>` : "";
+  const fieldBadge = c.field ? `<div class="fieldbadge">${esc(c.field.name)} · ${c.field.turnsLeft}</div>` : "";
   const acts = activeItems(c);
-  const actives = acts.length ? `<div class="actives">${acts.map((a) => {
+  const actives = acts.length || ab ? `<div class="actives">${abBtn}${acts.map((a) => {
     const off = a.used || a.def.cost > P.energy || Boolean(c.result);
     return `<button class="activebtn${a.used ? " used" : ""}"${off ? " disabled" : at("use-item", String(a.index))} title="${esc(a.item.text ?? a.item.name)}" aria-label="${esc(a.item.name)}">${itemIcon(a.item, 30)}<span class="acost">${ico("bolt", 11)}${a.def.cost}</span>${a.used ? '<span class="aused">benutzt</span>' : ""}</button>`;
   }).join("")}</div>` : "";
   const logLines = c.log.slice(ui.showLog ? -30 : -0).map((l) => `<div class="${l.includes("***") ? "hit" : ""}">${esc(l.trim())}</div>`).join("");
   const ext = sceneExt(ui, (ui.stageH ?? 400) - 148);
-  return `${hud(ui)}<div class="screen combat"><div class="scene">${combatScene({ run, c, fx: ui.fx, enter: ui.enter, targetable, focus: ui.focus, ext })}${actives}${info}
+  return `${hud(ui)}<div class="screen combat"><div class="scene${c.field ? " field-on" : ""}">${fieldBadge}${combatScene({ run, c, fx: ui.fx, enter: ui.enter, targetable, focus: ui.focus, ext, victory: ui.victory })}${actives}${info}
       <div class="side left"><div class="piles"><span class="pile" title="Nachziehstapel">${ico("pile", 16)}<b>${c.piles.draw.length}</b></span><span class="pile" title="Ablagestapel">${ico("discard", 16)}<b>${c.piles.discard.length}</b></span></div>
         ${btn(ui.auto ? "Auto: an" : "Auto", "toggle-auto", undefined, { cls: `small ${ui.auto ? "good" : ""}`, disabled: Boolean(c.result) })}${btn(`Tempo x${ui.speed}`, "cycle-speed", undefined, { cls: "small" })}</div>
       <div class="side right"><div class="energy">${pips}</div>${btn("Zug beenden", "end-turn", undefined, { cls: "primary", disabled: Boolean(c.result) || ui.auto })}${btn(ui.showLog ? "Log aus" : "Log", "toggle-log", undefined, { cls: "small" })}</div>
       ${ui.showLog ? `<div class="logpanel px">${logLines}</div>` : ""}</div>
     <div class="handrow"><div class="hand" style="--n:${hand.length}">${hand.map((inst, i) => cardHtml(inst.def, { build, plays: c.playsThisTurn, ctx: { hp: P.hp, maxHp: P.maxHp, gold: c.gold }, selected: ui.selected === i, dim: inst.def.cost > P.energy, action: "select-card", arg: String(i) })).join("") || "<span class='muted pad'>Keine Karten auf der Hand</span>"}</div></div></div>
-    ${c.result ? `<div class="overlay"><div class="sheet mid center stack"><h2>${c.result === "won" ? "Sieg!" : "Niederlage"}</h2>
+    ${ui.victory ? `<div class="victorybanner">Sieg!</div>` : ""}${c.result && !ui.victory ? `<div class="overlay"><div class="sheet mid center stack"><h2>${c.result === "won" ? "Sieg!" : "Niederlage"}</h2>
       ${c.shinyKills.length ? `<div class="shiny sh px pad"><b>Chrom-Gegner besiegt!</b><br>Bonus: +${CONFIG.shiny.enemyGold} Gold, ein seltenes Chrom-Item und eine Chrom-Waffe zur Wahl.</div>` : ""}${btn("Weiter", "after-combat", undefined, { cls: "primary" })}</div></div>` : ""}`;
 }
 
@@ -6869,6 +7115,15 @@ function overlayView(ui) {
 // Einstellungen: Sprache, Anzeige, Tempo und Kampf-Bedienung an einem Ort (öffnet sich über jedem Bildschirm, auch im Spiel)
 const chips = (list, cur, action) => `<div class="chips">${list.map(([v, label]) => `<span class="chip ${String(cur) === String(v) ? "on" : ""}"${at(action, String(v))}>${esc(label)}</span>`).join("")}</div>`;
 const fsOk = () => typeof document !== "undefined" && Boolean(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !/iPad|iPhone|iPod/.test(navigator.userAgent) && !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const abLevel = (meta, id) => meta.abilities?.[id]?.level ?? 1;
+// Fähigkeiten im Hauptmenü: Stufe, Fortschritt zur nächsten Stufe (nur hier, nie im Run)
+function abilitiesView(ui) {
+  const meta = ui.meta, rows = Object.values(CONTENT.classes).filter((cl) => cl.abilities.length).map((cl) => `<div class="abclass"><h3>${esc(cl.name)}</h3>${cl.abilities.map((id) => {
+    const a = CONTENT.abilities[id], p = abilityProgress(meta, id), cur = abilityAt(id, p.level);
+    return `<div class="abrow px"><div class="abhead"><b>${esc(a.name)}</b><span class="rar">Stufe ${p.level}/${1 + a.levels.length}</span></div><div class="muted small">${esc(cur.text)}</div>
+      ${p.max ? '<div class="abdone">Maximale Stufe</div>' : `<div class="abtask"><div>${esc(p.task)}</div><div class="bar"><i style="width:${Math.round((100 * p.count) / p.goal)}%"></i></div><div class="muted small">${p.count.toLocaleString("de-DE")} / ${p.goal.toLocaleString("de-DE")} · Belohnung: ${esc(p.reward)}</div></div>`}</div>`; }).join("")}</div>`).join("");
+  return `<div class="screen collection"><div class="pg-head"><h2>Fähigkeiten</h2>${btn("Zurück", "to-title", undefined, { cls: "small" })}</div><div class="pg-body"><div class="muted small pad">Fähigkeiten werden nur hier verbessert: durch Aufgaben mit der jeweiligen Fähigkeit, nie während eines Runs.</div>${rows}</div></div>`;
+}
 function settingsView(ui) {
   const s = ui.meta.settings, size = s.size ?? "gross", lang = s.lang ?? "de";
   return `<div class="overlay settings"><div class="sheet mid stack"><h2>Einstellungen</h2>
@@ -6911,6 +7166,7 @@ function render(ui) {
   else if (ui.screen === "setup") body = setupView(ui);
   else if (ui.screen === "collection") body = collectionView(ui);
   else if (ui.screen === "achievements") body = achievementsView(ui);
+  else if (ui.screen === "abilities") body = abilitiesView(ui);
   else if (ui.screen === "cosmetics") body = cosmeticsView(ui);
   else {
     const p = ui.run.phase;
@@ -6929,11 +7185,12 @@ __define("ui/controller.js", function (__exports, __require) {
 // Controller: verbindet Engine und Ansichten. Kein DOM, daher komplett in Node testbar.
 // dispatch(action, arg, arg2) verändert den Zustand und gibt false zurück, wenn kein Neuzeichnen nötig ist.
 const { CONTENT } = __require("content/index.js");
+const { abilityAt } = __require("engine/abilities.js");
 const { applyContentLanguage } = __require("ui/i18n.js");
 const { STAT_LABELS } = __require("ui/theme.js");
 const { CONFIG } = __require("data/config.js");
 const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, takeLevelUp, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
-const { playCard, endPlayerTurn, useItem, activeItems } = __require("engine/combat.js");
+const { aliveEnemies, playCard, endPlayerTurn, useItem, useAbility, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
 const { createMeta, normalizeMeta, recordRun, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
 const { evaluateAchievements } = __require("engine/achievements.js");
@@ -6945,7 +7202,7 @@ const { nameAny } = __require("ui/util.js");
 const KEY_META = "rd_meta_v1", KEY_RUN = "rd_run_v1";
 const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
 
-function createController({ storage = null, seedFn = () => Math.floor(Math.random() * 2147483647), shinyRollFn = Math.random, landscape = false, dev = false } = {}) {
+function createController({ storage = null, seedFn = () => Math.floor(Math.random() * 2147483647), shinyRollFn = Math.random, landscape = false, dev = false, victoryPose = false } = {}) {
   const read = (k) => { try { return storage ? JSON.parse(storage.getItem(k)) : null; } catch { return null; } };
   const write = (k, v) => { try { storage?.setItem(k, JSON.stringify(v)); } catch { /* Speicher voll/gesperrt: Spiel läuft trotzdem */ } };
   const remove = (k) => { try { storage?.removeItem(k); } catch { /* ignorieren */ } };
@@ -6964,11 +7221,11 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
 
   const ui = {
     screen: "title", run: null, meta, landscape, dev,
-    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.weapon, difficulty: 0, seed: "" },
+    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.weapon, abilityId: CONTENT.classes.nahkaempfer.abilities[0] ?? null, difficulty: 0, seed: "" },
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
-    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, achInfo: null, nodeInfo: null, itemInfo: null, settingsOpen: false, updateStatus: null, importPending: null, reloadNeeded: false,
+    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, victory: false, victoryFor: null, achInfo: null, nodeInfo: null, itemInfo: null, settingsOpen: false, updateStatus: null, importPending: null, reloadNeeded: false,
     auto: false, speed: CONFIG.ui.speeds.includes(meta.settings.speed) ? meta.settings.speed : 1, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
   };
   applyContentLanguage(CONTENT, meta.settings.lang ?? "de");                  // gespeicherte Sprache anwenden
@@ -7042,7 +7299,8 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "new-run": Object.assign(st, { step: 0, difficulty: 0 }); ui.screen = "setup"; break;
       case "pick-class":
         if (!isUnlocked(ui.meta, "classes", CONTENT.classes[arg])) { toast(`Noch gesperrt: ${describeUnlock(CONTENT.classes[arg].unlock)}`); break; }
-        st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; break;
+        st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; st.abilityId = CONTENT.classes[arg].abilities[0] ?? null; break;
+      case "pick-ability": if (CONTENT.classes[st.classId].abilities.includes(arg)) st.abilityId = arg; break;
       case "setup-next": st.step = 1; break;
       case "setup-back": if (st.step === 0) ui.screen = "title"; else st.step = 0; break;
       case "pick-weapon": st.weaponId = arg; break;
@@ -7053,7 +7311,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         savedShiny = { ...CONFIG.shiny };
         Object.assign(CONFIG.shiny, { enemyChance: 1, lootChance: 1 });
         const st = ui.setup;
-        openRun(createRun({ classId: st.classId, weapon: st.weaponId, difficulty: 0, seed: seedFn(), meta: undefined, shinyHero: true }));
+        openRun(createRun({ ability: st.abilityId, classId: st.classId, weapon: st.weaponId, difficulty: 0, seed: seedFn(), meta: undefined, shinyHero: true }));
         ui.preview = true;
         ui.notice = { title: "Chrom-Vorschau", lines: ["Hier ist alles Shiny: Held, Gegner, Beute.", "Nichts davon wird gespeichert oder zählt für deinen Fortschritt.", "Über das Menü kommst du zurück."] };
         break;
@@ -7061,7 +7319,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "start-run": {
         endPreview();
         const seed = parseInt(st.seed, 10) || seedFn();
-        openRun(createRun({ classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
+        openRun(createRun({ ability: st.abilityId, classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
         if (ui.run.shinyHero) ui.notice = { title: "Chrom-Held!", lines: ["Sehr selten: Dein Held schimmert wie Chrom.", `Bonus für diesen Run: +${CONFIG.shiny.heroLuck} Glück.`, `Chance beim Start: 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)}.`] };
         break;
       }
@@ -7075,9 +7333,10 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         }
         break;
       }
-      case "to-title": endPreview(); ui.auto = false; ui.cardInfo = null; ui.settingsOpen = false; ui.screen = "title"; ui.overlay = null; ui.run = null; ui.confirmReset = false; break;
+      case "to-title": endPreview(); ui.auto = false; ui.cardInfo = null; ui.settingsOpen = false; ui.screen = "title"; ui.overlay = null; ui.run = null; ui.victory = false; ui.confirmReset = false; break;
       case "show-collection": ui.screen = "collection"; break;
       case "show-achievements": ui.screen = "achievements"; break;
+      case "show-abilities": ui.screen = "abilities"; break;
       case "show-cosmetics": ui.screen = "cosmetics"; break;
       case "pick-skin": {                                  // arg = Held, arg2 = Farbvariante (oder "default")
         const def = CONTENT.skins[arg2];
@@ -7120,6 +7379,13 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         break;
       case "play-selected": if (inPhase("combat") && ui.selected !== null) { const i = ui.selected; if (tryPlay(i, pickTarget(run.pending.combat, run.pending.combat.piles.hand[i]?.def ?? { play: [] }, ui.focus))) maybeEndTurn(); } break;
       case "target": if (inPhase("combat") && ui.selected !== null) { if (tryPlay(ui.selected, arg)) maybeEndTurn(); } break;
+      case "use-ability": {                                // Signatur-Fähigkeit (kostet keine Energie, nur Cooldown); Ziel: gewählter Gegner, sonst der stärkste
+        if (!inPhase("combat") || run.pending.combat.result) break;
+        const combat = run.pending.combat, alive = aliveEnemies(combat), t = alive.find((e) => e.uid === ui.focus) ?? [...alive].sort((a, b) => b.hp - a.hp)[0];
+        const res = useAbility(combat, t?.uid);
+        if (!res.ok) toast(res.reason); else maybeEndTurn();
+        break;
+      }
       case "use-item": {                                   // aktives Item auslösen (1x pro Kampf), Ziel wählt der Autopilot
         if (!inPhase("combat") || run.pending.combat.result) break;
         const combat = run.pending.combat, entry = activeItems(combat).find((x) => x.index === Number(arg));
@@ -7158,6 +7424,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "import-no": ui.importPending = null; break;
       case "open-settings": ui.settingsOpen = true; break;                          // Einstellungen (Titel und Spiel)
       case "reload-page": ui.reloadNow = true; break;                          // main.js lädt die Seite mit frischem Cache neu
+      case "victory-done": ui.victory = false; break;                          // Sieges-Pose vorbei: Sieg-Fenster zeigen
       case "ach-info": ui.achInfo = arg; break;                                // Info und Datum eines Erfolgs
       case "close-ach-info": ui.achInfo = null; break;
       case "node-info": ui.nodeInfo = arg; break;                              // Info zu einem Ortstyp der Karte
@@ -7184,6 +7451,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         const combat = run.pending.combat, a = nextAction(combat);
         if (a.type === "play") tryPlay(a.index, a.targetUid);
         else if (a.type === "item") useItem(combat, a.index, a.targetUid);
+        else if (a.type === "ability") useAbility(combat, a.targetUid);
         else endPlayerTurn(combat);
         break;
       }
@@ -7262,6 +7530,12 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       else if (c.waveIndex !== lastWave) { ui.enter = "enemies"; lastWave = c.waveIndex; }
     }
     if (ui.run) achEvents.push(...takeNewAchievements(ui.run));   // Erfolge, die in diesem Schritt erreicht wurden
+    const cbw = ui.run?.pending?.combat;                          // Kampf gerade gewonnen: erst die Sieges-Pose zeigen (nur in der Oberfläche, nicht in Tests)
+    if (victoryPose && cbw?.result === "won" && ui.victoryFor !== cbw) { ui.victoryFor = cbw; ui.victory = true; }
+    if (ui.run?.abilityNotice) {                                  // Fähigkeit hat per Meta-Aufgabe eine neue Stufe erreicht
+      const ups = ui.run.abilityNotice; ui.run.abilityNotice = null;
+      ui.notice = { title: "Fähigkeit verbessert", lines: ups.flatMap((u) => [`${CONTENT.abilities[u.id].name} ist jetzt Stufe ${u.level}.`, abilityAt(u.id, u.level).text]) };
+    }
     if (ui.run?.stageNotice) {                                    // neue Stage: kurzer Hinweis
       const n = ui.run.stageNotice; ui.run.stageNotice = null;
       ui.notice = { title: `Stage ${n} von ${CONFIG.stages.count}`, lines: [n >= CONFIG.stages.count ? "Das ist die letzte Stage. Am Ende wartet der Endboss." : "Du hast die Stage geschafft. Die Gegner werden stärker, dafür wird die Beute besser.", `Du wurdest zu ${Math.round(CONFIG.stages.heal * 100)} % geheilt.`] };
@@ -7278,6 +7552,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       let run = null; try { run = storage?.getItem(KEY_RUN) ?? null; } catch { /* ignorieren */ }
       return JSON.stringify({ game: "rogue-deck", format: 1, version: CONFIG.version, exportedAt: new Date().toISOString(), meta: ui.meta, run }, null, 1);
     },
+    victoryMs: () => (ui.victory ? Math.round(CONFIG.ui.victoryMs / ui.speed) : null),
     autoWait: () => {
       const r = ui.run;
       if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo || ui.settingsOpen || ui.importPending || ui.nodeInfo || ui.itemInfo || ui.achInfo) return null;
@@ -7303,7 +7578,7 @@ const storage = (() => {
   try { const s = window.localStorage; s.setItem("rd_probe", "1"); s.removeItem("rd_probe"); return s; } catch { return null; }
 })();
 const dev = window.location.hash.includes("dev");                       // Entwickler-Zugang für Screenshots und Tests
-const ctrl = createController({ storage, landscape: true, dev });  // das Spiel ist für das Querformat gebaut
+const ctrl = createController({ storage, landscape: true, dev, victoryPose: true });  // das Spiel ist für das Querformat gebaut
 
 // ---- Bühne: das Spiel ist immer 400 Einheiten hoch und 720 bis 960 breit und wird auf den Bildschirm skaliert (Handy, Tablet, Monitor).
 // So passt jeder Bildschirm ohne Scrollen, und alle Maße im Stylesheet gelten überall gleich.
@@ -7347,6 +7622,12 @@ function showBanners() {
 
 // Autopilot: solange "Auto" an ist, im Takt Schritte ausführen (Wartezeit kommt vom Controller und hängt vom Tempo ab)
 let autoTimer = null;
+let victoryTimer = null;
+function scheduleVictory() {                                       // nach der Sieges-Pose das Sieg-Fenster zeigen
+  const ms = ctrl.victoryMs();
+  if (ms === null) { clearTimeout(victoryTimer); victoryTimer = null; return; }
+  if (!victoryTimer) victoryTimer = setTimeout(() => { victoryTimer = null; ctrl.dispatch("victory-done"); render(); }, ms);
+}
 function scheduleAuto() {
   clearTimeout(autoTimer);
   const wait = ctrl.autoWait();
@@ -7359,6 +7640,7 @@ function render() {
   if (ctrl.ui.toast) { const tt = ctrl.ui.toast; setTimeout(() => { if (ctrl.ui.toast === tt) { ctrl.ui.toast = null; document.querySelector(".toast")?.remove(); } }, 2200); }      // Meldungen blenden sich nach 2 Sekunden aus
   translateDom(document.body);                                     // Sprache Englisch: alle Texte der Oberfläche übersetzen (auch Hinweise und Meldungen außerhalb der App-Fläche)
   showBanners();
+  scheduleVictory();
   scheduleAuto();
 }
 
