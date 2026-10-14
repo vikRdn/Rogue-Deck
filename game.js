@@ -12,7 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "3.7",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "4.0",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 5, maxHp: 70 },
 
   balance: {
@@ -21,10 +21,13 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.585,
+    enemyDmgScale: 0.76,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
+    critMult: 1.5,          // kritischer Treffer: Schaden x1,5
+    dodgeCap: 60,           // Ausweichen: höchstens 60 % Chance
+    armorK: 15,             // Rüstung: Schaden x K/(K+Rüstung), also 15 Rüstung = halber Schaden
     maxTurnStartBlock: 10,  // Obergrenze für GRATIS-Block zu Beginn des Zuges (Block-Start und Zugbeginn-Items zusammen); Block aus Karten zählt nicht
     freezeAt: 3,            // Eis: so viele Kälte-Stapel lassen einen Gegner einfrieren (Kältemulett senkt die Schwelle um 1, mindestens 2)
     maxXMult: 3,          // Obergrenze für den Endmultiplikator (xMult), damit High-Risk-Builds nicht ins Unendliche laufen,          // Max. Bonus durch "pro zuvor gespielter Karte"  // Globaler Regler für ALLEN Gegnerschaden (vor der Schwierigkeitsstufe)
@@ -88,6 +91,13 @@ const CONFIG = {
     nodeWeights: { kampf: 48, ereignis: 18, haendler: 9, rast: 12, elite: 13 },
     minLayer: { elite: 3, rast: 2, haendler: 2 },
     tierSplit: 4,               // ab dieser Ebene kommen Begegnungen der Stufe 2
+  },
+  // Erfahrung und Wert-Aufstiege (Brotato-Richtung): Gegner geben Erfahrung nach ihren Lebenspunkten, volle Leiste = ein Aufstieg mit 4 Wert-Angeboten
+  xp: { hpPerXp: 14, base: 8, step: 4 },
+  upgrades: {
+    stats: ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"],
+    values: { maxHp: [4, 7, 10, 14], regen: [1, 1, 2, 3], lifesteal: [1, 3, 4, 6], damagePct: [3, 5, 7, 10], meleeDmg: [1, 1, 2, 3], rangedDmg: [1, 1, 2, 3], elementDmg: [1, 1, 2, 3], crit: [2, 4, 6, 8], armor: [1, 1, 2, 3], dodge: [2, 4, 5, 7], luck: [1, 3, 4, 6], ernte: [1, 1, 2, 3] },
+    tierChance: [0.62, 0.28, 0.09, 0.01], tierShiftPerLevel: 0.02, tierShiftPerLuck: 0.008,   // Stufe I bis IV; mit Level und Glück häufiger besser
   },
   gold: { kampf: [20, 32], elite: [38, 54], miniboss: [60, 80], boss: [100, 100] },
   // Schwierigkeitsstufen. Stufe n wird erst nach einem Sieg auf Stufe n-1 freigeschaltet.
@@ -328,8 +338,8 @@ __exports.default = {
 
   classes: {
     nahkaempfer: {
-      name: "Nahkämpfer", hp: 90, stats: {}, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
-      perks: ["+ Viel Leben: 90 Max-HP", "+ Unbeugsam: 25 % des Blocks wird zu Schaden (max. 2)", "- Kein Fern- oder Zauberbonus"],
+      name: "Nahkämpfer", hp: 90, stats: { armor: 1, meleeDmg: 2 }, blurb: "Robust und geradlinig: Block, Waffenstärke und Blutung. Verzeiht Fehler.",
+      perks: ["+ Viel Leben: 90 Max-HP", "+ Unbeugsam: 25 % des Blocks wird zu Schaden (max. 2)", "+ Rüstung 1, Nahkampfschaden +2", "- Kein Fern- oder Zauberbonus"],
       passive: { id: "unbeugsam", name: "Unbeugsam", text: "Am Zugende gehen 25 % deines übrigen Blocks als Schaden an den ersten Gegner (höchstens 2)." },
       deck: ["hieb", "hieb", "hieb", "hieb", "wuchtschlag", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung", "deckung"],
       weapon: "rostiges_schwert", starterWeapons: ["rostiges_schwert", "flammenschwert", "giftdolch"], items: [],
@@ -797,9 +807,9 @@ __exports.default = {
 
   classes: {
     fernkaempfer: {
-      name: "Fernkämpfer", hp: 66, stats: { handSize: 1 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
+      name: "Fernkämpfer", hp: 60, stats: { handSize: 1, dodge: 6, crit: 6, rangedDmg: 2 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
       deck: ["schnellschuss", "schnellschuss", "schnellschuss", "schnellschuss", "zielen", "praezisionsschuss", "praezisionsschuss"], shopBasics: ["rolle", "rolle"],
-      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "- Weniger Leben: 66 Max-HP"],
+      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "+ Ausweichen 6 %, Krit 6 %, Fernkampfschaden +2", "- Weniger Leben: 60 Max-HP"],
       weapon: "kurzbogen", starterWeapons: ["kurzbogen", "armbrust", "giftbogen"], items: [],
     },
   },
@@ -892,9 +902,9 @@ __exports.default = {
 
   classes: {
     magier: {
-      name: "Magier", hp: 70, stats: {}, blurb: "Mischen wird belohnt: Zwei verschiedene Elemente nacheinander lösen Reaktionen aus. Wenig HP, viel Kombo.",
+      name: "Magier", hp: 70, stats: { elementDmg: 3, crit: 8 }, blurb: "Mischen wird belohnt: Zwei verschiedene Elemente nacheinander lösen Reaktionen aus. Wenig HP, viel Kombo.",
       deck: ["funke", "funke", "tropfen", "tropfen", "ranke", "frostnadel", "arkanblitz"], shopBasics: ["manaschild", "manaschild"],
-      perks: ["+ Reaktionen: 2 Elemente nacheinander = Zusatzeffekt", "- Wenig Leben: 70 Max-HP", "- Kaum Block"],
+      perks: ["+ Reaktionen: 2 Elemente nacheinander = Zusatzeffekt", "+ Elementarschaden +3, Krit 8 %", "- Wenig Leben: 70 Max-HP"],
       weapon: "zauberstab", starterWeapons: ["zauberstab", "runenstab", "flammenstab"], items: [],
     },
   },
@@ -1275,9 +1285,9 @@ __exports.default = {
   name: "Neue Helden",
   classes: {
     pyromant: {
-      name: "Pyromant", hp: 80, stats: { regen: 2 },
+      name: "Pyromant", hp: 80, stats: { regen: 2, elementDmg: 3, crit: 5 },
       blurb: "Spielt mit dem Schmerz: Jeder Verlust an HP setzt Gegner in Brand, und je mehr ihm fehlt, desto härter schlägt er zu. Dafür hat er wenig Leben.",
-      perks: ["+ Schmerzensglut: HP-Verlust = 1 Verbrennung für alle", "+ Lodernder Schmerz im Startdeck", "- Pechfackel verletzt dich jeden Zug", "- Nur 80 Max-HP"],
+      perks: ["+ Schmerzensglut: HP-Verlust = 1 Verbrennung für alle", "+ Lodernder Schmerz im Startdeck", "- Pechfackel verletzt dich jeden Zug", "+ Elementarschaden +3, Krit 5 %", "- Nur 80 Max-HP"],
       passive: { id: "schmerzensglut", name: "Schmerzensglut", text: "Wenn du HP verlierst, erhalten alle Gegner 1 Verbrennung (höchstens 2x pro Zug)." },
       passives: [{ trigger: "on_hp_lost", action: "status_all", status: "verbrennung", stacks: 1, maxPerTurn: 2 }],
       cardPools: ["pyromant", "magier"],
@@ -1285,18 +1295,18 @@ __exports.default = {
       weapon: "pechfackel", items: [], unlock: { type: "achievement", id: "g50" },
     },
     aristokrat: {
-      name: "Aristokrat", hp: 118, stats: { goldPct: 30, ernte: 2, regen: 3 }, startGold: 40, shopDiscount: 0.1, restHealPct: 0.2,
+      name: "Aristokrat", hp: 118, stats: { goldPct: 30, ernte: 2, regen: 3, luck: 3, armor: 1 }, startGold: 40, shopDiscount: 0.1, restHealPct: 0.2,
       blurb: "Gold ist Macht: mehr Beute, billigere Händler und festes Einkommen. Dafür kämpft er schlecht und erholt sich kaum an der Rast.",
-      perks: ["+ 30 % Gold, Ernte 2, 40 Startgold", "+ Mäzen: Händlerpreise -10 %", "- Schwaches Startdeck und schwache Waffe", "- Rast heilt nur 20 %"],
+      perks: ["+ 30 % Gold, Ernte 2, 40 Startgold", "+ Mäzen: Händlerpreise -10 %", "- Schwaches Startdeck und schwache Waffe", "+ Glück 3, Rüstung 1", "- Rast heilt nur 20 %"],
       passive: { id: "maezen", name: "Mäzen", text: "Händlerpreise -10 %." },
       cardPools: ["aristokrat", "nahkaempfer"],
       deck: ["hieb", "hieb", "taschendiebstahl", "taschendiebstahl", "schuldschein", "wuchtschlag", "wirbel"], shopBasics: ["deckung", "deckung"],
       weapon: "stockdegen", items: [], unlock: { type: "achievement", id: "k25" },
     },
     gaertnerin: {
-      name: "Gärtnerin", hp: 64, stats: { regen: 3, handSize: -1 },
+      name: "Gärtnerin", hp: 64, stats: { regen: 3, handSize: -1, lifesteal: 4, elementDmg: 1, dodge: 8 },
       blurb: "Geduldig: Pflanzenkarten und Heilung, nach jedem Kampf erholt sie sich. Dafür hat sie wenig Leben und eine kleine Hand.",
-      perks: ["+ Nach jedem Kampf +3 HP", "+ Wurzelwerk: Pflanzenkarten +1 Schaden", "- Nur 4 Handkarten", "- Nur 64 Max-HP"],
+      perks: ["+ Nach jedem Kampf +3 HP", "+ Wurzelwerk: Pflanzenkarten +1 Schaden", "- Nur 4 Handkarten", "+ Lebensraub 4 %, Ausweichen 8 %", "- Nur 64 Max-HP"],
       passive: { id: "wurzelwerk", name: "Wurzelwerk", text: "Pflanzenkarten machen +1 Schaden." },
       passives: [{ trigger: "damage_calc", cardTag: "pflanze", op: "add", value: 1 }],
       cardPools: ["gaertnerin", "magier"],
@@ -1434,6 +1444,55 @@ __exports.default = {
 
 
 });
+__define("content/packs/stat_items.js", function (__exports, __require) {
+// WERT-ITEMS (Brotato-Richtung): Items geben Werte, oft mit Plus UND Minus. Dazu skalieren drei Items mit einem Wert (perStat).
+// ADAPT: bestehende Items werden auf die Werte umgebaut (ersetzen ihre alten Boni).
+const PACK = {
+  id: "statitems",
+  name: "Wert-Items",
+  items: {
+    kraftring: { name: "Kraftring", tags: ["item"], stats: { damagePct: 4 }, text: "+4 % Schaden." },
+    kriegsbemalung: { name: "Kriegsbemalung", tags: ["item"], stats: { damagePct: 8, armor: -1 }, text: "+8 % Schaden, -1 Rüstung." },
+    gewichtsweste: { name: "Gewichtsweste", tags: ["item", "ruestung"], stats: { armor: 3, dodge: -5 }, text: "+3 Rüstung, -5 % Ausweichen." },
+    federstiefel: { name: "Federstiefel", tags: ["item", "ausweichen"], stats: { dodge: 10, armor: -1 }, text: "+10 % Ausweichen, -1 Rüstung." },
+    wuchtgurt: { name: "Wuchtgurt", tags: ["item", "nahkampf"], stats: { meleeDmg: 3, dodge: -3 }, text: "+3 Nahkampfschaden, -3 % Ausweichen." },
+    heilkraut: { name: "Heilkraut", tags: ["item", "pflanze"], stats: { regen: 2, maxHp: 2 }, text: "+2 Regeneration, +2 Max-HP." },
+    stahlhaut: { name: "Stahlhaut", tags: ["item", "ruestung"], stats: { armor: 2, maxHp: 6 }, text: "+2 Rüstung, +6 Max-HP." },
+    sparbuch: { name: "Sparbuch", tags: ["item", "gold"], stats: { ernte: 2, damagePct: -2 }, text: "+2 Ernte, -2 % Schaden." },
+    scharfes_auge: { name: "Scharfes Auge", rarity: "ungewoehnlich", tags: ["item", "fernkampf"], stats: { crit: 8, rangedDmg: 1 }, text: "+8 % Krit-Chance, +1 Fernkampfschaden." },
+    elementarfokus: { name: "Elementarfokus", rarity: "ungewoehnlich", tags: ["item", "zauber"], stats: { elementDmg: 3, armor: -1 }, text: "+3 Elementarschaden, -1 Rüstung." },
+    blutdurstamulett: { name: "Blutdurstamulett", rarity: "ungewoehnlich", tags: ["item", "blut"], stats: { lifesteal: 5, maxHp: -6 }, text: "+5 % Lebensraub, -6 Max-HP." },
+    glueckskeks: { name: "Glückskeks", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { luck: 3, ernte: 1 }, text: "+3 Glück, +1 Ernte." },
+    kampfnarben: { name: "Kampfnarben", rarity: "ungewoehnlich", tags: ["item"], stats: { crit: 6, damagePct: 3 }, text: "+6 % Krit-Chance, +3 % Schaden." },
+    schattenmantel: { name: "Schattenmantel", rarity: "ungewoehnlich", tags: ["item", "ausweichen"], stats: { dodge: 8, crit: 4 }, text: "+8 % Ausweichen, +4 % Krit-Chance." },
+    panzerfaust: { name: "Panzerfaust", rarity: "ungewoehnlich", tags: ["item", "block", "ruestung"], text: "Alle Karten: +1 Schaden je 3 Rüstung (max. +6).",
+      passives: [{ trigger: "damage_calc", op: "add", value: 1, perStat: { stat: "armor", step: 3 }, cap: 6 }] },
+    glueckspilz: { name: "Glückspilz", rarity: "ungewoehnlich", tags: ["item", "gold"], text: "Alle Karten: +1 Schaden je 3 Glück (max. +6).",
+      passives: [{ trigger: "damage_calc", op: "add", value: 1, perStat: { stat: "luck", step: 3 }, cap: 6 }] },
+    schattenklinge: { name: "Schattenklinge", rarity: "ungewoehnlich", tags: ["item", "ausweichen"], text: "Alle Karten: +1 Schaden je 4 % Ausweichen (max. +6).",
+      passives: [{ trigger: "damage_calc", op: "add", value: 1, perStat: { stat: "dodge", step: 4 }, cap: 6 }] },
+    rotes_siegel: { name: "Rotes Siegel", rarity: "selten", tags: ["item", "blut"], stats: { damagePct: 10, lifesteal: 4, maxHp: -10 }, text: "+10 % Schaden, +4 % Lebensraub, -10 Max-HP." },
+    koenigsring: { name: "Königsring", rarity: "selten", tags: ["item", "gold"], stats: { luck: 4, ernte: 2, damagePct: 5, armor: -1 }, text: "+4 Glück, +2 Ernte, +5 % Schaden, -1 Rüstung." },
+  },
+};
+const ADAPT = {
+  wetzstein: { stats: { meleeDmg: 2 }, passives: [], text: "+2 Nahkampfschaden." },
+  koecher: { stats: { rangedDmg: 2 }, passives: [], text: "+2 Fernkampfschaden." },
+  grimoire: { stats: { elementDmg: 2 }, passives: [], text: "+2 Elementarschaden." },
+  lederweste: { stats: { armor: 1 }, text: "+8 Max-HP, +1 Rüstung." },
+  eisenpanzer: { stats: { armor: 2 }, text: "+2 Rüstung. Erster Zug jedes Kampfes: 4 Block." },
+  eisenhelm: { stats: { armor: 1 }, text: "+1 Rüstung. Erster Zug jedes Kampfes: 6 Block." },
+  vampirzahn: { stats: { lifesteal: 3 }, text: "+3 % Lebensraub. Gegner besiegt: heile 4 HP (max. 2/Zug)." },
+  leichtfuessig: { stats: { dodge: 6 }, text: "+6 % Ausweichen. Erster Zug jedes Kampfes: weiche 2 Treffern aus." },
+  adlerauge: { stats: { crit: 6 }, text: "+6 % Krit-Chance. Kampfbeginn: alle Gegner 2 Züge markiert." },
+  dornenruestung: { stats: { armor: 1 }, text: "+1 Rüstung. Wer dich trifft, nimmt 3 Schaden." },
+};
+PACK.adapt = ADAPT;
+__exports.default = PACK;
+
+
+
+});
 __define("content/index.js", function (__exports, __require) {
 // Hier werden alle Sets geladen. Neues Set = eine Import-Zeile + eine register-Zeile.
 const { createContent } = __require("content/registry.js");
@@ -1457,11 +1516,13 @@ const waffenStufe2 = __require("content/packs/waffen_stufe2.js").default;
 const helden2 = __require("content/packs/helden2.js").default;
 const story = __require("content/packs/story.js").default;
 const heldenItems = __require("content/packs/helden_items.js").default;
+const statItems = __require("content/packs/stat_items.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
+for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; d.text = patch.text; } }     // bestehende Items auf die Werte umbauen
 const problems = CONTENT.validate();
 if (problems.length) throw new Error("Content-Fehler:\n- " + problems.join("\n- "));
 
@@ -1548,6 +1609,14 @@ const EN_ITEMS = {
   phoenixblut: ["Phoenix Blood", "Start of combat: heal 8 HP. Fire card played: 1 Burn on ALL (max. 2/turn)."], goldener_zahn: ["Golden Tooth", "+20% Gold, Harvest 1."],
   bankier: ["Banker", "All cards: +1 base damage per 40 Gold you own (max. +12)."], kronjuwelen: ["Crown Jewels", "+50% Gold, Harvest 3."], gruener_daumen: ["Green Thumb", "Plant cards: +2 damage. Heal 3 HP after every combat."],
   erntekorb: ["Harvest Basket", "Plant card played: heal 1 HP (max. 3/turn)."], weltenbaum: ["World Tree", "+10 Max HP. Start of turn: heal 1 HP per Plant tag (max. 3)."],
+  kraftring: ["Power Ring", "+4% Damage."], kriegsbemalung: ["War Paint", "+8% Damage, -1 Armor."], gewichtsweste: ["Weighted Vest", "+3 Armor, -5% Dodge."], federstiefel: ["Feather Boots", "+10% Dodge, -1 Armor."],
+  wuchtgurt: ["Power Belt", "+3 Melee Damage, -3% Dodge."], heilkraut: ["Healing Herb", "+2 Regeneration, +2 Max HP."], stahlhaut: ["Steel Skin", "+2 Armor, +6 Max HP."], sparbuch: ["Savings Book", "+2 Harvest, -2% Damage."],
+  scharfes_auge: ["Sharp Eye", "+8% Crit Chance, +1 Ranged Damage."], elementarfokus: ["Elemental Focus", "+3 Elemental Damage, -1 Armor."], blutdurstamulett: ["Bloodlust Amulet", "+5% Lifesteal, -6 Max HP."], glueckskeks: ["Fortune Cookie", "+3 Luck, +1 Harvest."],
+  kampfnarben: ["Battle Scars", "+6% Crit Chance, +3% Damage."], schattenmantel: ["Shadow Cloak", "+8% Dodge, +4% Crit Chance."], panzerfaust: ["Armor Fist", "All cards: +1 damage per 3 Armor (max. +6)."], glueckspilz: ["Lucky Mushroom", "All cards: +1 damage per 3 Luck (max. +6)."],
+  schattenklinge: ["Shadow Blade", "All cards: +1 damage per 4% Dodge (max. +6)."], rotes_siegel: ["Red Seal", "+10% Damage, +4% Lifesteal, -10 Max HP."], koenigsring: ["King's Ring", "+4 Luck, +2 Harvest, +5% Damage, -1 Armor."],
+  wetzstein: ["Whetstone", "+2 Melee Damage."], koecher: ["Quiver", "+2 Ranged Damage."], grimoire: ["Grimoire", "+2 Elemental Damage."], lederweste: ["Leather Vest", "+8 Max HP, +1 Armor."], eisenpanzer: ["Iron Armor", "+2 Armor. First turn of every combat: 4 Block."],
+  eisenhelm: ["Iron Helmet", "+1 Armor. First turn of every combat: 6 Block."], vampirzahn: ["Vampire Fang", "+3% Lifesteal. Enemy defeated: heal 4 HP (max. 2/turn)."], leichtfuessig: ["Light-Footed", "+6% Dodge. First turn of every combat: dodge 2 hits."],
+  adlerauge: ["Eagle Eye", "+6% Crit Chance. Start of combat: all enemies marked for 2 turns."], dornenruestung: ["Spiked Mail", "+1 Armor. Whoever hits you takes 3 damage."],
 };
 
 __exports.EN_CARDS = EN_CARDS;
@@ -1562,12 +1631,12 @@ const EN_ENCOUNTERS = { kellerratten: "Cellar Rats (first fight)", rattenschwarm
 const EN_SKINS = { rotgardist: "Red Guard", nachtwache: "Night Watch", herbstlaeufer: "Autumn Runner", schneejaeger: "Snow Hunter", feuerrobe: "Fire Robe", mondrobe: "Moon Robe" };
 const EN_FRAMES = { bronze: "Bronze", eisen: "Iron", efeu: "Ivy", frost: "Frost", gold: "Gold", flamme: "Flame", prisma: "Prism", blut: "Blood", chrom: "Chrome" };
 const EN_CLASSES = {
-  nahkaempfer: { name: "Warrior", blurb: "Sturdy and straightforward: Block, weapon power and Bleed. Forgives mistakes.", perks: ["+ Lots of life: 90 Max HP", "+ Unyielding: 25% of Block becomes damage (max. 2)", "- No ranged or spell bonus"], passive: { name: "Unyielding", text: "At the end of your turn, 25% of your remaining Block is dealt as damage to the first enemy (at most 2)." } },
-  fernkaempfer: { name: "Ranger", blurb: "Fast and fragile: the more cards you play, the stronger each hit. Marking, multi-hits, dodging.", perks: ["+ One more card in hand (6)", "+ Multi-hits and Marking", "- Less life: 66 Max HP"] },
-  magier: { name: "Mage", blurb: "Mixing is rewarded: two different elements in a row trigger Reactions. Low HP, lots of combos.", perks: ["+ Reactions: 2 elements in a row = bonus effect", "- Low life: 70 Max HP", "- Hardly any Block"] },
-  pyromant: { name: "Pyromancer", blurb: "Plays with pain: every loss of HP sets enemies on fire, and the more he is missing, the harder he hits. In return he has little life.", perks: ["+ Pain Glow: losing HP = 1 Burn on all", "+ Burning Pain in the starting deck", "- Pitch Torch hurts you every turn", "- Only 80 Max HP"], passive: { name: "Pain Glow", text: "When you lose HP, all enemies get 1 Burn (at most 2x per turn)." } },
-  aristokrat: { name: "Aristocrat", blurb: "Gold is power: more loot, cheaper merchants and fixed income. In return he fights poorly and hardly recovers at rests.", perks: ["+ 30% Gold, Harvest 2, 40 starting Gold", "+ Patron: merchant prices -10%", "- Weak starting deck and weak weapon", "- Rest heals only 20%"], passive: { name: "Patron", text: "Patron: merchant prices -10%." } },
-  gaertnerin: { name: "Gardener", blurb: "Patient: plant cards and healing, she recovers after every combat. In return she has little life and a small hand.", perks: ["+ +3 HP after every combat", "+ Rootwork: plant cards +1 damage", "- Only 4 cards in hand", "- Only 64 Max HP"], passive: { name: "Rootwork", text: "Plant cards deal +1 damage." } },
+  nahkaempfer: { name: "Warrior", blurb: "Sturdy and straightforward: Block, weapon power and Bleed. Forgives mistakes.", perks: ["+ Lots of life: 90 Max HP", "+ Unyielding: 25% of Block becomes damage (max. 2)", "+ Armor 1, Melee Damage +2", "- No ranged or spell bonus"], passive: { name: "Unyielding", text: "At the end of your turn, 25% of your remaining Block is dealt as damage to the first enemy (at most 2)." } },
+  fernkaempfer: { name: "Ranger", blurb: "Fast and fragile: the more cards you play, the stronger each hit. Marking, multi-hits, dodging.", perks: ["+ One more card in hand (6)", "+ Multi-hits and Marking", "+ Dodge 6%, Crit 6%, Ranged Damage +2", "- Less life: 60 Max HP"] },
+  magier: { name: "Mage", blurb: "Mixing is rewarded: two different elements in a row trigger Reactions. Low HP, lots of combos.", perks: ["+ Reactions: 2 elements in a row = bonus effect", "+ Elemental Damage +3, Crit 8%", "- Low life: 70 Max HP"] },
+  pyromant: { name: "Pyromancer", blurb: "Plays with pain: every loss of HP sets enemies on fire, and the more he is missing, the harder he hits. In return he has little life.", perks: ["+ Pain Glow: losing HP = 1 Burn on all", "+ Burning Pain in the starting deck", "- Pitch Torch hurts you every turn", "+ Elemental Damage +3, Crit 5%", "- Only 80 Max HP"], passive: { name: "Pain Glow", text: "When you lose HP, all enemies get 1 Burn (at most 2x per turn)." } },
+  aristokrat: { name: "Aristocrat", blurb: "Gold is power: more loot, cheaper merchants and fixed income. In return he fights poorly and hardly recovers at rests.", perks: ["+ 30% Gold, Harvest 2, 40 starting Gold", "+ Patron: merchant prices -10%", "- Weak starting deck and weak weapon", "+ Luck 3, Armor 1", "- Rest heals only 20%"], passive: { name: "Patron", text: "Patron: merchant prices -10%." } },
+  gaertnerin: { name: "Gardener", blurb: "Patient: plant cards and healing, she recovers after every combat. In return she has little life and a small hand.", perks: ["+ +3 HP after every combat", "+ Rootwork: plant cards +1 damage", "- Only 4 cards in hand", "+ Lifesteal 4%, Dodge 8%", "- Only 64 Max HP"], passive: { name: "Rootwork", text: "Plant cards deal +1 damage." } },
 };
 const EN_EVENTS = {
   gluecksspieler: { name: "The Gambler", text: "A man with three cups challenges you.", choices: ["Bet 40 Gold (50%: 120 Gold)", "Walk on"] },
@@ -1662,6 +1731,11 @@ const EN_UI = {
   "Auf Update prüfen": "Check for update", "Jetzt aktualisieren": "Update now", "Neu laden": "Reload", "Prüfe …": "Checking…", "Du hast die neueste Version.": "You have the latest version.",
   "Update verfügbar! Ein laufender Kampf wird dabei nicht gespeichert.": "Update available! A combat in progress is not saved.", "Prüfen nicht möglich. Lade die Seite neu, um sicher die neueste Version zu haben.": "Can't check. Reload the page to be sure you have the latest version.",
   "Das Spiel wurde aktualisiert. Dein angefangener Run passt nicht mehr dazu und wurde beendet und gezählt.": "The game was updated. Your run in progress no longer fits and was ended and counted.", "Erfolge, Entdeckungen, Freischaltungen und Shinys sind übernommen.": "Achievements, discoveries, unlocks and Shinies were carried over.", "Neue Version": "New version",
+  "Rüstung": "Armor", "Regeneration": "Regeneration", "Lebensraub %": "Lifesteal %", "Schaden %": "Damage %", "Nahkampfschaden": "Melee Damage", "Fernkampfschaden": "Ranged Damage", "Elementarschaden": "Elemental Damage", "Krit-Chance %": "Crit Chance %", "Ausweichen %": "Dodge %", "Glück": "Luck", "Ernte": "Harvest",
+  "Handkarten": "Hand size", "% Gold": "% Gold", "Block/Zug": "Block/turn", "Shiny-Chance": "Shiny chance", "% Reaktionen": "% Reactions", "Einfrier-Hilfe": "Freeze help", "Aufstieg": "Level-up", "Erfahrung": "Experience",
+  "Mehr Lebenspunkte.": "More hit points.", "Heilung nach jedem Kampf.": "Healing after every combat.", "Heilt dich um einen Teil deines Kartenschadens.": "Heals you for part of your card damage.", "Alle Karten machen mehr Schaden.": "All cards deal more damage.",
+  "Mehr Schaden mit Nahkampfkarten.": "More damage with melee cards.", "Mehr Schaden mit Fernkampfkarten.": "More damage with ranged cards.", "Mehr Schaden mit Element- und Zauberkarten.": "More damage with element and spell cards.", "Chance auf einen kritischen Treffer (x1,5 Schaden).": "Chance for a critical hit (x1.5 damage).",
+  "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).": "Enemies deal less damage (15 Armor = half damage).", "Chance, dass ein Angriff danebengeht (höchstens 60 %).": "Chance that an attack misses (at most 60%).", "Bessere Seltenheiten bei Belohnungen und im Shop.": "Better rarities in rewards and in the shop.", "Festes Gold nach jedem Kampf.": "Fixed Gold after every combat.",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -1683,6 +1757,9 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^Werte · Stufe (\d+) \((\d+)\/(\d+) EP\)$/, (t, l, a, b) => `Stats · Level ${l} (${a}/${b} XP)`], [/^St\. (\d+)$/, (t, n) => `Lv ${n}`], [/^Stufe (I|II|III|IV)$/, (t, n) => `Tier ${n}`],
+  [/^Stufe (\d+): Wert-Aufstieg wählen( \((\d+) offen\))?$/, (t, l, x, n) => `Level ${l}: choose a stat upgrade${n ? ` (${n} open)` : ""}`],
+  [/^\+(\d+) (Max-HP|Regeneration|Lebensraub %|Schaden %|Nahkampfschaden|Fernkampfschaden|Elementarschaden|Krit-Chance %|Rüstung|Ausweichen %|Glück|Ernte)$/, (t, v, s) => `+${v} ${t(s)}`],
   [/^Version (.+)$/, (t, v) => `Version ${v}`],
   [/^(Gewöhnlich|Ungewöhnlich|Selten|Legendär) · Passt zu: (.+)$/, (t, r, c) => `${t(r)} · Fits: ${c}`],
   [/^Verband \+(\d+)% HP \((\d+)\)$/, (t, p, c) => `Bandage +${p}% HP (${c})`], [/^Trank \+(\d+) Max-HP \((\d+)\)$/, (t, m, c) => `Tonic +${m} Max HP (${c})`],
@@ -1780,6 +1857,44 @@ __exports.getLang = getLang;
 __exports.t = t;
 __exports.translateDom = translateDom;
 __exports.applyContentLanguage = applyContentLanguage;
+
+});
+__define("ui/theme.js", function (__exports, __require) {
+// Namen und Farben für die Oberfläche (keine Emojis, die Symbole kommen aus ui/art).
+const { CONTENT } = __require("content/index.js");
+
+const elementColor = (id) => CONTENT.elements[id]?.color ?? "#8a8a9a";
+const elementName = (id) => CONTENT.elements[id]?.name ?? id;
+
+// Status -> [Symbol-ID, Name]
+const STATUS = {
+  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"], frost: ["snow", "Kälte"], eingefroren: ["snow", "Eingefroren"],
+};
+const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
+const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
+const RARITY = { gewoehnlich: ["Gewöhnlich", "#9aa4b2"], ungewoehnlich: ["Ungewöhnlich", "#4fc27a"], selten: ["Selten", "#5aa0ff"], legendaer: ["Legendär", "#ffb347"] };
+const CLASS_ART = { nahkaempfer: "nahkaempfer", fernkaempfer: "fernkaempfer", magier: "magier" };
+
+// Werte (Brotato-Richtung): Kernwerte in fester Reihenfolge, dazu Spezialwerte der Items
+const CORE_STATS = ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"];
+const STAT_LABELS = { maxHp: "Max-HP", regen: "Regeneration", lifesteal: "Lebensraub %", damagePct: "Schaden %", meleeDmg: "Nahkampfschaden", rangedDmg: "Fernkampfschaden", elementDmg: "Elementarschaden", crit: "Krit-Chance %", armor: "Rüstung", dodge: "Ausweichen %", luck: "Glück", ernte: "Ernte",
+  energy: "Energie", handSize: "Handkarten", goldPct: "% Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "% Reaktionen", freezeEase: "Einfrier-Hilfe" };
+const STAT_DESC = { maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
+const TIER_NAME = ["I", "II", "III", "IV"];
+const TIER_COLOR = ["#9aa0a6", "#4a8fd8", "#a45bd6", "#e8a33d"];
+
+__exports.elementColor = elementColor;
+__exports.elementName = elementName;
+__exports.STATUS = STATUS;
+__exports.NODE_ICON = NODE_ICON;
+__exports.NODE_NAME = NODE_NAME;
+__exports.RARITY = RARITY;
+__exports.CLASS_ART = CLASS_ART;
+__exports.CORE_STATS = CORE_STATS;
+__exports.STAT_LABELS = STAT_LABELS;
+__exports.STAT_DESC = STAT_DESC;
+__exports.TIER_NAME = TIER_NAME;
+__exports.TIER_COLOR = TIER_COLOR;
 
 });
 __define("engine/rng.js", function (__exports, __require) {
@@ -1940,7 +2055,7 @@ const get = (kind, id) => {
 };
 
 // Alle Werte, die Items über "stats" verändern können (werden über alle Items summiert, auch gestapelt).
-const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
+const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
 function resolveBuild(spec) {
@@ -1992,6 +2107,7 @@ function magnitude(eff, build, ctx = {}) {
   if (eff.perHandCard) v *= ctx.hand ?? 0;                                                                // z. B. 1 HP je Karte auf der Hand (Wuchernde Wurzeln)
   if (eff.perMissingHp) v += Math.floor(Math.max(0, (ctx.maxHp ?? 0) - (ctx.hp ?? 0)) / eff.perMissingHp.step) * eff.perMissingHp.value;   // z. B. +0,1 je 5 fehlende HP
   if (eff.perTag) v *= tagCount(build, eff.perTag, eff.scope);
+  if (eff.perStat) v *= Math.floor(Math.max(0, build.stats[eff.perStat.stat] ?? 0) / eff.perStat.step);          // z. B. +1 Schaden je 3 Rüstung
   if (eff.perDistinct) v *= distinctTypes(build, eff.scope);
   return eff.cap !== undefined ? Math.min(v, eff.cap) : v;
 }
@@ -2038,6 +2154,9 @@ function computeDamage({ build, card, action, target, playsBefore = 0, hp = 0, m
     const m = magnitude(eff, build, { hp, maxHp, gold });
     if (eff.op === "add") add += m; else if (eff.op === "pct") pct += m; else if (eff.op === "baseadd") baseAdd += m; else xm += m;
   }
+  { const S = build.stats, tg = card.tags ?? [];                                       // Kernwerte: Nahkampf-, Fernkampf-, Elementarschaden (flach je Treffer) und Schaden % (alles)
+    if (tg.includes("nahkampf")) add += S.meleeDmg; if (tg.includes("fernkampf")) add += S.rangedDmg; if ((action.element ?? card.element) || tg.includes("zauber")) add += S.elementDmg;
+    pct += S.damagePct / 100; }
   base += baseAdd;                                                // "baseadd": Grundschaden (vor dem weichen Deckel der flachen Boni), z. B. aus Gold
   if (add > B.softCapAdd) add = B.softCapAdd + (add - B.softCapAdd) / 2;
   pct = Math.min(pct, B.maxMultBonus);
@@ -2276,6 +2395,10 @@ function damagePlayer(s, amount, source, attacker) {
     fx(s, { t: "dodge", uid: attacker?.uid });
     return;
   }
+  const dd = Math.min(CONFIG.balance.dodgeCap, s.build.stats.dodge ?? 0);                    // Ausweichen (Wert): Chance, dass ein Angriff ganz danebengeht
+  if (dd > 0 && s.rng.next() * 100 < dd) { log(s, `  ${source} verfehlt dich (Ausweichwert)`); fx(s, { t: "dodge", uid: attacker?.uid }); s.metrics.dodges = (s.metrics.dodges ?? 0) + 1; return; }
+  const ar = s.build.stats.armor ?? 0, K = CONFIG.balance.armorK;                              // Rüstung (Wert): senkt den Schaden vor dem Block, negative Rüstung erhöht ihn
+  if (ar !== 0 && amount > 0) amount = Math.max(1, Math.round(ar > 0 ? (amount * K) / (K + ar) : amount * (1 + -ar / K)));
   const absorbed = Math.min(s.player.block, amount);
   s.player.block -= absorbed;
   const lost = amount - absorbed;
@@ -2408,11 +2531,15 @@ function runActions(s, def, chosen) {
     if (action.action === "damage") {
       for (const t of targets) {
         for (let h = 0; h < (action.hits ?? 1); h++) {
-          const { amount, detail } = computeDamage({ build: s.build, card: def, action, target: t, playsBefore: s.playsThisTurn - 1, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
+          let { amount, detail } = computeDamage({ build: s.build, card: def, action, target: t, playsBefore: s.playsThisTurn - 1, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
+          let crit = false;
+          if ((s.build.stats.crit ?? 0) > 0 && s.rng.next() * 100 < s.build.stats.crit) { amount = Math.floor(amount * CONFIG.balance.critMult); crit = true; s.metrics.crits = (s.metrics.crits ?? 0) + 1; }   // kritischer Treffer
           s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
-          const note = detail.elem > 1 ? " [sehr effektiv]" : detail.elem < 1 ? " [resistent]" : "";
+          const note = (detail.elem > 1 ? " [sehr effektiv]" : detail.elem < 1 ? " [resistent]" : "") + (crit ? " [KRITISCH]" : "");
           const wasAlive = t.hp > 0;
           const lost = dealDamage(s, t, amount, def.name, { note });
+          const ls = s.build.stats.lifesteal ?? 0;                                                // Lebensraub (Wert): Anteil des Kartenschadens als Heilung, Reste werden gesammelt
+          if (ls > 0 && lost > 0) { s.lsAcc = (s.lsAcc ?? 0) + (lost * ls) / 100; const h = Math.floor(s.lsAcc); if (h > 0) { s.lsAcc -= h; healPlayer(s, h); } }
           if (action.lifesteal && lost > 0) healPlayer(s, lost);                                   // Blutsauger-Ranke: Heilung in Höhe des verursachten Schadens
           if (action.onKill && wasAlive && t.hp === 0) gainGold(s, action.onKill.gold);            // Taschendiebstahl: Kopfgeld, wenn DIESE Karte tötet
         }
@@ -3128,6 +3255,7 @@ function createRun({ classId = "nahkaempfer", seed = (Date.now() >>> 0), difficu
     deck: [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
+    xp: 0, level: 0, upStats: {}, pendingLevels: 0,
     stats: { fights: 0, elites: 0, minibosses: 0, nodes: 0, shinyEnemies: 0, shinyLoot: 0, goldEarned: 0, purchases: 0 },
   };
   run.maxHp = computeMaxHp(run);
@@ -3166,6 +3294,7 @@ const takeNewAchievements = (run) => (run?.achQueue ?? []).splice(0);
 const specOf = (run) => {
   const cls = CONTENT.classes[run.classId];
   const stats = { ...cls.stats, luck: (cls.stats.luck ?? 0) + (run.shinyHero ? CONFIG.shiny.heroLuck : 0) };   // Chrom-Held: +1 Glück
+  for (const [k, v] of Object.entries(run.upStats ?? {})) stats[k] = (stats[k] ?? 0) + v;                    // Wert-Aufstiege aus Erfahrung
   return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
 };
 const buildOf = (run) => resolveBuild(specOf(run));
@@ -3254,6 +3383,28 @@ function startCombat(run, nodeKind, layer) {
 }
 
 // Aufruf, wenn pending.combat.result gesetzt ist (won/lost)
+const xpNeed = (level) => CONFIG.xp.base + CONFIG.xp.step * level;
+const xpOf = (enemyId) => Math.max(1, Math.round((CONTENT.enemies[enemyId]?.hp ?? 10) / CONFIG.xp.hpPerXp));
+// Vier verschiedene Wert-Angebote; die Stufe (I bis IV) hängt von Level und Glück ab
+function makeLevelChoices(run) {
+  const U = CONFIG.upgrades, luck = buildOf(run).stats.luck, shift = run.level * U.tierShiftPerLevel + luck * U.tierShiftPerLuck;
+  const pool = [...U.stats], out = [];
+  while (out.length < 4 && pool.length) {
+    const stat = pool.splice(Math.floor(run.rng.next() * pool.length), 1)[0];
+    const w = U.tierChance.map((p, i) => Math.max(0.001, p + (i - 1.2) * shift * 0.5)), sum = w.reduce((a, b) => a + b, 0);
+    let r = run.rng.next() * sum, tier = 0; while (tier < 3 && r > w[tier]) { r -= w[tier]; tier++; }
+    out.push({ stat, tier, value: U.values[stat][tier] });
+  }
+  return out;
+}
+function takeLevelUp(run, index) {
+  const r = run.pending?.reward, ch = r?.levelChoices?.[index];
+  if (run.phase !== "reward" || !ch || run.pendingLevels <= 0) return fail("Ungültige Wahl");
+  run.upStats[ch.stat] = (run.upStats[ch.stat] ?? 0) + ch.value; run.pendingLevels--;
+  if (ch.stat === "maxHp") { run.maxHp = computeMaxHp(run); run.hp += ch.value; }
+  r.levelChoices = run.pendingLevels > 0 ? makeLevelChoices(run) : [];
+  return ok({ stat: ch.stat, value: ch.value });
+}
 function completeCombat(run) {
   if (run.phase !== "combat") return fail("Kein Kampf aktiv");
   const { combat, kind } = run.pending;
@@ -3263,6 +3414,8 @@ function completeCombat(run) {
   run.stats.goldEarned += combat.goldGained;
   if (combat.maxHpGain) { run.bonusMaxHp += combat.maxHpGain; run.maxHp = computeMaxHp(run); }  // Photosynthese: dauerhaft (die HP wurden im Kampf schon erhöht)
   run.stats.fights++;
+  run.xp += combat.killLog.reduce((a, k) => a + xpOf(k.id), 0);                              // Erfahrung für besiegte Gegner, volle Leiste = Aufstieg
+  while (run.xp >= xpNeed(run.level)) { run.xp -= xpNeed(run.level); run.level++; run.pendingLevels++; }
   if (kind === "elite") run.stats.elites++;
   if (kind === "miniboss") run.stats.minibosses++;
   if (run.meta) {                                         // Zähler und Erfolge (auch bei Niederlage zählen besiegte Gegner)
@@ -3289,7 +3442,8 @@ function completeCombat(run) {
   run.stats.goldEarned += gold;
   queueAch(run, { type: "state" });                       // z. B. 500 Gold gleichzeitig
 
-  const reward = { gold, shinyBonus: bonus, overkillGold, harvest, midas: midas > 1, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
+  const levelChoices = run.pendingLevels > 0 ? makeLevelChoices(run) : [];
+  const reward = { levelChoices, gold, shinyBonus: bonus, overkillGold, harvest, midas: midas > 1, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
   if (kind === "elite" || kind === "miniboss" || run.rng.next() < CONFIG.run.normalItemChance) {
     reward.items = generateItemChoices(ctx).map((d) => d.id);
   }
@@ -3552,6 +3706,10 @@ __exports.ctxOf = ctxOf;
 __exports.startAdventure = startAdventure;
 __exports.availableNodes = availableNodes;
 __exports.enterNode = enterNode;
+__exports.xpNeed = xpNeed;
+__exports.xpOf = xpOf;
+__exports.makeLevelChoices = makeLevelChoices;
+__exports.takeLevelUp = takeLevelUp;
 __exports.completeCombat = completeCombat;
 __exports.takeCard = takeCard;
 __exports.takeItem = takeItem;
@@ -4201,6 +4359,15 @@ Object.assign(ITEM_ART, {
   glutherz: ["heart", "schatten", "flame"], schmerzkelch: ["chalice", "blut", "flame"], phoenixblut: ["vial", "feuer", "wing"],
   goldener_zahn: ["fang", "gold", "coin"], bankier: ["scales", "gold", "coin"], kronjuwelen: ["crown", "gold", "coin"],
   gruener_daumen: ["clover", "pflanze", "leaf"], erntekorb: ["bowl", "pflanze", "leaf"], weltenbaum: ["log", "pflanze", "leaf"],
+});
+
+// Wert-Items (content/packs/stat_items.js)
+Object.assign(ITEM_ART, {
+  kraftring: ["ring", "blut", null], kriegsbemalung: ["pouch", "blut", "bolt"], gewichtsweste: ["backpack", "eisen", null], federstiefel: ["boot", "wasser", "wing"],
+  wuchtgurt: ["belt", "stein", "skull"], heilkraut: ["clover", "pflanze", "drop"], stahlhaut: ["chest", "gold", "thorn"], sparbuch: ["book", "gold", "coin"],
+  scharfes_auge: ["eye", "gold", "bolt"], elementarfokus: ["lens", "arkan", "flame"], blutdurstamulett: ["medal", "blut", "drop"], glueckskeks: ["bread", "gold", "coin"],
+  kampfnarben: ["razor", "knochen", "skull"], schattenmantel: ["cloak", "schatten", null], panzerfaust: ["hammer", "stein", "thorn"], glueckspilz: ["stone", "pflanze", "leaf"],
+  schattenklinge: ["dagger", "schatten", "wing"], rotes_siegel: ["scroll", "blut", "flame"], koenigsring: ["ring", "prisma", "coin"],
 });
 
 __exports.SHAPES = SHAPES;
@@ -5613,31 +5780,6 @@ __exports.cardIconId = cardIconId;
 __exports.elementIconId = elementIconId;
 
 });
-__define("ui/theme.js", function (__exports, __require) {
-// Namen und Farben für die Oberfläche (keine Emojis, die Symbole kommen aus ui/art).
-const { CONTENT } = __require("content/index.js");
-
-const elementColor = (id) => CONTENT.elements[id]?.color ?? "#8a8a9a";
-const elementName = (id) => CONTENT.elements[id]?.name ?? id;
-
-// Status -> [Symbol-ID, Name]
-const STATUS = {
-  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"], frost: ["snow", "Kälte"], eingefroren: ["snow", "Eingefroren"],
-};
-const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
-const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
-const RARITY = { gewoehnlich: ["Gewöhnlich", "#9aa4b2"], ungewoehnlich: ["Ungewöhnlich", "#4fc27a"], selten: ["Selten", "#5aa0ff"], legendaer: ["Legendär", "#ffb347"] };
-const CLASS_ART = { nahkaempfer: "nahkaempfer", fernkaempfer: "fernkaempfer", magier: "magier" };
-
-__exports.elementColor = elementColor;
-__exports.elementName = elementName;
-__exports.STATUS = STATUS;
-__exports.NODE_ICON = NODE_ICON;
-__exports.NODE_NAME = NODE_NAME;
-__exports.RARITY = RARITY;
-__exports.CLASS_ART = CLASS_ART;
-
-});
 __define("ui/widgets.js", function (__exports, __require) {
 // Wiederverwendbare Bausteine als HTML-Strings: Symbole, Karten, Items, Balken, Logo. Keine Emojis, alles aus ui/art.
 const { CONTENT } = __require("content/index.js");
@@ -6294,6 +6436,8 @@ const { tagCount } = __require("engine/modifiers.js");
 const { maxDifficulty, describeUnlock, isUnlocked } = __require("engine/meta.js");
 const { dexProgress } = __require("engine/dex.js");
 const { storyLines, storySpeaker } = __require("engine/story.js");
+const { CORE_STATS, STAT_LABELS, STAT_DESC, TIER_NAME, TIER_COLOR } = __require("ui/theme.js");
+const { xpNeed } = __require("engine/run.js");
 const { esc, needsTarget, describeWeapon, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
 const { achievementsView, cosmeticsView } = __require("ui/achview.js");
 const { spr, elementIconId } = __require("ui/art/index.js");
@@ -6308,7 +6452,7 @@ const sceneExt = (ui, areaH) => Math.max(0, Math.round((232 * ((ui.stageW ?? 800
 function hud(ui) {
   const run = ui.run, cls = CONTENT.classes[run.classId];
   const where = run.nodeId ? `Ebene ${currentLayer(run) + 1}/${CONFIG.map.layers}` : "Start";
-  return `<div class="hud"><div class="hud-l">${ico("heart", 18)}<span class="hudhp">${run.hp}/${run.maxHp}</span>${ico("coin", 18)}<b class="gold">${run.gold}</b></div>
+  return `<div class="hud"><div class="hud-l">${ico("heart", 18)}<span class="hudhp">${run.hp}/${run.maxHp}</span>${ico("coin", 18)}<b class="gold">${run.gold}</b><span class="xpbar" title="Erfahrung"><b>St. ${run.level + 1}</b><i style="width:${Math.round((100 * run.xp) / xpNeed(run.level))}%"></i></span></div>
     <div class="hud-m">${esc(cls.name)} · ${esc(CONFIG.difficulty[run.difficulty].name)} · ${where}</div>
     <div class="hud-r">${ibtn("pile", "show-deck", "Deck", `<span class="cnt">${run.deck.length}</span>`)}${ibtn("bag", "show-items", "Ausrüstung", `<span class="cnt">${run.items.length + 1}</span>`)}${ibtn("menu", "show-menu", "Menü")}</div></div>`;
 }
@@ -6431,13 +6575,16 @@ function rewardView(ui) {
   const run = ui.run, r = run.pending.reward, t = r.taken, build = buildOf(run), cur = CONTENT.get("weapons", run.weapon);
   // Eine Kategorie pro Reiter: so sieht man jede Auswahl in Ruhe, ohne zu scrollen (auch bei Chrom-Beute)
   const cats = [];
+  if (r.levelChoices?.length) cats.push({ key: "level", label: "Aufstieg", kind: "level", title: `Stufe ${run.level + 1}: Wert-Aufstieg wählen${run.pendingLevels > 1 ? ` (${run.pendingLevels} offen)` : ""}`, cls: "good" });
   if (r.shinyItems.length) cats.push({ key: "shinyItems", label: "Chrom-Item", kind: "items", ids: r.shinyItems, title: "Chrom-Fund: Item (wähle 1)", cls: "chrome" });
   if (r.shinyWeapons?.length) cats.push({ key: "shinyWeapons", label: "Chrom-Waffe", kind: "weapons", ids: r.shinyWeapons, title: `Chrom-Fund: Waffe (aktuell: ${cur.name}, Stärke ${cur.power})`, cls: "chrome" });
   cats.push({ key: "cards", label: "Karte", kind: "cards", ids: r.cards, title: "Karte wählen (oder überspringen)" });
   if (r.items.length) cats.push({ key: "items", label: "Item", kind: "items", ids: r.items, title: "Item wählen" });
   if (r.weapons.length) cats.push({ key: "weapons", label: "Waffe", kind: "weapons", ids: r.weapons, title: `Waffe tauschen? (aktuell: ${cur.name}, Stärke ${cur.power})` });
   const sel = cats.find((c) => c.key === ui.tab.reward) ?? cats.find((c) => !t[c.key]) ?? cats[0];
-  const slots = sel.kind === "cards"
+  const slots = sel.kind === "level"
+    ? `<div class="items3 lv4">${r.levelChoices.map((c, i) => `<div class="slot"><div class="itemcard upg" style="--rar:${TIER_COLOR[c.tier]}"><div class="i-body"><b>+${c.value} ${STAT_LABELS[c.stat]}</b><span class="rar" style="color:${TIER_COLOR[c.tier]}">Stufe ${TIER_NAME[c.tier]}</span><span class="d">${esc(STAT_DESC[c.stat])}</span></div></div>${btn("Nehmen", "take-level", String(i), { cls: "small good" })}</div>`).join("")}</div>`
+    : sel.kind === "cards"
     ? `<div class="cards3">${sel.ids.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}</div>`).join("")}</div>`
     : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind)}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
   const tabs = cats.length > 1 ? `<div class="tabs">${cats.map((c) => `<span class="tab ${c.key === sel.key ? "on" : ""}"${at("set-tab", "reward", c.key)}>${t[c.key] ? "✓ " : ""}${c.label}</span>`).join("")}</div>` : "";
@@ -6533,12 +6680,14 @@ function overlayView(ui) {
   if (o === "deck") return `<div class="overlay"><div class="sheet"><h2>Dein Deck (${run.deck.length})</h2><div class="grid">${groupedDeck(run).map((g) => cardHtml(g.def, { size: "lg", build, count: g.idxs.length })).join("")}</div>${close}</div></div>`;
   if (o === "items") {
     const weapon = CONTENT.get("weapons", run.weapon);
-    const labels = { luck: "Glück", maxHp: "Max-HP", energy: "Energie", handSize: "Handkarten", goldPct: "% Gold", regen: "Regeneration", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "% Reaktionen" };
-    const stats = Object.entries(build.stats).filter(([, v]) => v).map(([k, v]) => `<span class="chip">${v > 0 ? "+" : ""}${v} ${labels[k] ?? k}</span>`).join(" ");
+    const labels = STAT_LABELS;
+    const sv = (k) => (k === "maxHp" ? run.maxHp : build.stats[k] ?? 0);
+    const grid = `<div class="statgrid">${CORE_STATS.map((k) => `<div class="stat" title="${esc(STAT_DESC[k])}"><span class="k">${labels[k]}</span><b class="${k !== "maxHp" && sv(k) < 0 ? "bad" : k !== "maxHp" && sv(k) > 0 ? "good" : ""}">${k !== "maxHp" && sv(k) > 0 ? "+" : ""}${sv(k)}</b></div>`).join("")}</div>`;
+    const stats = grid + `<div class="chips">${Object.entries(build.stats).filter(([k, v]) => v && !CORE_STATS.includes(k)).map(([k, v]) => `<span class="chip">${v > 0 ? "+" : ""}${v} ${labels[k] ?? k}</span>`).join(" ")}</div>`;
     const tags = [...new Set([...CONFIG.typeTags, ...Object.keys(CONTENT.elements)])].map((t) => [t, tagCount(build, t)]).filter(([, n]) => n > 0)
       .map(([t, n]) => `<span class="chip">${CONTENT.elements[t] ? ico(elementIconId(t), 12) + " " : ""}${esc(t)} ${n}</span>`).join(" ");
     return `<div class="overlay"><div class="sheet stack"><h2>Ausrüstung</h2><div class="grid2">${itemHtml(weapon, "weapons")}${run.items.map((id) => itemHtml(CONTENT.get("items", id))).join("")}</div>
-      ${run.items.length ? "" : "<div class='muted'>Noch keine Items.</div>"}${stats ? `<h3>Werte</h3><div class="chips">${stats}</div>` : ""}${tags ? `<h3>Typen im Build (für Synergien)</h3><div class="chips">${tags}</div>` : ""}${close}</div></div>`;
+      ${run.items.length ? "" : "<div class='muted'>Noch keine Items.</div>"}<h3>Werte · Stufe ${run.level + 1} (${run.xp}/${xpNeed(run.level)} EP)</h3>${stats}${tags ? `<h3>Typen im Build (für Synergien)</h3><div class="chips">${tags}</div>` : ""}${close}</div></div>`;
   }
   if (o === "pick-remove") return `<div class="overlay"><div class="sheet"><h2>Welche Karte entfernen?</h2><div class="grid">${groupedDeck(run).map((g) =>
     `<div class="slot">${cardHtml(g.def, { size: "lg", build, count: g.idxs.length })}${btn("Entfernen", "pick-remove", String(g.idxs[0]), { cls: "small danger" })}</div>`).join("")}</div>${close}</div></div>`;
@@ -6601,8 +6750,9 @@ __define("ui/controller.js", function (__exports, __require) {
 // dispatch(action, arg, arg2) verändert den Zustand und gibt false zurück, wenn kein Neuzeichnen nötig ist.
 const { CONTENT } = __require("content/index.js");
 const { applyContentLanguage } = __require("ui/i18n.js");
+const { STAT_LABELS } = __require("ui/theme.js");
 const { CONFIG } = __require("data/config.js");
-const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
+const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, takeLevelUp, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
 const { playCard, endPlayerTurn, useItem, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
 const { createMeta, normalizeMeta, recordRun, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
@@ -6855,6 +7005,17 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "after-combat": if (inPhase("combat")) { const r = completeCombat(run); if (!r.ok) toast(r.reason); ui.selected = null; ui.tab.reward = null; } break;
 
       // ---- Belohnung
+      case "take-level": {
+        const r = takeLevelUp(run, Number(arg));
+        toast(r.ok ? `+${r.value} ${STAT_LABELS[r.stat]}` : r.reason);
+        if (r.ok) {
+          ui.tab.reward = null;
+          const rw = run.pending.reward, t = rw.taken;
+          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length], ["level", rw.levelChoices?.length]].filter(([k, n]) => n && !t[k]);
+          if (!open.length) { const f = finishReward(run); if (!f.ok) toast(f.reason); }
+        }
+        break;
+      }
       case "take": {
         const fn = { cards: takeCard, items: takeItem, weapons: takeWeapon, shinyItems: takeShinyItem, shinyWeapons: takeShinyWeapon }[arg];
         const r = fn ? fn(run, Number(arg2)) : { ok: false, reason: "Unbekannte Liste" };
@@ -6863,7 +7024,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
           ui.tab.reward = null;                                                // nach einer Wahl zum nächsten offenen Reiter
           // Sind alle Auswahlen getroffen, geht es von selbst weiter (kein extra "Weiter" mehr nötig). Wer etwas auslassen will, tippt oben auf "Weiter".
           const rw = run.pending.reward, t = rw.taken;
-          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length]].filter(([k, n]) => n && !t[k]);
+          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length], ["level", rw.levelChoices?.length]].filter(([k, n]) => n && !t[k]);
           if (!open.length) { const f = finishReward(run); if (!f.ok) toast(f.reason); }
         }
         break;

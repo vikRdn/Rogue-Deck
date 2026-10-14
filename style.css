@@ -582,3 +582,10 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .rw-body .items3{justify-content:center;max-width:640px;width:100%}.rw-body>h3{width:100%}
 .rw-body .list,.rw-body .rw-lists{justify-content:center;width:100%}
 .settings .muted.small.upd{display:block!important;font-size:10px}
+
+/* ---- Werte (Charakterbogen) und Aufstieg */
+.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 10px;margin:4px 0}.stat{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dotted var(--line);padding:1px 0;font-size:11px}.stat b.good{color:#2f8a3d}.stat b.bad{color:#b4372a}
+.xpbar{position:relative;display:inline-block;min-width:44px;height:16px;margin-left:8px;background:var(--panel2);border:2px solid var(--line);vertical-align:middle;overflow:hidden}.xpbar b{position:relative;z-index:1;font-size:10px;padding:0 4px;color:var(--ink)}.xpbar i{position:absolute;left:0;top:0;bottom:0;background:#8fd16a;opacity:.7}
+.itemcard.upg{min-height:64px;border-color:var(--rar)}.itemcard.upg b{font-size:14px}
+.compact .statgrid,.tiny .statgrid{grid-template-columns:repeat(3,1fr);font-size:10px}
+.rw-body .items3.lv4{grid-template-columns:repeat(4,minmax(0,1fr));max-width:none}.items3.lv4 .itemcard.upg b{font-size:12px}
