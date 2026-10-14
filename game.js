@@ -12,7 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "3.0",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "3.2",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 5, maxHp: 70 },
 
   balance: {
@@ -58,6 +58,7 @@ const CONFIG = {
     priceVariance: 0.15,   // +-15 % Zufallsschwankung
     startDiscount: 0.5,
     inflationPerFight: 0.04,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
+    services: { heal: { price: 45, pct: 0.3, step: 15 }, vitality: { price: 90, maxHp: 6 } },   // Dienste beim Händler: Verband (heilt, wird teurer) und Stärkungstrank (+Max-HP, einmal je Besuch)
     removeBase: 50, removeIncrement: 25,
     rerollBase: 10, rerollMult: 2,
   },
@@ -80,7 +81,7 @@ const CONFIG = {
     layers: 10,                 // Ebenen vor dem Boss
     width: [3, 4],              // Knoten pro Ebene (min, max)
     skipEdgeChance: 0.2,        // Chance auf Abkürzung (überspringt eine Ebene) -> Run-Länge hängt vom Weg ab
-    minibossLayer: 5, restBeforeMiniboss: true,           // Pflicht-Ebene mit Mini-Bossen (nicht überspringbar)
+    minibossLayer: 5, restBeforeMiniboss: true, merchantLayers: [2, 7], merchantShare: 0.5,   // auf diesen Ebenen ist mindestens die Hälfte der Orte ein Händler           // Pflicht-Ebene mit Mini-Bossen (nicht überspringbar)
     firstEncounter: "kellerratten",   // Ebene 0 hat genau EINEN Ort mit diesem festen Kampf, danach beginnt die Wegwahl
     nodeWeights: { kampf: 48, ereignis: 18, haendler: 9, rast: 12, elite: 13 },
     minLayer: { elite: 3, rast: 2, haendler: 2 },
@@ -1596,6 +1597,8 @@ const EN_UI = {
   "Das Spiel wurde aktualisiert. Dein angefangener Run passt nicht mehr dazu und wurde verworfen.": "The game was updated. Your run in progress no longer fits and was discarded.", "Spielstand war beschädigt": "Save was corrupted", "Spielstand passt nicht zur neuen Version und wurde verworfen": "Save doesn't match the new version and was discarded",
   "Nichts davon wird gespeichert oder zählt für deinen Fortschritt.": "None of this is saved or counts toward your progress.", "Über das Menü kommst du zurück.": "Use the menu to get back.",
   "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel.": "One tap plays the card. Tapping an enemy makes it the main target.", "Erst Karte wählen, dann Gegner antippen.": "Choose a card first, then tap an enemy.",
+  "Spielstand": "Save data", "Sichern (Datei)": "Back up (file)", "Laden (Datei)": "Restore (file)", "Ja, ersetzen": "Yes, replace", "Das ist keine Rogue-Deck-Sicherung": "This is not a Rogue-Deck backup", "Spielstand geladen": "Save loaded",
+  "Verband angelegt": "Bandage applied", "Stärkungstrank getrunken": "Tonic drunk", "Du bist bei vollen HP": "You are at full HP",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet, sobald du keine Karte mehr spielen kannst.": "Automatic: your turn ends as soon as you can't play a card.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -1617,6 +1620,8 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^Verband \+(\d+)% HP \((\d+)\)$/, (t, p, c) => `Bandage +${p}% HP (${c})`], [/^Trank \+(\d+) Max-HP \((\d+)\)$/, (t, m, c) => `Tonic +${m} Max HP (${c})`],
+  [/^Sicherung ersetzen\? Siege (\d+), Runs (\d+)(, Run in Arbeit)?\. Dein jetziger Fortschritt wird überschrieben\.$/, (t, w, r, x) => `Replace backup? Wins ${w}, runs ${r}${x ? ", run in progress" : ""}. Your current progress will be overwritten.`],
   [/^Tempo x(\d)$/, (t, n) => `Speed x${n}`], [/^Siege (\d+) · Runs (\d+) · Shinys (\d+)$/, (t, a, b, c) => `Wins ${a} · Runs ${b} · Shinies ${c}`],
   [/^Items: (\d+) von (\d+) als Shiny gefunden$/, (t, a, b) => `Items: ${a} of ${b} found as Shiny`], [/^(Helden|Karten|Waffen|Gegner): (\d+) von (\d+) als Shiny gefunden$/, (t, k, a, b) => `${t(k)}: ${a} of ${b} found as Shiny`],
   [/^(\d+) von (\d+)$/, (t, a, b) => `${a} of ${b}`], [/^Platten (\d+)$/, (t, n) => `Plates ${n}`], [/^Preise: \+(\d+) % Inflation$/, (t, n) => `Prices: +${n}% inflation`],
@@ -1760,6 +1765,12 @@ __define("engine/map.js", function (__exports, __require) {
 // Dungeon-Karte: Ebenen mit verzweigten Pfaden, Abkürzungen (Run-Länge hängt vom Weg ab) und Pflicht-Ebenen.
 const { CONFIG } = __require("data/config.js");
 
+// Lage eines Knotens: x = Ebene, y = Spur (gleich wie in der Ansicht), damit "keine Kreuzungen" wirklich so gezeichnet wird
+const lane = (len, idx) => (idx + 1) / (len + 1);
+const same = (p, q) => p.x === q.x && p.y === q.y;
+const orient = (a, b, c) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+const cross = (a, b, c, d) => orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0;
+const findNodeIn = (layers, boss, id) => (id === "boss" ? boss : layers.flat().find((n) => n.id === id));
 function generateMap(rng) {
   const M = CONFIG.map, L = M.layers;
   const layers = [];
@@ -1770,40 +1781,48 @@ function generateMap(rng) {
   const boss = { id: "boss", layer: L, index: 0, type: "boss", next: [] };
   const link = (from, to) => { if (!from.next.includes(to.id)) from.next.push(to.id); };
 
-  // Verbindungen zur nächsten Ebene: jeder Knoten hat einen Ausgang, jeder Knoten einen Eingang
+  // Verbindungen zur nächsten Ebene OHNE Kreuzungen: ein zufälliger monotoner Weg durch beide Ebenen (von oben nach unten), jeder Knoten hat so einen Ein- und einen Ausgang
   for (let l = 0; l < L - 1; l++) {
     const a = layers[l], b = layers[l + 1];
-    a.forEach((node, i) => {
-      const base = a.length === 1 ? 0 : Math.round((i * (b.length - 1)) / (a.length - 1));
-      const j = Math.min(b.length - 1, Math.max(0, base + Math.floor(rng.next() * 3) - 1));
-      link(node, b[j]);
-    });
-    b.forEach((node, j) => {
-      if (a.some((x) => x.next.includes(node.id))) return;
-      const i = Math.min(a.length - 1, Math.round((j * (a.length - 1)) / Math.max(1, b.length - 1)));
-      link(a[i], node);
-    });
+    let i = 0, j = 0; link(a[0], b[0]);
+    while (i < a.length - 1 || j < b.length - 1) {
+      const opts = [];
+      if (i < a.length - 1) opts.push("i"); if (j < b.length - 1) opts.push("j"); if (i < a.length - 1 && j < b.length - 1) opts.push("ij", "ij");
+      const m = opts[Math.floor(rng.next() * opts.length)];
+      if (m !== "j") i++; if (m !== "i") j++;
+      link(a[i], b[j]);
+    }
   }
   layers[L - 1].forEach((n) => n.next.push(boss.id));
 
-  // Abkürzungen: eine Ebene überspringen (nie über die Mini-Boss-Ebene oder die Rast vor dem Boss)
+  // Abkürzungen: eine Ebene überspringen (nie über die Mini-Boss-Ebene oder die Rast vor dem Boss), aber nur wenn sie keinen Weg kreuzen und an keinem Ort vorbeiführen
+  const P = (n) => ({ x: n.layer, y: lane(n.id === "boss" ? 1 : layers[n.layer].length, n.index) });
+  const segs = () => layers.flat().flatMap((n) => n.next.map((id) => [P(n), P(findNodeIn(layers, boss, id))]));
   for (let l = 0; l < L - 2; l++) {
     if (l === 0 || l + 1 === M.minibossLayer || l + 1 === L - 1) continue;
     for (const node of layers[l]) {
       if (rng.next() >= M.skipEdgeChance) continue;
       const b = layers[l + 2];
       const j = Math.min(b.length - 1, Math.round((node.index * (b.length - 1)) / Math.max(1, layers[l].length - 1)));
-      link(node, b[j]);
+      const A = P(node), C = P(b[j]);
+      const passes = layers[l + 1].some((m) => Math.abs((A.y + C.y) / 2 - P(m).y) < 0.08);
+      if (!passes && !segs().some(([s, e]) => !(same(s, A) || same(s, C) || same(e, A) || same(e, C)) && cross(A, C, s, e))) link(node, b[j]);
     }
   }
 
   // Knotentypen: Ebene 0 = Kampf, Mini-Boss-Ebene, Rast vor dem Boss, sonst gewichtet mit Regeln
   const parentsOf = (node) => layers.flat().filter((x) => x.next.includes(node.id));
+  const forced = new Map();                                                   // Ebene -> Indizes der garantierten Händler
+  for (const l of M.merchantLayers ?? []) {
+    const idx = layers[l].map((_, i) => i); for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(rng.next() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    forced.set(l, new Set(idx.slice(0, Math.max(1, Math.ceil(layers[l].length * (M.merchantShare ?? 0.5))))));
+  }
   for (let l = 0; l < L; l++) {
     for (const node of layers[l]) {
       if (l === 0) node.type = "kampf";
       else if (l === M.minibossLayer) node.type = "miniboss";
       else if (l === L - 1) node.type = "rast";
+      else if (forced.get(l)?.has(node.index)) node.type = "haendler";           // garantierter Händler
       else if (M.restBeforeMiniboss && l === M.minibossLayer - 1) node.type = "rast";          // Rast vor dem Mini-Boss (dort starben die meisten Läufe)
       else {
         const parentTypes = new Set(parentsOf(node).map((p) => p.type));
@@ -1811,6 +1830,7 @@ function generateMap(rng) {
           .filter(([type]) => l >= (M.minLayer[type] ?? 0))
           .filter(([type]) => !(["rast", "haendler", "elite"].includes(type) && parentTypes.has(type)))
           .filter(([type]) => !(type === "rast" && l === L - 2))
+          .filter(([type]) => !(type === "haendler" && forced.has(l)))                // auf Händler-Ebenen sind die übrigen Orte keine weiteren Händler
           .filter(([type]) => !(type === "rast" && M.restBeforeMiniboss && l === M.minibossLayer - 2))      // keine zwei Rasten hintereinander
           .map(([value, weight]) => ({ value, weight }));
         node.type = rng.weighted(entries);
@@ -1836,6 +1856,8 @@ function pathLengths(map) {
   return [Math.min(...starts.map((s) => s[0])), Math.max(...starts.map((s) => s[1]))];
 }
 
+__exports.lane = lane;
+__exports.cross = cross;
 __exports.generateMap = generateMap;
 __exports.findNode = findNode;
 __exports.pathLengths = pathLengths;
@@ -2932,6 +2954,7 @@ function generateShop(ctx) {
     items: [...frozen, ...fresh],
     removeCost: removalCost(ctx.removedCards ?? 0), removals: 0,
     rerollCost: S.rerollBase, rerolls: 0,
+    services: [{ id: "heal", price: S.services.heal.price, uses: 0 }, { id: "vitality", price: S.services.vitality.price, sold: false }],
   };
 }
 
@@ -3290,6 +3313,19 @@ function shopBuy(run, kind, idx) {
   if (kind === "cards") addCard(run, res.id); else addItem(run, res.id);
   return res;
 }
+function shopService(run, id) {                                         // Dienste beim Händler: Verband und Stärkungstrank
+  if (run.phase !== "shop") return fail("Nicht im Shop");
+  const sv = run.pending.shop.services?.find((s) => s.id === id), S = CONFIG.shop.services;
+  if (!sv || sv.sold) return fail("Nicht verfügbar");
+  if (run.gold < sv.price) return fail("Zu wenig Gold");
+  if (id === "heal") {
+    if (run.hp >= run.maxHp) return fail("Du bist bei vollen HP");
+    run.gold -= sv.price; sv.uses++; sv.price += S.heal.step; healRun(run, Math.ceil(run.maxHp * S.heal.pct));
+  } else {
+    run.gold -= sv.price; sv.sold = true; run.maxHp += S.vitality.maxHp; run.hp += S.vitality.maxHp;
+  }
+  return ok();
+}
 function shopReroll(run) {
   if (run.phase !== "shop") return fail("Nicht im Shop");
   const res = rerollShop(run.pending.shop, ctxOf(run), run);
@@ -3456,6 +3492,7 @@ __exports.restHealAmount = restHealAmount;
 __exports.restHeal = restHeal;
 __exports.restRemove = restRemove;
 __exports.shopBuy = shopBuy;
+__exports.shopService = shopService;
 __exports.shopReroll = shopReroll;
 __exports.shopRemove = shopRemove;
 __exports.shopFreeze = shopFreeze;
@@ -4357,13 +4394,13 @@ const NPCS2 = {
   mira: { w: 40, h: 60, cells: R(["........................................","...................y....................","..................zzy...................",".................zzYYy..................",".............zy..zYYYy..zy..............",".............zYzzzYYYYzzzy..............",".............zYYYYYRRYYYYy..............",".............zYYYYYYYYYYYy..............",".............yyyyyyyyyyyyy..............","............MMMMMMMMMMMMMMn.............","........MMMMMNNNNNNNNNNNNNnMMnn.........","........MNNNMnnnnnnnnnnnnNnNNnn.........","........MNNNnnttsssssssssnnNNnn.........","........MMMMnttsssssssssssnMMMn.........","........MMNNntskksssssskksSMNNn.........","........MMNNntssussssssussSMNNn.........","........MMNNntssussssssussSMNNn.........","........MMNNnSsssssssssssSSMNNn.........",".......MMMNNnNSsssssssssSSNMNNnn........",".......MNMNNnNNSsssRRssSSNNMNNnn........",".......MNMNNnNNNSSSSSSSSNNNMNNnn........",".......MNMNNnNNNNtssssSNNNNMNNnn........",".......MMMNNnNNNNSSSSSSNNNNMNNNn........",".......MMNNNnNNNNNNNNNNNNNNMNNNn........","......PPMNNNnNNwwwwwwwwwBNNMNNNnPq......",".....PPQMNNNnPPwmmmmmmmmBPqMNNNnQQq.....","....PPQQMNNNnPQBBBBBBBBBBQqMNNNnQQQq....","....PQQQMNNNnPQQQQQQQQQQQQqMNNNnQQQq....","....qQQQMNNNnPQQQQQQQQQQQQqMNNNnQQqq....",".....wwwMNNNnPQQQQQQQQQQQQqMNNNnwwB.....",".....wmmMNNNnPQQQQQQQQQQQQqMNNNnmmB.....",".....wmmnNNNnPQQQQQQQQQQQQqMNNnnmmB.....",".....wmmBMNNnPQQQQQQQQQQQQqMNNnwmmB.....",".....wmmBnNNnPQQQQQQQQQQQQqMNnnwmmB.....",".....wmmBQMnnYYYYYYOOYYYYYYnNnqwmmB.....",".....wmmBQnnQYYYYYJwwUYYYYYQnnqwmmB.....",".....wmmBQQQQQQQQQJwwUQQQQQQQQqwmmB.....",".....wmmBQQQQQQQQQQFFQQQQQQQQQqwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....tttSQQQQQQQQQQQQQQQQQQQQQQtttS.....",".....tssSQQQQQQQQQQQQQQQQQQQQQQtssS.....","....StssSSQQQQQQQQQQQQQQQQQQQQStssSS....",".....tssSQQQQQQQQQQQQQQQQQQQQQQtssS.....",".....SSSSQQQQQQQQQQQQQQQQQQQQQQSSSS.....",".....PQQQQQQQQQQQQQQQQQQQQQQQQQQqq......","....PPQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","...PPQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","..qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq...","..YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY..","..YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY..","........................................"]), px: 1.55, hand: [36,43] },
 };
 const RIGS2 = {
-  nahkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.6949],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"plume","parent":"up","box":[0.4359,0,0.7179,0.1356],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.8}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":4.6,"at":0.8}]},
+  nahkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.6949],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"plume","parent":"up","box":[0.4359,0,0.7179,0.1356],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.8,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":4.6,"at":0.8}]},
   fernkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7119],"seq":[[0,0],[0,1]],"dur":2},{"id":"hood","parent":"up","box":[0.2564,0,0.7436,0.322],"seq":[[0,0],[0,0],[1,0],[1,0],[0,0],[0,0],[-1,0],[-1,0]],"dur":4.4,"under":true},{"id":"cl","parent":"up","box":[0.0769,0.4068,0.2051,0.7797],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.8,"under":true},{"id":"cr","parent":"up","box":[0.7949,0.4068,0.9231,0.7797],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.8,"phase":1.4,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":3.8,"at":1.5}]},
   magier: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7458],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"tip","parent":"up","box":[0.359,0,0.6667,0.1356],"seq":[[0,0],[0,0],[1,0],[1,0]],"dur":2.6,"under":true},{"id":"beard","parent":"up","box":[0.3077,0.4068,0.6923,0.5932],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.6,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":5,"at":2}]},
   pyromant: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7797],"seq":[[0,0],[0,1]],"dur":2},{"id":"hood","parent":"up","box":[0.2308,0,0.7692,0.322],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.8,"under":true},{"id":"hem","box":[0.0513,0.7966,0.9487,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":0.9,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"S","every":4.2,"at":1}],"glow":[{"letters":"Y","box":[0.359,0.2034,0.641,0.2712],"color":"w","max":0.7,"dur":1.4}]},
   aristokrat: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7966],"seq":[[0,0],[0,1]],"dur":2.6},{"id":"hat","parent":"up","box":[0.3077,0,0.6923,0.1864],"seq":[[0,0],[0,0],[1,0],[0,0]],"dur":3.4,"under":true},{"id":"tail","parent":"up","box":[0.1538,0.7119,0.8462,0.8136],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.4,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":5,"at":1.6}]},
   gaertnerin: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.5593],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"flower","parent":"up","box":[0.5385,0.0678,0.641,0.1356],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.8,"under":true},{"id":"bl","parent":"up","box":[0.1795,0.2712,0.3077,0.5424],"seq":[[0,0],[-1,0],[0,0]],"dur":2.6,"under":true},{"id":"br","parent":"up","box":[0.6923,0.2712,0.8205,0.5424],"seq":[[0,0],[1,0],[0,0]],"dur":2.6,"phase":1.3,"under":true},{"id":"hem","box":[0.0769,0.7458,0.9231,0.9322],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.8,"under":true}],"blink":[{"cells":[[0.4103,0.2542],[0.5897,0.2542]],"color":"s","every":4.4,"at":0.9}]},
-  brumm: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7627],"seq":[[0,0],[0,1]],"dur":2},{"id":"cap","parent":"up","box":[0.2564,0.0339,0.7436,0.2373],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3},{"id":"beard","parent":"up","box":[0.2051,0.3729,0.7949,0.661],"seq":[[0,0],[0,0],[1,0],[0,0],[-1,0],[0,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.4103,0.2881],[0.5897,0.2881]],"color":"s","every":3.6,"at":1.2}]},
+  brumm: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7627],"seq":[[0,0],[0,1]],"dur":2},{"id":"cap","parent":"up","box":[0.2564,0.0339,0.7436,0.2373],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3,"under":true},{"id":"beard","parent":"up","box":[0.2051,0.3729,0.7949,0.661],"seq":[[0,0],[0,0],[1,0],[0,0],[-1,0],[0,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.4103,0.2881],[0.5897,0.2881]],"color":"s","every":3.6,"at":1.2}]},
   mira: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7797],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"bl","parent":"up","box":[0.1538,0.2373,0.3077,0.7458],"seq":[[0,0],[-1,0],[0,0]],"dur":3,"under":true},{"id":"br","parent":"up","box":[0.6923,0.2373,0.8462,0.7458],"seq":[[0,0],[1,0],[0,0]],"dur":3,"phase":1.5,"under":true},{"id":"hem","box":[0.0513,0.8475,0.9487,0.9831],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.4103,0.2542],[0.5897,0.2542]],"color":"s","every":4.8,"at":0.5}]},
 };
 
@@ -6168,6 +6205,7 @@ const { CONTENT } = __require("content/index.js");
 const { CONFIG } = __require("data/config.js");
 const { aliveEnemies, activeItems } = __require("engine/combat.js");
 const { availableNodes, buildOf, currentLayer, restHealAmount, restPct } = __require("engine/run.js");
+const { lane: mapLane } = __require("engine/map.js");
 const { findNode } = __require("engine/map.js");
 const { tagCount } = __require("engine/modifiers.js");
 const { maxDifficulty, describeUnlock, isUnlocked } = __require("engine/meta.js");
@@ -6255,13 +6293,13 @@ function mapView(ui) {
   const W = land ? (L + 1) * SP + PAD * 2 : 340, H = land ? SPAN : (L + 1) * SP + PAD * 2;
   const pos = (n) => {
     const count = n.id === "boss" ? 1 : map.layers[n.layer].length;
-    const lane = (n.index + 1) / (count + 1);
+    const lane = mapLane(count, n.index);
     return { x: PAD + n.layer * SP, y: 26 + lane * (SPAN - 52) };
   };
   const nodes = [...map.layers.flat(), map.boss];
   const edges = nodes.flatMap((n) => n.next.map((id) => {
-    const a = pos(n), b = pos(findNode(map, id)), on = path.includes(n.id) && (path.includes(id) || avail.includes(id));
-    return `<line class="edge ${on ? "on" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
+    const a = pos(n), b = pos(findNode(map, id)), on = path.includes(n.id) && (path.includes(id) || avail.includes(id)), soft = !on && avail.includes(n.id);
+    return `<line class="edge ${on ? "on" : soft ? "soft" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
   })).join("");
   const plates = nodes.map((n) => {
     const p = pos(n), isAvail = avail.includes(n.id), done = path.includes(n.id), cur = run.nodeId === n.id, r = n.type === "boss" ? 24 : 18;
@@ -6339,6 +6377,7 @@ function shopView(ui) {
       <div class="muted small">Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div>
       ${btn(`${ico("star", 14)} Neu würfeln (${shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: run.gold < shop.rerollCost })}
       ${btn(`${ico("discard", 14)} Schredder (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
+      ${(shop.services ?? []).map((s) => btn(`${ico(s.id === "heal" ? "heart" : "star", 14)} ${s.id === "heal" ? `Verband +${Math.round(CONFIG.shop.services.heal.pct * 100)}% HP` : `Trank +${CONFIG.shop.services.vitality.maxHp} Max-HP`} (${s.price})`, "service", s.id, { cls: "small", disabled: s.sold || run.gold < s.price })).join("")}
       <span class="grow"></span>${btn("Weiter", "leave-shop", undefined, { cls: "primary" })}</div>
     <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items4">${items}</div></div></div>`;
 }
@@ -6434,6 +6473,8 @@ function settingsView(ui) {
     <div class="setgroup"><b>Tempo im Kampf</b>${chips(CONFIG.ui.speeds.map((v) => [v, `x${v}`]), ui.speed, "set-speed")}</div>
     <div class="setgroup"><b>Zug beenden</b>${chips([[1, "Automatisch"], [0, "Von Hand"]], ui.autoEnd ? 1 : 0, "set-autoend")}<div class="muted small">Automatisch: Der Zug endet, sobald du keine Karte mehr spielen kannst.</div></div>
     <div class="setgroup"><b>Ziele wählen</b>${chips([[0, "Automatisch"], [1, "Von Hand"]], ui.manual ? 1 : 0, "set-manual")}<div class="muted small">${ui.manual ? "Erst Karte wählen, dann Gegner antippen." : "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel."}</div></div>
+    <div class="setgroup full"><b>Spielstand</b><div class="row wrap">${btn("Sichern (Datei)", "export-save", undefined, { cls: "small" })}<label class="btn small">Laden (Datei)<input type="file" accept=".json,application/json" data-import hidden></label></div>
+      ${ui.importPending ? `<div class="px pad stack"><div>Sicherung ersetzen? Siege ${ui.importPending.wins}, Runs ${ui.importPending.runs}${ui.importPending.hasRun ? ", Run in Arbeit" : ""}. Dein jetziger Fortschritt wird überschrieben.</div><div class="row">${btn("Ja, ersetzen", "import-yes", undefined, { cls: "danger small" })}${btn("Abbrechen", "import-no", undefined, { cls: "small" })}</div></div>` : ""}</div>
     ${btn("Schließen", "close-settings", undefined, { cls: "primary" })}</div></div>`;
 }
 // Detailansicht einer Karte: voller Text und höchstens drei Begriffserklärungen
@@ -6475,7 +6516,7 @@ __define("ui/controller.js", function (__exports, __require) {
 const { CONTENT } = __require("content/index.js");
 const { applyContentLanguage } = __require("ui/i18n.js");
 const { CONFIG } = __require("data/config.js");
-const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, shopBuy, shopReroll, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
+const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
 const { playCard, endPlayerTurn, useItem, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
 const { createMeta, normalizeMeta, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
@@ -6511,7 +6552,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
-    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, settingsOpen: false,
+    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, settingsOpen: false, importPending: null, reloadNeeded: false,
     auto: false, speed: CONFIG.ui.speeds.includes(meta.settings.speed) ? meta.settings.speed : 1, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
   };
   applyContentLanguage(CONTENT, meta.settings.lang ?? "de");                  // gespeicherte Sprache anwenden
@@ -6682,6 +6723,21 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "card-info": ui.cardInfo = arg; break;                                 // Detailansicht einer Karte (Info-Symbol)
       case "close-cardinfo": ui.cardInfo = null; break;
       case "set-tab": ui.tab[arg] = arg2; break;                                  // Reiter in Sammlung, Erfolge und Aussehen
+      case "import-save": {                                                      // Datei gelesen: erst prüfen, dann nachfragen
+        let d; try { d = JSON.parse(arg); } catch { d = null; }
+        if (!d || d.game !== "rogue-deck" || typeof d.meta !== "object" || !d.meta) { toast("Das ist keine Rogue-Deck-Sicherung"); break; }
+        ui.importPending = { text: arg, wins: d.meta.wins ?? 0, runs: d.meta.runs ?? 0, version: d.version ?? "?", hasRun: Boolean(d.run) };
+        break;
+      }
+      case "import-yes": {                                                       // Sicherung einspielen (die Seite lädt danach neu)
+        const d = JSON.parse(ui.importPending.text);
+        ui.meta = normalizeMeta(d.meta); write(KEY_META, ui.meta);                // auch im Speicher des Controllers ersetzen, sonst überschreibt das nächste Speichern die Sicherung
+        ui.run = null; ui.screen = "title";
+        if (d.run && peekSave(d.run).ok) { try { storage?.setItem(KEY_RUN, d.run); } catch { /* ignorieren */ } } else remove(KEY_RUN);
+        ui.importPending = null; ui.reloadNeeded = true; ui.preview = ui.preview ?? false; toast("Spielstand geladen");
+        break;
+      }
+      case "import-no": ui.importPending = null; break;
       case "open-settings": ui.settingsOpen = true; break;                          // Einstellungen (Titel und Spiel)
       case "close-settings": ui.settingsOpen = false; break;
       case "set-lang": ui.meta.settings = { ...ui.meta.settings, lang: arg === "en" ? "en" : "de" }; applyContentLanguage(CONTENT, ui.meta.settings.lang); break;
@@ -6728,6 +6784,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       // ---- Shop und Rast
       case "buy": { const r = shopBuy(run, arg, Number(arg2)); toast(r.ok ? `Gekauft: ${nameAny(r.id)}` : r.reason); break; }
       case "freeze": { const r = shopFreeze(run, Number(arg)); if (!r.ok) toast(r.reason); else toast(r.frozen ? "Item gesperrt: wartet auf den nächsten Händler" : "Sperre aufgehoben"); break; }
+      case "service": { const r = shopService(run, arg); toast(r.ok ? (arg === "heal" ? "Verband angelegt" : "Stärkungstrank getrunken") : r.reason); break; }
       case "reroll": { const r = shopReroll(run); toast(r.ok ? "Angebot neu gewürfelt" : r.reason); break; }
       case "leave-shop": leaveShop(run); break;
       case "remove-start": ui.overlay = "pick-remove"; ui.removeMode = "shop"; break;
@@ -6776,9 +6833,14 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
   return {
     ui, dispatch, render: () => renderViews(ui),
     // Wartezeit (ms) bis zum nächsten Autopilot-Schritt, oder null wenn gerade nichts zu tun ist
+    exportSave: () => {                                                       // Sicherung als Text (Datei-Download macht main.js)
+      persist();
+      let run = null; try { run = storage?.getItem(KEY_RUN) ?? null; } catch { /* ignorieren */ }
+      return JSON.stringify({ game: "rogue-deck", format: 1, version: CONFIG.version, exportedAt: new Date().toISOString(), meta: ui.meta, run }, null, 1);
+    },
     autoWait: () => {
       const r = ui.run;
-      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo || ui.settingsOpen) return null;
+      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo || ui.settingsOpen || ui.importPending) return null;
       const c = r.pending.combat;
       const first = c.turn === 1 && c.metrics.plays === 0;                                // Auftritt der Figuren abwarten
       return Math.round((first ? 1800 : 700) / ui.speed);
@@ -6857,6 +6919,12 @@ function render() {
   scheduleAuto();
 }
 
+root.addEventListener("change", (ev) => {                          // Sicherung laden: Datei lesen und an den Controller geben
+  const inp = ev.target.closest("input[data-import]");
+  if (!inp || !inp.files?.[0]) return;
+  inp.files[0].text().then((txt) => { ctrl.dispatch("import-save", txt); render(); }).catch(() => {});
+});
+
 root.addEventListener("click", (ev) => {
   const el = ev.target.closest("[data-action]");
   if (!el || el.disabled) return;
@@ -6865,7 +6933,13 @@ root.addEventListener("click", (ev) => {
     try { Promise.resolve((d.requestFullscreen ?? d.webkitRequestFullscreen)?.call(d)).then(() => window.screen.orientation?.lock?.("landscape")).catch(() => {}); } catch { /* nicht unterstützt */ }
     return;
   }
+  if (el.dataset.action === "export-save") {                       // Sicherung als Datei herunterladen
+    const blob = new Blob([ctrl.exportSave()], { type: "application/json" }), a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `rogue-deck-sicherung-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    return;
+  }
   const res = ctrl.dispatch(el.dataset.action, el.dataset.arg, el.dataset.arg2);
+  if (ctrl.ui.reloadNeeded) { setTimeout(() => window.location.reload(), 400); }
   if (el.dataset.action === "cycle-size" || el.dataset.action === "set-size") fit();                  // neue Höhe sofort anwenden
   if (res !== false) render();
 });

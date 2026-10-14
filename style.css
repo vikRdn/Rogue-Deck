@@ -570,3 +570,6 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .settings .sheet>h2,.settings .sheet>.btn{grid-column:1/-1;margin:0}.settings .sheet>.btn{justify-self:end}
 .compact .settings .setgroup .muted.small,.tiny .settings .setgroup .muted.small{display:none}
 .settings .setgroup .muted.small{display:none}
+.edge.soft{stroke:var(--accent);opacity:.75;stroke-width:2.5px}.edge:not(.on):not(.soft){opacity:.4}
+.settings .setgroup.full{grid-column:1/-1}.settings .setgroup.full .row{gap:6px}.settings label.btn{cursor:pointer}
+.compact .settings .setgroup.full .px{font-size:9px;padding:3px 6px}
