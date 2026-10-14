@@ -12,7 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "4.0",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "5.5",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 5, maxHp: 70 },
 
   balance: {
@@ -21,7 +21,7 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.76,
+    enemyDmgScale: 0.66,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
@@ -61,7 +61,7 @@ const CONFIG = {
     itemFactor: 1.5,       // Items kosten mehr als Karten
     priceVariance: 0.15,   // +-15 % Zufallsschwankung
     startDiscount: 0.5,
-    inflationPerFight: 0.04,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
+    inflationPerFight: 0.015,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
     afterFight: true, quick: { cards: 3, items: 3 },          // nach JEDEM Kampf ein Schnellladen (kleineres Angebot); Händler-Orte auf der Karte bleiben der große Laden
     services: { heal: { price: 45, pct: 0.3, step: 15 }, vitality: { price: 90, maxHp: 6 } },   // Dienste beim Händler: Verband (heilt, wird teurer) und Stärkungstrank (+Max-HP, einmal je Besuch)
     removeBase: 50, removeIncrement: 25,
@@ -94,6 +94,11 @@ const CONFIG = {
   },
   // Erfahrung und Wert-Aufstiege (Brotato-Richtung): Gegner geben Erfahrung nach ihren Lebenspunkten, volle Leiste = ein Aufstieg mit 4 Wert-Angeboten
   xp: { hpPerXp: 14, base: 8, step: 4 },
+  // Run-Struktur: 10 Stages mit je einer Karte (Kämpfe, Elite, Mini-Boss, Rast, Händler, Ereignisse). Stage 1 bis 9 enden mit einem Wächter, Stage 10 mit dem Endboss. Gegner, Gold und Preise wachsen von Stage zu Stage.
+  stages: { count: 10, heal: 0.3, guards: ["steinwaechter", "banditenbande", "eliterudel", "knochenhauptmann", "sumpfwacht", "steinwaechter", "eliterudel", "banditenbande", "knochenhauptmann"] },
+  stageScale: { hp: [0.2, 0.025], dmg: [0.08, 0.012],       // Faktor = 1 + a*(Stage-1) + b*(Stage-1)^2: sanft am Anfang, hart am Ende
+     gold: 0.16, price: 0.2, xp: 0.1, finalHp: 1.6, finalDmg: 1.15 },   // finalHp/finalDmg: zusätzlich auf den Endboss der letzten Stage
+  rarityMinStage: { gewoehnlich: 1, ungewoehnlich: 1, selten: 2, legendaer: 5 },    // starke Items erscheinen erst in späteren Stages
   upgrades: {
     stats: ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"],
     values: { maxHp: [4, 7, 10, 14], regen: [1, 1, 2, 3], lifesteal: [1, 3, 4, 6], damagePct: [3, 5, 7, 10], meleeDmg: [1, 1, 2, 3], rangedDmg: [1, 1, 2, 3], elementDmg: [1, 1, 2, 3], crit: [2, 4, 6, 8], armor: [1, 1, 2, 3], dodge: [2, 4, 5, 7], luck: [1, 3, 4, 6], ernte: [1, 1, 2, 3] },
@@ -349,8 +354,8 @@ __exports.default = {
   cards: {
     hieb:        { name: "Hieb", cost: 1, tags: ["nahkampf", "angriff"], text: "Schaden: 4 + Waffe.",
                    play: [{ action: "damage", base: 4, weaponScale: 1 }] },
-    wuchtschlag: { name: "Wuchtschlag", cost: 2, pools: ["nahkaempfer"], tags: ["nahkampf", "angriff"], text: "Schaden: 8 + 2x Waffe.",
-                   play: [{ action: "damage", base: 8, weaponScale: 2 }] },
+    wuchtschlag: { name: "Wuchtschlag", cost: 2, pools: ["nahkaempfer"], tags: ["nahkampf", "angriff"], text: "Schaden: 11 + 3x Waffe.",
+                   play: [{ action: "damage", base: 11, weaponScale: 3 }] },
     wirbel:      { name: "Wirbel", cost: 2, pools: ["nahkaempfer"], tags: ["nahkampf", "flaeche"], text: "Schaden an ALLEN: 3 + Waffe.",
                    play: [{ action: "damage", base: 3, weaponScale: 1, target: "all" }] },
     deckung:     { name: "Deckung", cost: 1, tags: ["block"], text: "6 Block.",
@@ -807,9 +812,9 @@ __exports.default = {
 
   classes: {
     fernkaempfer: {
-      name: "Fernkämpfer", hp: 60, stats: { handSize: 1, dodge: 6, crit: 6, rangedDmg: 2 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
+      name: "Fernkämpfer", hp: 68, stats: { handSize: 1, dodge: 6, crit: 6, rangedDmg: 2 }, blurb: "Schnell und fragil: Je mehr Karten du spielst, desto stärker jeder Treffer. Markieren, Mehrfachtreffer, Ausweichen.",
       deck: ["schnellschuss", "schnellschuss", "schnellschuss", "schnellschuss", "zielen", "praezisionsschuss", "praezisionsschuss"], shopBasics: ["rolle", "rolle"],
-      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "+ Ausweichen 6 %, Krit 6 %, Fernkampfschaden +2", "- Weniger Leben: 60 Max-HP"],
+      perks: ["+ Eine Handkarte mehr (6)", "+ Mehrfachtreffer und Markieren", "+ Ausweichen 6 %, Krit 6 %, Fernkampfschaden +2", "- Weniger Leben: 68 Max-HP"],
       weapon: "kurzbogen", starterWeapons: ["kurzbogen", "armbrust", "giftbogen"], items: [],
     },
   },
@@ -1029,6 +1034,13 @@ __exports.default = {
     s10:   { group: "sammlung", name: "Neugierig",           text: "Finde 10 verschiedene Items.",          check: { discovered: "items", min: 10 }, reward: { kind: "frames", id: "frost" } },
     s25:   { group: "sammlung", name: "Sammler",             text: "Finde 25 verschiedene Items.",          check: { discovered: "items", min: 25 }, reward: { kind: "items", id: "echostein" } },
     s50:   { group: "sammlung", name: "Hamster",             text: "Finde 50 verschiedene Items.",          check: { discovered: "items", min: 50 }, reward: { kind: "skins", id: "mondrobe" } },
+    s20:   { group: "sammlung", name: "Schatzsucher",        text: "Schalte 20 verschiedene Items in der Sammlung frei.", check: { discovered: "items", min: 20 } },
+    s30:   { group: "sammlung", name: "Beutejäger",          text: "Schalte 30 verschiedene Items in der Sammlung frei.", check: { discovered: "items", min: 30 } },
+    s75:   { group: "sammlung", name: "Kurator",             text: "Schalte 75 verschiedene Items in der Sammlung frei.", check: { discovered: "items", min: 75 } },
+    s100:  { group: "sammlung", name: "Archivar",            text: "Schalte 100 verschiedene Items in der Sammlung frei.", check: { discovered: "items", min: 100 } },
+    w12:   { group: "sammlung", name: "Waffenmeister",       text: "Schalte 12 verschiedene Waffen in der Sammlung frei.", check: { discovered: "weapons", min: 12 } },
+    w18:   { group: "sammlung", name: "Waffenkammer",        text: "Schalte 18 verschiedene Waffen in der Sammlung frei.", check: { discovered: "weapons", min: 18 } },
+    x_vollendung: { group: "sammlung", name: "Vollendung",   text: "Erreiche alle anderen Erfolge. Der Lohn ist ein einzigartiges Item.", check: { special: "alle" }, reward: { kind: "items", id: "herz_der_vollendung" } },
     salle: { group: "sammlung", name: "Schatzmeister",       text: "Finde alle Items.",                     check: { discovered: "items", all: true }, reward: { kind: "frames", id: "gold" } },
     c25:   { group: "sammlung", name: "Kartenfreund",        text: "Finde 25 verschiedene Karten.",         check: { discovered: "cards", min: 25 }, reward: { kind: "items", id: "adrenalinpumpe" } },
     calle: { group: "sammlung", name: "Kartenmeister",       text: "Finde alle Karten.",                    check: { discovered: "cards", all: true }, reward: { kind: "skins", id: "schneejaeger" } },
@@ -1472,10 +1484,28 @@ const PACK = {
     schattenklinge: { name: "Schattenklinge", rarity: "ungewoehnlich", tags: ["item", "ausweichen"], text: "Alle Karten: +1 Schaden je 4 % Ausweichen (max. +6).",
       passives: [{ trigger: "damage_calc", op: "add", value: 1, perStat: { stat: "dodge", step: 4 }, cap: 6 }] },
     rotes_siegel: { name: "Rotes Siegel", rarity: "selten", tags: ["item", "blut"], stats: { damagePct: 10, lifesteal: 4, maxHp: -10 }, text: "+10 % Schaden, +4 % Lebensraub, -10 Max-HP." },
+    gutschein: { name: "Gutschein", tags: ["item", "gold"], stats: { priceMod: -10 }, text: "-10 % Preise im Shop." },
+    handelsabkommen: { name: "Handelsabkommen", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { priceMod: -20, ernte: 1 }, text: "-20 % Preise im Shop, +1 Ernte." },
+    wuerfelbecher: { name: "Würfelbecher", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { rerollMod: -50, freeRerolls: 1 }, text: "1 freier Reroll pro Shop, Reroll-Preis -50 %." },
+    gluecksrad: { name: "Glücksrad", rarity: "selten", tags: ["item", "gold"], stats: { freeRerolls: 2, luck: 2 }, text: "2 freie Rerolls pro Shop, +2 Glück." },
+    drachentoeter: { name: "Drachentöter", rarity: "ungewoehnlich", tags: ["item", "nahkampf"], stats: { bossDmg: 25 }, text: "+25 % Schaden gegen Bosse, Wächter und Elite." },
+    henkersbeil: { name: "Henkersbeil", rarity: "selten", tags: ["item", "nahkampf"], stats: { bossDmg: 50, armor: -1 }, text: "+50 % Schaden gegen Bosse, Wächter und Elite, -1 Rüstung." },
+    schlangengift: { name: "Schlangengift", rarity: "ungewoehnlich", tags: ["item", "gift"], stats: { poisonPower: 1 }, text: "Gift tickt +1 Schaden stärker." },
+    gluthoel: { name: "Glutöl", rarity: "ungewoehnlich", tags: ["item", "feuer"], stats: { burnPower: 1 }, text: "Verbrennung tickt +1 Schaden stärker." },
+    dornenwein: { name: "Dornenwein", rarity: "ungewoehnlich", tags: ["item", "blut"], stats: { bleedPower: 1 }, text: "Blutung tickt +1 Schaden stärker." },
+    kraeutertee: { name: "Kräutertee", tags: ["item", "pflanze"], stats: { healPct: 25 }, text: "+25 % Heilung." },
+    lebensquell: { name: "Lebensquell", rarity: "selten", tags: ["item", "pflanze"], stats: { healPct: 50, regen: 1 }, text: "+50 % Heilung, +1 Regeneration." },
+    goldwaescher: { name: "Goldwäscher", rarity: "ungewoehnlich", tags: ["item", "gold"], stats: { doubleChance: 15 }, text: "15 % Chance, dass die Gold-Belohnung eines Kampfes verdoppelt wird." },
+    gluecksmuenze: { name: "Glücksmünze", tags: ["item", "gold"], stats: { doubleChance: 10, luck: 1 }, text: "10 % Doppel-Gold-Chance, +1 Glück." },
+    verfluchter_dolch: { name: "Verfluchter Dolch", rarity: "selten", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 15, damagePct: 14 }, text: "+15 Fluch (Gegner stärker, mehr Gold und bessere Beute), +14 % Schaden." },
+    fluchsiegel: { name: "Fluchsiegel", rarity: "ungewoehnlich", tags: ["item", "fluch"], stats: { curse: 8, luck: 2, ernte: 1 }, text: "+8 Fluch, +2 Glück, +1 Ernte." },
+    daemonenpakt: { name: "Dämonenpakt", rarity: "legendaer", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 25, damagePct: 20, armor: 2 }, text: "+25 Fluch, +20 % Schaden, +2 Rüstung." },
+    herz_der_vollendung: { name: "Herz der Vollendung", rarity: "legendaer", maxStack: 1, tags: ["item"], unlock: { type: "achievement", id: "x_vollendung" }, stats: { damagePct: 10, armor: 2, luck: 3, regen: 2, crit: 6, maxHp: 15, ernte: 2 }, text: "Die Belohnung für 100 %: +10 % Schaden, +2 Rüstung, +3 Glück, +2 Regeneration, +6 % Krit, +15 Max-HP, +2 Ernte." },
     koenigsring: { name: "Königsring", rarity: "selten", tags: ["item", "gold"], stats: { luck: 4, ernte: 2, damagePct: 5, armor: -1 }, text: "+4 Glück, +2 Ernte, +5 % Schaden, -1 Rüstung." },
   },
 };
 const ADAPT = {
+  koenigsring: { maxStack: 1 }, rotes_siegel: { maxStack: 1 }, glaskanone: { maxStack: 1 }, kartenhaus: { maxStack: 1 }, krone_des_maertyrers: { maxStack: 1 }, asche_lunge: { maxStack: 1 }, schillernder_charme: { maxStack: 2 }, apothekerwaage: { maxStack: 1 }, flammenkrone: { maxStack: 1 }, herz_des_winters: { maxStack: 1 },
   wetzstein: { stats: { meleeDmg: 2 }, passives: [], text: "+2 Nahkampfschaden." },
   koecher: { stats: { rangedDmg: 2 }, passives: [], text: "+2 Fernkampfschaden." },
   grimoire: { stats: { elementDmg: 2 }, passives: [], text: "+2 Elementarschaden." },
@@ -1489,6 +1519,44 @@ const ADAPT = {
 };
 PACK.adapt = ADAPT;
 __exports.default = PACK;
+
+
+
+});
+__define("content/packs/thema_anime.js", function (__exports, __require) {
+// THEMA: Moderne Dark-Fantasy im Anime-Stil (Gates, Hunter, Mana-Kern). Ersetzt NUR Anzeigenamen und Geschichte; IDs, Werte und Mechanik bleiben unverändert.
+// Neue Helden gehören zu einer Klasse (Archetyp); die Klassen-IDs bleiben die bisherigen. Englische Fassung: ui/en_world.js.
+__exports.default = {
+  classes: { nahkaempfer: { name: "Hunter" }, fernkaempfer: { name: "Scout" }, magier: { name: "Sorcerer" }, pyromant: { name: "Pyromancer" }, aristokrat: { name: "Noble" }, gaertnerin: { name: "Herbalist" } },
+  enemies: { ratte: { name: "Gate-Ratte" }, skelett: { name: "Knochensoldat" }, bandit: { name: "Syndikat-Schläger" }, steingolem: { name: "Beton-Golem" }, knochenhauptmann: { name: "Knochenmarschall" }, glutgeist: { name: "Fluchflamme" },
+    dornenranke: { name: "Fressende Ranke" }, flussgeist: { name: "Kanal-Geist" }, sumpfgeist: { name: "Smog-Geist" }, elementarwandler: { name: "Gate-Lord" } },
+  encounters: { kellerratten: { name: "Gate-Ratten (erster Kampf)" }, wachposten: { name: "Syndikat-Posten (gemischt)" }, steinwaechter: { name: "Betonwächter (ein zäher Gegner)" }, banditenbande: { name: "Syndikat-Bande (5 Mini-Bosse)" },
+    knochenhauptmann: { name: "Knochenmarschall (Mini-Boss allein)" }, gluthoehle: { name: "Brandzone (Fluchflammen)" }, eliterudel: { name: "Eisrudel (Elite)" }, pflanzenhain: { name: "Wuchergarten (Ranken + Smog-Geist)" },
+    sumpfwacht: { name: "Smogwacht (Elite)" }, flussufer: { name: "Kanalufer (Wassergeister)" }, boss_wandler: { name: "Gate-Lord (Endboss)" } },
+  achievements: { g500: { name: "Legende der Gates" }, w1: { name: "Der Gate-Lord fällt" }, w25: { name: "Gate-Legende" } },
+  items: { herz_der_vollendung: { name: "Kern der Vollendung", text: "Die Belohnung für 100 %: +10 % Schaden, +2 Rüstung, +3 Glück, +2 Regeneration, +6 % Krit, +15 Max-HP, +2 Ernte." } },
+  speakers: { brumm: { name: "Brumm", title: "Besitzer des Konbini am Gate" }, mira: { name: "Mira", title: "Forscherin der Hunter-Gilde" } },
+  stories: {
+    intro: [
+      "Psst! Du da! Ja, du. Komm rein, bevor dich der Regen erwischt. Wenn das Regen ist. Heute war es Ascheregen aus dem Gate.",
+      "Letzte Nacht hat der Gate-Lord das Hauptquartier der Hunter-Gilde gestürmt und den Mana-Kern geraubt. Er hält Feuer, Wasser, Pflanzen und Eis im Gleichgewicht.",
+      "Und er hat Mira mitgenommen. Nur sie konnte den Kern zum Singen bringen.",
+      { perClass: {
+        nahkaempfer: "Du siehst aus, als hättest du schon mal ein Gate mit der Stirn geöffnet. Perfekt. Hinter dem Gate braucht man Leute wie dich.",
+        fernkaempfer: "Gute Augen, leise Schritte. Genau das, was die Gates verlangen. Und nein, deine Pfeile bezahlt niemand.",
+        magier: "Ein Sorcerer! Endlich jemand, der die Elemente versteht. Seit der Kern weg ist, vertragen sie sich nicht mehr. Mischst du sie, knallt es.",
+        pyromant: "Du riechst nach Rauch und siehst aus, als wäre dir das egal. Gut. Hinter dem Gate brennt es sowieso.",
+        aristokrat: "Ein feiner Herr aus gutem Clan! Verlaufen? Nein? Dann nimm den Gehstock, das Portemonnaie bleibt hier. Hinter dem Gate kostet alles extra.",
+        gaertnerin: "Eine Kräuterkundige im Gate? Nun, Unkraut gibt es dort genug. Und die Wände könnten etwas Grün vertragen.",
+        default: "Du siehst fähig aus. Das reicht mir.",
+      } },
+      "Im Gate wimmelt es von Biestern. Sammle Karten, Beute und Gold. Und wenn etwas Glitzerndes vorbeikommt: schnapp es dir. Es lohnt sich.",
+      "Das erste Gate ist gleich hier. Los! Und bring mir Mira heil zurück!",
+    ],
+    startladen: ["Die Ratten hast du überlebt. Sieh dich um, halber Preis, weil ich dich mag."],
+    outro: ["Geschafft! Der Gate-Lord ist besiegt, und der Mana-Kern singt wieder.", "Übrigens behauptet Brumm, er hätte alles geplant. Glaub ihm kein Wort."],
+  },
+};
 
 
 
@@ -1517,12 +1585,15 @@ const helden2 = __require("content/packs/helden2.js").default;
 const story = __require("content/packs/story.js").default;
 const heldenItems = __require("content/packs/helden_items.js").default;
 const statItems = __require("content/packs/stat_items.js").default;
+const thema = __require("content/packs/thema_anime.js").default;
 
 const CONTENT = createContent();
 [core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
-for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; d.text = patch.text; } }     // bestehende Items auf die Werte umbauen
+for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; if (patch.text) d.text = patch.text; if (patch.maxStack) d.maxStack = patch.maxStack; } }     // bestehende Items auf die Werte umbauen
+for (const kind of ["classes", "enemies", "encounters", "achievements", "items", "speakers"]) for (const [id, patch] of Object.entries(thema[kind] ?? {})) if (CONTENT[kind]?.[id]) Object.assign(CONTENT[kind][id], patch);       // Thema: Anzeigenamen
+for (const [id, lines] of Object.entries(thema.stories)) if (CONTENT.stories[id]) CONTENT.stories[id].lines = lines;                                  // Thema: Geschichte
 const problems = CONTENT.validate();
 if (problems.length) throw new Error("Content-Fehler:\n- " + problems.join("\n- "));
 
@@ -1532,7 +1603,7 @@ __exports.CONTENT = CONTENT;
 __define("ui/en_cards_items.js", function (__exports, __require) {
 // Englische Texte: Karten und Items. Format: id: [Name, Text].
 const EN_CARDS = {
-  hieb: ["Strike", "Damage: 4 + weapon."], wuchtschlag: ["Heavy Blow", "Damage: 8 + 2x weapon."], wirbel: ["Whirlwind", "Damage to ALL: 3 + weapon."],
+  hieb: ["Strike", "Damage: 4 + weapon."], wuchtschlag: ["Heavy Blow", "Damage: 11 + 3x weapon."], wirbel: ["Whirlwind", "Damage to ALL: 3 + weapon."],
   deckung: ["Guard", "6 Block."], schildwall: ["Shield Wall", "13 Block."], adrenalin: ["Adrenaline", "Draw 2 cards."], schwachstelle: ["Weak Point", "2 Vulnerable (+50% damage)."],
   wasserstrahl: ["Water Jet", "Water damage: 10 + 2x weapon."], flutwelle: ["Tidal Wave", "Water damage to ALL: 4 + 0.5x weapon."], dornenpeitsche: ["Thorn Whip", "Plant damage: 3 + 0.5x weapon. 3 Bleed."],
   flammenhieb: ["Flame Strike", "Fire damage: 4 + weapon."], feuerball: ["Fireball", "Fire damage to ALL: 5 + 0.5x weapon."], inferno: ["Inferno", "Fire damage to ALL: 9 + weapon."],
@@ -1617,6 +1688,11 @@ const EN_ITEMS = {
   wetzstein: ["Whetstone", "+2 Melee Damage."], koecher: ["Quiver", "+2 Ranged Damage."], grimoire: ["Grimoire", "+2 Elemental Damage."], lederweste: ["Leather Vest", "+8 Max HP, +1 Armor."], eisenpanzer: ["Iron Armor", "+2 Armor. First turn of every combat: 4 Block."],
   eisenhelm: ["Iron Helmet", "+1 Armor. First turn of every combat: 6 Block."], vampirzahn: ["Vampire Fang", "+3% Lifesteal. Enemy defeated: heal 4 HP (max. 2/turn)."], leichtfuessig: ["Light-Footed", "+6% Dodge. First turn of every combat: dodge 2 hits."],
   adlerauge: ["Eagle Eye", "+6% Crit Chance. Start of combat: all enemies marked for 2 turns."], dornenruestung: ["Spiked Mail", "+1 Armor. Whoever hits you takes 3 damage."],
+  gutschein: ["Coupon", "-10% shop prices."], handelsabkommen: ["Trade Deal", "-20% shop prices, +1 Harvest."], wuerfelbecher: ["Dice Cup", "1 free reroll per shop, reroll price -50%."], gluecksrad: ["Wheel of Fortune", "2 free rerolls per shop, +2 Luck."],
+  drachentoeter: ["Dragon Slayer", "+25% damage vs bosses, guardians and elites."], henkersbeil: ["Executioner's Axe", "+50% damage vs bosses, guardians and elites, -1 Armor."], schlangengift: ["Snake Venom", "Poison ticks for +1 more damage."], gluthoel: ["Ember Oil", "Burn ticks for +1 more damage."],
+  dornenwein: ["Thorn Wine", "Bleed ticks for +1 more damage."], kraeutertee: ["Herbal Tea", "+25% healing."], lebensquell: ["Life Spring", "+50% healing, +1 Regeneration."], goldwaescher: ["Gold Panner", "15% chance that a combat's Gold reward is doubled."],
+  gluecksmuenze: ["Lucky Coin", "10% Double Gold chance, +1 Luck."], verfluchter_dolch: ["Cursed Dagger", "+15 Curse (stronger enemies, more Gold and better loot), +14% Damage."], fluchsiegel: ["Curse Seal", "+8 Curse, +2 Luck, +1 Harvest."], daemonenpakt: ["Demon Pact", "+25 Curse, +20% Damage, +2 Armor."],
+  herz_der_vollendung: ["Core of Completion", "The reward for 100%: +10% Damage, +2 Armor, +3 Luck, +2 Regeneration, +6% Crit, +15 Max HP, +2 Harvest."],
 };
 
 __exports.EN_CARDS = EN_CARDS;
@@ -1626,17 +1702,17 @@ __exports.EN_ITEMS = EN_ITEMS;
 __define("ui/en_world.js", function (__exports, __require) {
 // Englische Texte: Waffen, Gegner, Begegnungen, Helden, Farbvarianten, Rahmen, Ereignisse, Erfolge, Geschichte.
 const EN_WEAPONS = { rostiges_schwert: "Rusty Sword", flammenschwert: "Flame Sword", giftdolch: "Poison Dagger", frostklinge: "Frost Blade", kurzbogen: "Shortbow", armbrust: "Crossbow", giftbogen: "Poison Bow", jagdbogen: "Hunting Bow", zauberstab: "Magic Wand", flammenstab: "Flame Staff", runenstab: "Rune Staff", kristallstab: "Crystal Staff", stahlschwert: "Steel Sword", glutschwert: "Ember Sword", natterndolch: "Viper Dagger", langbogen: "Longbow", brandbogen: "Fire Bow", wundbogen: "Wound Bow", arkanstab: "Arcane Staff", glutzepter: "Ember Scepter", frostzepter: "Frost Scepter", pechfackel: "Pitch Torch", stockdegen: "Cane Sword", rankenstab: "Vine Staff" };
-const EN_ENEMIES = { ratte: "Rat", goblin: "Goblin", skelett: "Skeleton", bandit: "Bandit", steingolem: "Stone Golem", knochenhauptmann: "Bone Captain", glutgeist: "Ember Spirit", frostwolf: "Frost Wolf", dornenranke: "Thornvine", flussgeist: "River Spirit", sumpfgeist: "Swamp Spirit", funke: "Spark", elementarwandler: "Elemental Wanderer" };
-const EN_ENCOUNTERS = { kellerratten: "Cellar Rats (first fight)", rattenschwarm: "Rat Swarm (big wave, weak enemies)", wachposten: "Guard Post (mixed)", steinwaechter: "Stone Guardian (one tanky enemy)", banditenbande: "Bandit Gang (5 mini-bosses)", knochenhauptmann: "Bone Captain (mini-boss alone)", gluthoehle: "Ember Cave (fire spirits)", frostmeute: "Frost Pack (wolf pack)", eliterudel: "Ice Pack (elite)", pflanzenhain: "Plant Grove (vines + swamp spirit)", sumpfwacht: "Swamp Watch (elite)", flussufer: "Riverbank (water spirits)", boss_wandler: "Elemental Wanderer (final boss)" };
+const EN_ENEMIES = { ratte: "Gate Rat", goblin: "Goblin", skelett: "Bone Soldier", bandit: "Syndicate Thug", steingolem: "Concrete Golem", knochenhauptmann: "Bone Marshal", glutgeist: "Cursed Flame", frostwolf: "Frost Wolf", dornenranke: "Devouring Vine", flussgeist: "Canal Spirit", sumpfgeist: "Smog Spirit", funke: "Spark", elementarwandler: "Gate Lord" };
+const EN_ENCOUNTERS = { kellerratten: "Gate Rats (first fight)", rattenschwarm: "Rat Swarm (big wave, weak enemies)", wachposten: "Syndicate Post (mixed)", steinwaechter: "Concrete Guardian (one tanky enemy)", banditenbande: "Syndicate Gang (5 mini-bosses)", knochenhauptmann: "Bone Marshal (mini-boss alone)", gluthoehle: "Burn Zone (cursed flames)", frostmeute: "Frost Pack (wolf pack)", eliterudel: "Ice Pack (elite)", pflanzenhain: "Overgrown Garden (vines + smog spirit)", sumpfwacht: "Smog Watch (elite)", flussufer: "Canal Bank (water spirits)", boss_wandler: "Gate Lord (final boss)" };
 const EN_SKINS = { rotgardist: "Red Guard", nachtwache: "Night Watch", herbstlaeufer: "Autumn Runner", schneejaeger: "Snow Hunter", feuerrobe: "Fire Robe", mondrobe: "Moon Robe" };
 const EN_FRAMES = { bronze: "Bronze", eisen: "Iron", efeu: "Ivy", frost: "Frost", gold: "Gold", flamme: "Flame", prisma: "Prism", blut: "Blood", chrom: "Chrome" };
 const EN_CLASSES = {
-  nahkaempfer: { name: "Warrior", blurb: "Sturdy and straightforward: Block, weapon power and Bleed. Forgives mistakes.", perks: ["+ Lots of life: 90 Max HP", "+ Unyielding: 25% of Block becomes damage (max. 2)", "+ Armor 1, Melee Damage +2", "- No ranged or spell bonus"], passive: { name: "Unyielding", text: "At the end of your turn, 25% of your remaining Block is dealt as damage to the first enemy (at most 2)." } },
-  fernkaempfer: { name: "Ranger", blurb: "Fast and fragile: the more cards you play, the stronger each hit. Marking, multi-hits, dodging.", perks: ["+ One more card in hand (6)", "+ Multi-hits and Marking", "+ Dodge 6%, Crit 6%, Ranged Damage +2", "- Less life: 60 Max HP"] },
-  magier: { name: "Mage", blurb: "Mixing is rewarded: two different elements in a row trigger Reactions. Low HP, lots of combos.", perks: ["+ Reactions: 2 elements in a row = bonus effect", "+ Elemental Damage +3, Crit 8%", "- Low life: 70 Max HP"] },
+  nahkaempfer: { name: "Hunter", blurb: "Sturdy and straightforward: Block, weapon power and Bleed. Forgives mistakes.", perks: ["+ Lots of life: 90 Max HP", "+ Unyielding: 25% of Block becomes damage (max. 2)", "+ Armor 1, Melee Damage +2", "- No ranged or spell bonus"], passive: { name: "Unyielding", text: "At the end of your turn, 25% of your remaining Block is dealt as damage to the first enemy (at most 2)." } },
+  fernkaempfer: { name: "Scout", blurb: "Fast and fragile: the more cards you play, the stronger each hit. Marking, multi-hits, dodging.", perks: ["+ One more card in hand (6)", "+ Multi-hits and Marking", "+ Dodge 6%, Crit 6%, Ranged Damage +2", "- Less life: 68 Max HP"] },
+  magier: { name: "Sorcerer", blurb: "Mixing is rewarded: two different elements in a row trigger Reactions. Low HP, lots of combos.", perks: ["+ Reactions: 2 elements in a row = bonus effect", "+ Elemental Damage +3, Crit 8%", "- Low life: 70 Max HP"] },
   pyromant: { name: "Pyromancer", blurb: "Plays with pain: every loss of HP sets enemies on fire, and the more he is missing, the harder he hits. In return he has little life.", perks: ["+ Pain Glow: losing HP = 1 Burn on all", "+ Burning Pain in the starting deck", "- Pitch Torch hurts you every turn", "+ Elemental Damage +3, Crit 5%", "- Only 80 Max HP"], passive: { name: "Pain Glow", text: "When you lose HP, all enemies get 1 Burn (at most 2x per turn)." } },
-  aristokrat: { name: "Aristocrat", blurb: "Gold is power: more loot, cheaper merchants and fixed income. In return he fights poorly and hardly recovers at rests.", perks: ["+ 30% Gold, Harvest 2, 40 starting Gold", "+ Patron: merchant prices -10%", "- Weak starting deck and weak weapon", "+ Luck 3, Armor 1", "- Rest heals only 20%"], passive: { name: "Patron", text: "Patron: merchant prices -10%." } },
-  gaertnerin: { name: "Gardener", blurb: "Patient: plant cards and healing, she recovers after every combat. In return she has little life and a small hand.", perks: ["+ +3 HP after every combat", "+ Rootwork: plant cards +1 damage", "- Only 4 cards in hand", "+ Lifesteal 4%, Dodge 8%", "- Only 64 Max HP"], passive: { name: "Rootwork", text: "Plant cards deal +1 damage." } },
+  aristokrat: { name: "Noble", blurb: "Gold is power: more loot, cheaper merchants and fixed income. In return he fights poorly and hardly recovers at rests.", perks: ["+ 30% Gold, Harvest 2, 40 starting Gold", "+ Patron: merchant prices -10%", "- Weak starting deck and weak weapon", "+ Luck 3, Armor 1", "- Rest heals only 20%"], passive: { name: "Patron", text: "Patron: merchant prices -10%." } },
+  gaertnerin: { name: "Herbalist", blurb: "Patient: plant cards and healing, she recovers after every combat. In return she has little life and a small hand.", perks: ["+ +3 HP after every combat", "+ Rootwork: plant cards +1 damage", "- Only 4 cards in hand", "+ Lifesteal 4%, Dodge 8%", "- Only 64 Max HP"], passive: { name: "Rootwork", text: "Plant cards deal +1 damage." } },
 };
 const EN_EVENTS = {
   gluecksspieler: { name: "The Gambler", text: "A man with three cups challenges you.", choices: ["Bet 40 Gold (50%: 120 Gold)", "Walk on"] },
@@ -1649,39 +1725,42 @@ const EN_EVENTS = {
   alchemistin: { name: "The Alchemist", text: "She swirls a steaming potion.", choices: ["Drink potion (-6 HP): +6 Max HP", "Swap a random card: 30 Gold", "Decline"] },
 };
 const EN_ACH = {
-  g10: ["First Loot", "Defeat 10 enemies."], g50: ["Exterminator", "Defeat 50 enemies."], g100: ["Hundred-Strong", "Defeat 100 enemies."], g250: ["Terror of the Depths", "Defeat 250 enemies."], g500: ["Legend of the Cellar", "Defeat 500 enemies."], g1000: ["Thousand Foes", "Defeat 1000 enemies."],
+  g10: ["First Loot", "Defeat 10 enemies."], g50: ["Exterminator", "Defeat 50 enemies."], g100: ["Hundred-Strong", "Defeat 100 enemies."], g250: ["Terror of the Depths", "Defeat 250 enemies."], g500: ["Legend of the Gates", "Defeat 500 enemies."], g1000: ["Thousand Foes", "Defeat 1000 enemies."],
   gtypen: ["Bestiary", "Defeat every enemy type at least once."], k25: ["Battle-Tested", "Win 25 combats."], k100: ["Frontliner", "Win 100 combats."], kelite: ["Elite Hunter", "Win 10 elite encounters."], kmini: ["Boss Breaker", "Defeat 10 mini-bosses."],
   s10: ["Curious", "Find 10 different items."], s25: ["Collector", "Find 25 different items."], s50: ["Hoarder", "Find 50 different items."], salle: ["Treasurer", "Find all items."], c25: ["Card Friend", "Find 25 different cards."], calle: ["Card Master", "Find all cards."],
   w6: ["Weapon Collector", "Find 6 different weapons."], walle: ["Arsenal", "Find all weapons."], ralle: ["Alchemist", "Trigger all elemental reactions."], r1: ["Departure", "Finish your first run."], r10: ["Regular", "Finish 10 runs."], r50: ["Frequent Guest", "Finish 50 runs."],
-  w1: ["The Wanderer Falls", "Win your first run."], w5: ["Serial Hero", "Win 5 runs."], w25: ["Dungeon Legend", "Win 25 runs."], wklassen: ["All Paths", "Win a run with every hero."], wwaffen: ["Weapon Master", "Win with every starting weapon."],
+  w1: ["The Gate Lord Falls", "Win your first run."], w5: ["Serial Hero", "Win 5 runs."], w25: ["Gate Legend", "Win 25 runs."], wklassen: ["All Paths", "Win a run with every hero."], wwaffen: ["Weapon Master", "Win with every starting weapon."],
   whart: ["Stress Test", "Win a run on Hard."], walb: ["Nightmare Conquered", "Win a run on Nightmare."],
+  s20: ["Treasure Seeker", "Unlock 20 different items in the collection."], s30: ["Loot Hunter", "Unlock 30 different items in the collection."], s75: ["Curator", "Unlock 75 different items in the collection."], s100: ["Archivist", "Unlock 100 different items in the collection."],
+  w12: ["Weapon Master", "Unlock 12 different weapons in the collection."], w18: ["Weapon Vault", "Unlock 18 different weapons in the collection."], x_vollendung: ["Completion", "Earn all other achievements. The reward is a unique item."],
   x_shiny1: ["Glint", "You defeated a Chrome enemy."], x_shiny5: ["Glint Hunter", "You defeated 5 Chrome enemies."], x_dex5: ["Chrome Collector", "Five different Chrome finds are in your collection."], x_heroshiny: ["Chrome-Born", "You started a run as a Chrome hero."],
   x_herowin: ["Double Gleam", "You won a run as a Chrome hero."], x_untouched: ["Untouchable", "You defeated an elite or final enemy without taking damage."], x_oneturn: ["Blitzkrieg", "You won a combat against at least 3 enemies in a single turn."],
   x_bighit: ["Heavy Hitter", "You dealt at least 40 damage with one card at once."], x_chain: ["Chain Reaction", "You triggered 3 reactions in one turn."], x_flurry: ["Card Flurry", "You played 10 cards in one turn."],
   x_poison: ["Plague Hotspot", "An enemy had 25 Poison at the same time."], x_nobuy: ["Skinflint", "You won a run without buying anything in the shop."], x_minideck: ["Less Is More", "You won a run with at most 11 cards in your deck."],
   x_stack3: ["Third Time's the Charm", "You owned the same item three times."], x_lowhp: ["Close Call", "You won a run with at most 5 HP."], x_rich: ["Scrooge", "You owned 500 Gold at the same time."],
 };
-const EN_SPEAKERS = { brumm: { name: "Brumm", title: "Innkeeper of the Broken Shield" }, mira: { name: "Princess Mira", title: "Keeper of the Heartstone" } };
+const EN_SPEAKERS = { brumm: { name: "Brumm", title: "Owner of the Convenience Store at the Gate" }, mira: { name: "Mira", title: "Researcher of the Hunter Guild" } };
 const EN_STORIES = {
   intro: [
-    "Psst! You there! Yes, you. Come in before the rain gets you. If that is rain. Today it was fire rain.",
-    "The Elemental Wanderer broke into the castle last night. He stole the Heartstone, which keeps fire, water, plants and ice in balance.",
-    "And he dragged Princess Mira along. She was the only one who could make the stone sing.",
+    "Psst! You there! Yes, you. Come in before the rain gets you. If that is rain. Today it was ash rain from the Gate.",
+    "Last night the Gate Lord stormed the Hunter Guild headquarters and stole the Mana Core. It keeps fire, water, plants and ice in balance.",
+    "And he took Mira with him. She was the only one who could make the Core sing.",
     { perClass: {
-      nahkaempfer: "You look like you've opened a door with your face before. Perfect. Down there they need people like you.",
-      fernkaempfer: "Good eyes, quiet steps. Exactly what the depths demand. And no, nobody pays for your arrows.",
-      magier: "A mage! Finally someone who understands the elements. Listen: since the stone is gone, they don't get along anymore. Mix them and it goes boom.",
-      pyromant: "You smell of smoke and look like you don't care. Good. It's burning down there anyway.",
-      aristokrat: "A fine gentleman! Lost? No? Then take the cane, the purse stays where it is. Everything costs extra down there.",
-      gaertnerin: "A gardener in the dungeon? Well, there are plenty of weeds down there. And the walls could use some green.",
+      nahkaempfer: "You look like you've opened a Gate with your forehead before. Perfect. Beyond the Gate they need people like you.",
+      fernkaempfer: "Good eyes, quiet steps. Exactly what the Gates demand. And no, nobody pays for your arrows.",
+      magier: "A Sorcerer! Finally someone who understands the elements. Ever since the Core is gone, they don't get along anymore. Mix them and it goes boom.",
+      pyromant: "You smell of smoke and look like you don't care. Good. It's burning beyond the Gate anyway.",
+      aristokrat: "A fine gentleman from a good clan! Lost? No? Then take the cane, the purse stays here. Beyond the Gate everything costs extra.",
+      gaertnerin: "An herbalist in a Gate? Well, there are plenty of weeds in there. And the walls could use some green.",
       default: "You look capable. That's enough for me.",
     } },
-    "Down there it's crawling with critters. Collect cards, loot and gold. And if something glittering crosses your path: grab it. It pays off.",
-    "The first cellar is right here. Go! And bring me the princess back safe!",
+    "The Gate is crawling with beasts. Collect cards, loot and Gold. And if something glittering crosses your path: grab it. It pays off.",
+    "The first Gate is right here. Go! And bring Mira back safe!",
   ],
   startladen: ["You survived the rats. Look around, half price, because I like you."],
-  outro: ["You did it! The Wanderer is defeated, and the Heartstone sings again.", "By the way, Brumm claims he planned all of this. Don't believe a word."],
+  outro: ["You did it! The Gate Lord is defeated, and the Mana Core sings again.", "By the way, Brumm claims he planned all of this. Don't believe a word."],
 };
+const EN_REACTIONS = { dampf: "Steam Burst", flaechenbrand: "Wildfire", wachstum: "Growth", schmelzen: "Melt", frostschock: "Frost Shock", dornenfrost: "Thorn Frost" };
 
 __exports.EN_WEAPONS = EN_WEAPONS;
 __exports.EN_ENEMIES = EN_ENEMIES;
@@ -1693,6 +1772,7 @@ __exports.EN_EVENTS = EN_EVENTS;
 __exports.EN_ACH = EN_ACH;
 __exports.EN_SPEAKERS = EN_SPEAKERS;
 __exports.EN_STORIES = EN_STORIES;
+__exports.EN_REACTIONS = EN_REACTIONS;
 
 });
 __define("ui/en_ui.js", function (__exports, __require) {
@@ -1700,8 +1780,8 @@ __define("ui/en_ui.js", function (__exports, __require) {
 const P = (o) => Object.entries(o);
 const EN_UI = {
   "Abbrechen": "Cancel", "Ablagestapel": "Discard pile", "Albtraum": "Nightmare", "Aufbrechen": "Set out", "Ausrüstung": "Equipment", "Aussehen": "Appearance", "Beute": "Loot",
-  "Bitte drehe dein Gerät ins Querformat.": "Please rotate your device to landscape.", "Rogue-Deck wird quer gespielt.": "Rogue-Deck is played in landscape.", "Chrom-Item": "Chrome item", "Chrom-Waffe": "Chrome weapon",
-  "Dein Gold:": "Your Gold:", "Dein Held": "Your hero", "Der Run ist zu Ende.": "The run is over.", "Dungeon-Karte": "Dungeon map", "Ein Deckbuilder-Roguelite": "A deckbuilder roguelite",
+  "Bitte drehe dein Gerät ins Querformat.": "Please rotate your device to landscape.", "Ani-Rogue wird quer gespielt.": "Ani-Rogue is played in landscape.", "Chrom-Item": "Chrome item", "Chrom-Waffe": "Chrome weapon",
+  "Dein Gold:": "Your Gold:", "Dein Held": "Your hero", "Der Run ist zu Ende.": "The run is over.", "Gate-Karte": "Gate map", "Ein Anime-Roguelite-Deckbuilder": "An anime roguelite deckbuilder",
   "Ein Feuer knistert. Du hast Zeit für genau eine Sache.": "A fire crackles. You have time for exactly one thing.", "Eine Karte aus dem Deck entfernen": "Remove a card from your deck", "Einstellungen": "Settings",
   "Endboss": "Final boss", "Ereignis": "Event", "Erfolg freigeschaltet": "Achievement unlocked", "Erfolge": "Achievements", "Farben der Helden": "Hero colors", "Farbvariante": "Color variant", "Freischaltungen": "Unlocks",
   "Gegner": "Enemies", "Geschichte": "Story", "Gesperrt": "Locked", "Gewöhnlich": "Common", "Ungewöhnlich": "Uncommon", "Selten": "Rare", "Legendär": "Legendary", "Gift": "Poison", "Helden": "Heroes", "Händler": "Merchant",
@@ -1711,7 +1791,7 @@ const EN_UI = {
   "Manche Erfolge zeigen sich erst, wenn du sie erreichst.": "Some achievements only appear once you reach them.", "Mehr": "More", "Menü": "Menu", "Mini-Boss": "Mini-boss", "Nachziehstapel": "Draw pile", "Nehmen": "Take", "Gewählt": "Chosen",
   "Neu freigeschaltet:": "Newly unlocked:", "Neue Erfolge:": "New achievements:", "Neue Varianten und Rahmen schaltest du über Erfolge frei. Ein Rahmen umrandet alle Karten und Items im Spiel (Hand, Shop, Beute).": "Unlock new variants and frames through achievements. A frame outlines all cards and items in the game (hand, shop, rewards).", "Neuer Run": "New run", "Noch keine Items.": "No items yet.",
   "Normal": "Normal", "Schwer": "Hard", "Groß": "Large", "Sehr groß": "Extra large", "Rahmen": "Frames", "Rast": "Rest", "Rastplatz": "Campsite", "Run aufgeben": "Abandon run", "Runs und Siege": "Runs and wins", "Sammlung": "Collection", "Schließen": "Close",
-  "Schwierigkeit": "Difficulty", "Shiny-Sammlung": "Shiny collection", "Shinys gesehen:": "Shinies seen:", "Sieg! Der Wandler ist gefallen.": "Victory! The Wanderer has fallen.", "Standard": "Default", "Startladen": "Starter shop", "Tippe einen Gegner an": "Tap an enemy",
+  "Schwierigkeit": "Difficulty", "Shiny-Sammlung": "Shiny collection", "Shinys gesehen:": "Shinies seen:", "Sieg! Der Gate-Lord ist gefallen.": "Victory! The Gate Lord has fallen.", "Standard": "Default", "Startladen": "Starter shop", "Tippe einen Gegner an": "Tap an enemy",
   "Weiter": "Continue", "Weiterspielen": "Resume", "Wohin als Nächstes?": "Where next?", "Der Weg beginnt": "The journey begins", "Wähle deine Waffe": "Choose your weapon", "Wähle deinen Helden": "Choose your hero", "Zug beenden": "End turn",
   "Zum Titel (speichert)": "To title (saves)", "Zurück": "Back", "Zurück zum Titel": "Back to title", "Überspringen": "Skip", "· Deckgröße:": "· Deck size:", "· Gold verdient:": "· Gold earned:", "· Orte:": "· Places:", "leer = Zufall": "empty = random",
   "Preise: Grundpreis": "Prices: base price", "Neu würfeln": "Reroll", "Schredder": "Shredder", "Welche Karte entfernen?": "Which card to remove?", "Wirklich alles löschen?": "Really delete everything?", "Ja, löschen": "Yes, delete", "Spielstand löschen": "Delete save",
@@ -1723,7 +1803,7 @@ const EN_UI = {
   "Das Spiel wurde aktualisiert. Dein angefangener Run passt nicht mehr dazu und wurde verworfen.": "The game was updated. Your run in progress no longer fits and was discarded.", "Spielstand war beschädigt": "Save was corrupted", "Spielstand passt nicht zur neuen Version und wurde verworfen": "Save doesn't match the new version and was discarded",
   "Nichts davon wird gespeichert oder zählt für deinen Fortschritt.": "None of this is saved or counts toward your progress.", "Über das Menü kommst du zurück.": "Use the menu to get back.",
   "Ein Tipp spielt die Karte. Einen Gegner antippen setzt ihn als Hauptziel.": "One tap plays the card. Tapping an enemy makes it the main target.", "Erst Karte wählen, dann Gegner antippen.": "Choose a card first, then tap an enemy.",
-  "Spielstand": "Save data", "Sichern (Datei)": "Back up (file)", "Laden (Datei)": "Restore (file)", "Ja, ersetzen": "Yes, replace", "Das ist keine Rogue-Deck-Sicherung": "This is not a Rogue-Deck backup", "Spielstand geladen": "Save loaded",
+  "Spielstand": "Save data", "Sichern (Datei)": "Back up (file)", "Laden (Datei)": "Restore (file)", "Ja, ersetzen": "Yes, replace", "Das ist keine Ani-Rogue-Sicherung": "This is not an Ani-Rogue backup", "Spielstand geladen": "Save loaded",
   "Verband angelegt": "Bandage applied", "Stärkungstrank getrunken": "Tonic drunk", "Du bist bei vollen HP": "You are at full HP",
   "Deutsch": "German", "Englisch": "English",
   "Vollbild geht auf iPad und iPhone nur als App: Teilen, dann „Zum Home-Bildschirm“.": "On iPad and iPhone, fullscreen only works as an app: Share, then \"Add to Home Screen\".",
@@ -1736,6 +1816,18 @@ const EN_UI = {
   "Mehr Lebenspunkte.": "More hit points.", "Heilung nach jedem Kampf.": "Healing after every combat.", "Heilt dich um einen Teil deines Kartenschadens.": "Heals you for part of your card damage.", "Alle Karten machen mehr Schaden.": "All cards deal more damage.",
   "Mehr Schaden mit Nahkampfkarten.": "More damage with melee cards.", "Mehr Schaden mit Fernkampfkarten.": "More damage with ranged cards.", "Mehr Schaden mit Element- und Zauberkarten.": "More damage with element and spell cards.", "Chance auf einen kritischen Treffer (x1,5 Schaden).": "Chance for a critical hit (x1.5 damage).",
   "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).": "Enemies deal less damage (15 Armor = half damage).", "Chance, dass ein Angriff danebengeht (höchstens 60 %).": "Chance that an attack misses (at most 60%).", "Bessere Seltenheiten bei Belohnungen und im Shop.": "Better rarities in rewards and in the shop.", "Festes Gold nach jedem Kampf.": "Fixed Gold after every combat.",
+  "Zufall": "random",
+  "Endboss ": "Final boss",
+  "Run fortsetzen": "Continue run", "Kein Spielstand gefunden": "No save found", "Kein Intro aktiv": "No intro active", "Kein Kampf aktiv": "No combat active", "Nicht im Shop": "Not in a shop", "Kein Ereignis aktiv": "No event active", "Keine Belohnung offen": "No reward open", "Nicht an einer Rast": "Not at a rest site", "Unbekannter Knotentyp": "Unknown place type",
+  "Feuer": "Fire", "Wasser": "Water", "Pflanze": "Plant", "Eis": "Ice", "Reaktionen": "Reactions", "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion aus:": "Two different elements in a row in the same turn trigger a reaction:",
+  "Leuchtende Orte sind erreichbar. Tippe auf ein Symbol für Infos.": "Glowing places are reachable. Tap a symbol for info.",
+  "Normale Gegner. Du bekommst Gold, eine Karte zur Wahl und manchmal ein Item.": "Normal enemies. You get Gold, a card to choose and sometimes an item.", "Ein starker Gegner. Dafür gibt es mehr Gold und sicher ein Item.": "A strong enemy. In return you get more Gold and a sure item.",
+  "Ein sehr starker Gegner. Dafür gibt es eine Waffe zur Wahl, ein Item und viel Gold.": "A very strong enemy. In return you get a weapon to choose, an item and lots of Gold.", "Ein Lagerfeuer: Heile dich oder entferne eine Karte aus deinem Deck.": "A campfire: heal yourself or remove a card from your deck.",
+  "Hier kaufst du Karten, Items und Dienste (Verband, Stärkungstrank). Gold ausgeben lohnt sich.": "Buy cards, items and services here (bandage, tonic). Spending Gold pays off.", "Eine Begegnung mit einer Wahl. Sie kann dir nützen oder etwas kosten.": "An encounter with a choice. It can help you or cost you something.", "Der Endboss. Besiegst du ihn, gewinnst du den Run.": "The final boss. Defeat him to win the run.",
+  "Das ist die letzte Stage. Am Ende wartet der Endboss.": "This is the last stage. The final boss waits at the end.", "Du hast die Stage geschafft. Die Gegner werden stärker, dafür wird die Beute besser.": "You cleared the stage. Enemies get stronger, but the loot gets better.", "Wächter": "Guardian",
+  "Preise %": "Prices %", "Reroll-Preis %": "Reroll price %", "Freie Rerolls": "Free rerolls", "Schaden gegen Bosse %": "Damage vs bosses %", "Gift-Stärke": "Poison power", "Brenn-Stärke": "Burn power", "Blutungs-Stärke": "Bleed power", "Heilung %": "Healing %", "Doppel-Gold %": "Double Gold %", "Fluch": "Curse", "Werte": "Stats",
+  "Sammlung": "Collection", "Statistik": "Statistics", "Runs": "Runs", "Siege": "Wins", "Niederlagen": "Losses", "Siegrate": "Win rate", "Beste Stage": "Best stage", "Gegner besiegt": "Enemies defeated", "Kämpfe gewonnen": "Combats won", "Gold verdient": "Gold earned", "Elite besiegt": "Elites defeated", "Chrom-Gegner": "Chrome enemies",
+  "Letzte Runs": "Recent runs", "Noch nicht freigeschaltet": "Not unlocked yet", "Freigeschaltet (Datum unbekannt)": "Unlocked (date unknown)", "Sieg": "Victory",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -1757,6 +1849,15 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^(Items|Waffen|Gegner): (\d+) von (\d+) entdeckt · (\d+) Shiny$/, (t, k, a, b, c) => `${t(k)}: ${a} of ${b} discovered · ${c} Shiny`], [/^Freigeschaltet am (.+)$/, (t, d) => `Unlocked on ${d}`],
+  [/^(\d+) Runs · (\d+) Siege · Stage (\d+) · (.+)$/, (t, r, w, s, d) => `${r} runs · ${w} wins · Stage ${s} · ${t(d)}`], [/^Niederlage in Stage (\d+) · (\d+) Kämpfe$/, (t, s, f) => `Defeat in Stage ${s} · ${f} combats`], [/^Sieg · (\d+) Kämpfe$/, (t, f) => `Victory · ${f} combats`],
+  [/^(.+) · (Normal|Schwer|Albtraum)$/, (t, c, d) => `${c} · ${t(d)}`],
+  [/^Neu würfeln \(gratis x(\d+)\)$/, (t, n) => `Reroll (free x${n})`],
+  [/^(Gewöhnlich|Ungewöhnlich|Selten|Legendär)( · Passt zu: .+?)?( · Einzigartig)$/, (t, r, h, u) => `${t(r)}${h ? ` · Fits: ${h.slice(" · Passt zu: ".length)}` : ""} · Unique`],
+  [/^Stage (\d+)\/(\d+) · (.+)$/, (t, a, b, w) => `Stage ${a}/${b} · ${w === "Wächter" ? "Guardian" : w === "Start" ? "Start" : w === "Endboss" ? "Final boss" : w.replace(/^Ebene/, "Level")}`], [/^Stage (\d+) von (\d+)$/, (t, a, b) => `Stage ${a} of ${b}`],
+  [/^Du wurdest zu (\d+) % geheilt\.$/, (t, n) => `You were healed by ${n}%.`],
+  [/^(.+) \((Feuer|Wasser|Pflanze|Eis) \+ (Feuer|Wasser|Pflanze|Eis)\): (.+)$/, (t, n, a, b, x) => `${t(n)} (${t(a)} + ${t(b)}): ${x}`],
+  [/^Gekauft: (.+)$/, (t, n) => `Bought: ${n}`], [/^Genommen: (.+)$/, (t, n) => `Taken: ${n}`], [/^\+(\d+) HP$/, (t, n) => `+${n} HP`], [/^Noch gesperrt: (.+)$/, (t, n) => `Still locked: ${n}`],
   [/^Werte · Stufe (\d+) \((\d+)\/(\d+) EP\)$/, (t, l, a, b) => `Stats · Level ${l} (${a}/${b} XP)`], [/^St\. (\d+)$/, (t, n) => `Lv ${n}`], [/^Stufe (I|II|III|IV)$/, (t, n) => `Tier ${n}`],
   [/^Stufe (\d+): Wert-Aufstieg wählen( \((\d+) offen\))?$/, (t, l, x, n) => `Level ${l}: choose a stat upgrade${n ? ` (${n} open)` : ""}`],
   [/^\+(\d+) (Max-HP|Regeneration|Lebensraub %|Schaden %|Nahkampfschaden|Fernkampfschaden|Elementarschaden|Krit-Chance %|Rüstung|Ausweichen %|Glück|Ernte)$/, (t, v, s) => `+${v} ${t(s)}`],
@@ -1787,14 +1888,14 @@ __exports.EN_PATTERNS = EN_PATTERNS;
 __define("ui/i18n_en.js", function (__exports, __require) {
 // Englische Texte. EN_UI: genauer deutscher Text -> englisch (Oberfläche, ui/en_ui.js). EN_PATTERNS: Texte mit Zahlen. EN_CONTENT: Inhalte nach Art und ID (ui/en_cards_items.js, ui/en_world.js).
 const { EN_CARDS, EN_ITEMS } = __require("ui/en_cards_items.js");
-const { EN_WEAPONS, EN_ENEMIES, EN_ENCOUNTERS, EN_SKINS, EN_FRAMES, EN_CLASSES, EN_EVENTS, EN_ACH, EN_SPEAKERS, EN_STORIES } = __require("ui/en_world.js");
+const { EN_WEAPONS, EN_ENEMIES, EN_ENCOUNTERS, EN_SKINS, EN_FRAMES, EN_CLASSES, EN_EVENTS, EN_ACH, EN_SPEAKERS, EN_STORIES, EN_REACTIONS } = __require("ui/en_world.js");
 const { EN_UI, EN_PATTERNS } = __require("ui/en_ui.js");
 
 const obj = (src, names) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, Object.fromEntries(names.map((n, i) => [n, v[i]]))]));
 const named = (src) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, { name: v }]));
 const EN_CONTENT = {
   cards: obj(EN_CARDS, ["name", "text"]), items: obj(EN_ITEMS, ["name", "text"]), weapons: named(EN_WEAPONS), enemies: named(EN_ENEMIES), encounters: named(EN_ENCOUNTERS),
-  skins: named(EN_SKINS), frames: named(EN_FRAMES), classes: EN_CLASSES, achievements: obj(EN_ACH, ["name", "text"]), events: EN_EVENTS, speakers: EN_SPEAKERS, stories: EN_STORIES,
+  skins: named(EN_SKINS), reactions: named(EN_REACTIONS), frames: named(EN_FRAMES), classes: EN_CLASSES, achievements: obj(EN_ACH, ["name", "text"]), events: EN_EVENTS, speakers: EN_SPEAKERS, stories: EN_STORIES,
 };
 
 __exports.EN_UI = EN_UI;
@@ -1836,7 +1937,7 @@ function translateDom(root) {
 }
 
 // Inhalte: je Art die Felder, die übersetzt werden. Die deutschen Originale werden beim ersten Tausch gemerkt.
-const FIELDS = { cards: ["name", "text"], items: ["name", "text"], weapons: ["name"], enemies: ["name"], encounters: ["name"], classes: ["name", "blurb", "perks"], skins: ["name"], frames: ["name"], achievements: ["name", "text"], events: ["name", "text"], speakers: ["name", "title"] };
+const FIELDS = { cards: ["name", "text"], items: ["name", "text"], weapons: ["name"], enemies: ["name"], encounters: ["name"], classes: ["name", "blurb", "perks"], skins: ["name"], frames: ["name"], achievements: ["name", "text"], events: ["name", "text"], speakers: ["name", "title"], reactions: ["name"] };
 function swap(obj, fields, en) {
   if (!orig.has(obj)) orig.set(obj, Object.fromEntries(fields.map((f) => [f, structuredClone(obj[f])])));
   const o = orig.get(obj);
@@ -1868,7 +1969,7 @@ const elementName = (id) => CONTENT.elements[id]?.name ?? id;
 
 // Status -> [Symbol-ID, Name]
 const STATUS = {
-  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["shield", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"], frost: ["snow", "Kälte"], eingefroren: ["snow", "Eingefroren"],
+  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["thorns", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"], frost: ["snow", "Kälte"], eingefroren: ["snow", "Eingefroren"],
 };
 const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
 const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
@@ -1878,10 +1979,13 @@ const CLASS_ART = { nahkaempfer: "nahkaempfer", fernkaempfer: "fernkaempfer", ma
 // Werte (Brotato-Richtung): Kernwerte in fester Reihenfolge, dazu Spezialwerte der Items
 const CORE_STATS = ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"];
 const STAT_LABELS = { maxHp: "Max-HP", regen: "Regeneration", lifesteal: "Lebensraub %", damagePct: "Schaden %", meleeDmg: "Nahkampfschaden", rangedDmg: "Fernkampfschaden", elementDmg: "Elementarschaden", crit: "Krit-Chance %", armor: "Rüstung", dodge: "Ausweichen %", luck: "Glück", ernte: "Ernte",
-  energy: "Energie", handSize: "Handkarten", goldPct: "% Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "% Reaktionen", freezeEase: "Einfrier-Hilfe" };
+  energy: "Energie", handSize: "Handkarten", goldPct: "% Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "% Reaktionen", freezeEase: "Einfrier-Hilfe", priceMod: "Preise %", rerollMod: "Reroll-Preis %", freeRerolls: "Freie Rerolls", bossDmg: "Schaden gegen Bosse %", poisonPower: "Gift-Stärke", burnPower: "Brenn-Stärke", bleedPower: "Blutungs-Stärke", healPct: "Heilung %", doubleChance: "Doppel-Gold %", curse: "Fluch" };
 const STAT_DESC = { maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
 const TIER_NAME = ["I", "II", "III", "IV"];
 const TIER_COLOR = ["#9aa0a6", "#4a8fd8", "#a45bd6", "#e8a33d"];
+
+const NODE_INFO = { kampf: "Normale Gegner. Du bekommst Gold, eine Karte zur Wahl und manchmal ein Item.", elite: "Ein starker Gegner. Dafür gibt es mehr Gold und sicher ein Item.", miniboss: "Ein sehr starker Gegner. Dafür gibt es eine Waffe zur Wahl, ein Item und viel Gold.",
+  rast: "Ein Lagerfeuer: Heile dich oder entferne eine Karte aus deinem Deck.", haendler: "Hier kaufst du Karten, Items und Dienste (Verband, Stärkungstrank). Gold ausgeben lohnt sich.", ereignis: "Eine Begegnung mit einer Wahl. Sie kann dir nützen oder etwas kosten.", boss: "Der Endboss. Besiegst du ihn, gewinnst du den Run." };
 
 __exports.elementColor = elementColor;
 __exports.elementName = elementName;
@@ -1895,6 +1999,7 @@ __exports.STAT_LABELS = STAT_LABELS;
 __exports.STAT_DESC = STAT_DESC;
 __exports.TIER_NAME = TIER_NAME;
 __exports.TIER_COLOR = TIER_COLOR;
+__exports.NODE_INFO = NODE_INFO;
 
 });
 __define("engine/rng.js", function (__exports, __require) {
@@ -2055,7 +2160,7 @@ const get = (kind, id) => {
 };
 
 // Alle Werte, die Items über "stats" verändern können (werden über alle Items summiert, auch gestapelt).
-const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
+const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal", "priceMod", "rerollMod", "freeRerolls", "bossDmg", "poisonPower", "burnPower", "bleedPower", "healPct", "doubleChance", "curse"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
 function resolveBuild(spec) {
@@ -2200,6 +2305,8 @@ const getIntent = (e) => {
 
 // ---------------------------------------------------------------- Aufbau
 // shinyChance: nur für Tests (erzwingt z. B. 1 = jeder Gegner schillert)
+const stageMul = ([a, b], stage = 1) => 1 + a * (stage - 1) + b * (stage - 1) ** 2;       // Gegner-Skalierung je Stage
+
 function createCombat({ spec, encounterId, seed = 1, playerHp, verbose = false, shinyChance, difficulty = 0 }) {
   const rng = createRng(seed);
   const build = resolveBuild(spec);
@@ -2210,7 +2317,7 @@ function createCombat({ spec, encounterId, seed = 1, playerHp, verbose = false, 
     shinyRng: createRng((seed ^ 0x9e3779b9) >>> 0),
     shinyChance: shinyChance ?? CONFIG.shiny.enemyChance * (1 + build.stats.shiny),
     shinyKills: [], addCount: 0,
-    diff: CONFIG.difficulty[difficulty] ?? CONFIG.difficulty[0],
+    diff: CONFIG.difficulty[difficulty] ?? CONFIG.difficulty[0], stage: spec.stage ?? 1, bigFight: ["boss", "elite", "miniboss"].includes(CONTENT.encounters[encounterId]?.kind), finalBoss: (spec.stage ?? 1) >= CONFIG.stages.count && CONTENT.encounters[encounterId]?.kind === "boss",
     encounter: CONTENT.encounters[encounterId], waveIndex: -1, turn: 0,
     player: { hp: Math.min(playerHp ?? maxHp, maxHp), maxHp, block: 0, energy: 0, statuses: {} },
     lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null, once: {}, overkill: 0, hpLostThisTurn: false, healTriedThisTurn: false,
@@ -2239,7 +2346,7 @@ function spawnNextWave(s) {
 // Gegner mit Schwierigkeits-Skalierung und Mechaniken (Element-Wechsel, Panzerplatten, Phasen)
 function makeEnemy(s, id, uid, shiny) {
   const def = CONTENT.enemies[id];
-  const hp = Math.round(def.hp * s.diff.hpMult * (shiny ? CONFIG.shiny.enemyHpMult : 1));
+  const hp = Math.round(def.hp * s.diff.hpMult * stageMul(CONFIG.stageScale.hp, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalHp : 1) * (shiny ? CONFIG.shiny.enemyHpMult : 1) * (1 + 0.02 * (s.build.stats.curse ?? 0)));
   const m = def.mechanics ?? {};
   const e = { uid, id, shiny, name: `${shiny ? "✦ " : ""}${def.name}`, hp, maxHp: hp, block: 0, statuses: {},
               patternIdx: 0, elements: [...def.elements], phasesDone: [] };
@@ -2256,7 +2363,7 @@ function intentOf(s, e) {
   if ((e.statuses.eingefroren ?? 0) > 0) return { type: "skip", value: 0, frozen: true };   // eingefroren: überspringt die nächste Aktion
   if ((e.statuses.aussetzen ?? 0) > 0) return { type: "skip", value: 0 };       // bestochen: setzt diese Runde aus
   const i = getIntent(e);
-  return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult)) } : i;
+  return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult * stageMul(CONFIG.stageScale.dmg, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalDmg : 1) * (1 + 0.012 * (s.build.stats.curse ?? 0)))) } : i;
 }
 
 function checkPhases(s, e) {
@@ -2321,7 +2428,7 @@ function startPlayerTurn(s) {
 
 // ---------------------------------------------------------------- Schaden / Status
 // Heilung wird durch den Stat healLoss gemindert (z. B. Asche-Lunge: -50 %). Gibt die tatsächlich geheilten HP zurück.
-const healAmount = (s, v) => Math.max(0, Math.floor(v * (1 - Math.min(0.9, s.build.stats.healLoss ?? 0))));
+const healAmount = (s, v) => Math.max(0, Math.floor(v * (1 + (s.build.stats.healPct ?? 0) / 100) * (1 - Math.min(0.9, s.build.stats.healLoss ?? 0))));
 function healPlayer(s, v) {
   if (v > 0) s.healTriedThisTurn = true;                          // auch eine vereitelte Heilung zählt als "geheilt" (Sporenwolke)
   const want = healAmount(s, v), necro = s.build.stats.healToDamage ?? 0;
@@ -2534,6 +2641,7 @@ function runActions(s, def, chosen) {
           let { amount, detail } = computeDamage({ build: s.build, card: def, action, target: t, playsBefore: s.playsThisTurn - 1, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
           let crit = false;
           if ((s.build.stats.crit ?? 0) > 0 && s.rng.next() * 100 < s.build.stats.crit) { amount = Math.floor(amount * CONFIG.balance.critMult); crit = true; s.metrics.crits = (s.metrics.crits ?? 0) + 1; }   // kritischer Treffer
+          if (s.bigFight && (s.build.stats.bossDmg ?? 0) !== 0) amount = Math.max(0, Math.floor(amount * (1 + s.build.stats.bossDmg / 100)));      // Schaden gegen Bosse, Wächter und Elite
           s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
           const note = (detail.elem > 1 ? " [sehr effektiv]" : detail.elem < 1 ? " [resistent]" : "") + (crit ? " [KRITISCH]" : "");
           const wasAlive = t.hp > 0;
@@ -2659,11 +2767,11 @@ function endPlayerTurn(s) {
 function tickStatuses(s, e) {
   const st = e.statuses;
   // Gift: Schaden = Stapel (ignoriert Block), Stapel -1
-  if (st.gift > 0) { dealDamage(s, e, st.gift, "Gift", { pierce: true }); st.gift--; }
+  if (st.gift > 0) { dealDamage(s, e, st.gift + (s.build.stats.poisonPower ?? 0), "Gift", { pierce: true }); st.gift--; }
   // Blutung: Schaden = Stapel (ignoriert Block), Stapel halbiert
-  if (st.blutung > 0 && e.hp > 0) { dealDamage(s, e, st.blutung, "Blutung", { pierce: true }); st.blutung = Math.floor(st.blutung / 2); }
+  if (st.blutung > 0 && e.hp > 0) { dealDamage(s, e, st.blutung + (s.build.stats.bleedPower ?? 0), "Blutung", { pierce: true }); st.blutung = Math.floor(st.blutung / 2); }
   // Verbrennung: Schaden = Stapel (ignoriert Block), danach halbiert sich der Stapel
-  if (st.verbrennung > 0 && e.hp > 0) { dealDamage(s, e, st.verbrennung, "Verbrennung", { pierce: true }); st.verbrennung = Math.floor(st.verbrennung / 2); }
+  if (st.verbrennung > 0 && e.hp > 0) { dealDamage(s, e, st.verbrennung + (s.build.stats.burnPower ?? 0), "Verbrennung", { pierce: true }); st.verbrennung = Math.floor(st.verbrennung / 2); }
   if (st.verwundbar > 0) st.verwundbar--;
   if (st.markiert > 0) st.markiert--;
 }
@@ -2773,7 +2881,8 @@ const { createDex } = __require("engine/dex.js");
 const createMeta = () => ({
   runs: 0, wins: 0, highestWon: -1, bossKills: 0, unlocked: {}, dex: createDex(),
   // Zähler für Erfolge
-  stats: { kills: 0, fightsWon: 0, elites: 0, minibosses: 0, shinyEnemies: 0, winsByClass: {}, winsByWeapon: {} },
+  stats: { kills: 0, fightsWon: 0, elites: 0, minibosses: 0, shinyEnemies: 0, winsByClass: {}, winsByWeapon: {}, bestStage: 0, goldTotal: 0, fightsTotal: 0, byClass: {}, maxDiffByClass: {} },
+  history: [],                                        // die letzten Runs (Held, Sieg, Stage, Kämpfe, Datum)
   // Was schon einmal gefunden/erlebt wurde (Grundlage für "alle Items gefunden" usw.), Schlüssel = Basis-ID ohne Shiny-Endung
   discovered: { items: {}, cards: {}, weapons: {}, enemies: {}, reactions: {} },
   achievements: {},                                   // id -> { at }
@@ -2787,6 +2896,10 @@ function normalizeMeta(meta) {
   for (const k of Object.keys(base)) {
     if (meta[k] === undefined) meta[k] = base[k];
     else if (base[k] && typeof base[k] === "object" && !Array.isArray(base[k])) meta[k] = { ...base[k], ...meta[k] };
+  }
+  if (!Object.keys(meta.stats.maxDiffByClass ?? {}).length && meta.highestWon >= 0) {        // ältere Spielstände: Schwierigkeit gilt nur für Helden, mit denen schon gewonnen wurde
+    meta.stats.maxDiffByClass = {};
+    for (const c of Object.keys(meta.stats.winsByClass ?? {})) if (meta.stats.winsByClass[c] > 0) meta.stats.maxDiffByClass[c] = meta.highestWon;
   }
   return meta;
 }
@@ -2817,7 +2930,7 @@ function recordCombat(meta, { killLog, won, kind, reactionIds }) {
 }
 
 // Schwierigkeit n ist erst nach einem Sieg auf Stufe n-1 verfügbar
-const maxDifficulty = (meta) => Math.min(CONFIG.difficulty.length - 1, meta.highestWon + 1);
+const maxDifficulty = (meta, classId) => Math.min(CONFIG.difficulty.length - 1, (meta.stats.maxDiffByClass?.[classId] ?? -1) + 1);     // Schwer und Albtraum gelten je Held: erst mit diesem Helden gewinnen
 
 // Ohne meta (Tests, Simulation) ist alles freigeschaltet.
 function isUnlocked(meta, kind, def) {
@@ -2855,18 +2968,23 @@ function evaluateUnlocks(meta) {
 
 function recordRun(meta, run, won) {
   meta.runs++;
+  const st0 = meta.stats, before0 = maxDifficulty(meta, run.classId), stage = run.stage ?? 1;
+  const bc = (st0.byClass[run.classId] ??= { runs: 0, wins: 0, bestStage: 0 }); bc.runs++; if (won) bc.wins++; bc.bestStage = Math.max(bc.bestStage, stage);
+  st0.bestStage = Math.max(st0.bestStage ?? 0, stage); st0.goldTotal += run.stats?.goldEarned ?? 0; st0.fightsTotal += run.stats?.fights ?? 0;
+  meta.history = [{ classId: run.classId, won: Boolean(won), stage, fights: run.stats?.fights ?? 0, difficulty: run.difficulty ?? 0, at: Date.now() }, ...(meta.history ?? [])].slice(0, 10);
   if (won) {
     meta.wins++;
     meta.bossKills++;
     meta.highestWon = Math.max(meta.highestWon, run.difficulty);
+    st0.maxDiffByClass[run.classId] = Math.max(st0.maxDiffByClass[run.classId] ?? -1, run.difficulty ?? 0);
     const st = meta.stats;
     st.winsByClass[run.classId] = (st.winsByClass[run.classId] ?? 0) + 1;
     const w = baseId(run.startWeapon ?? run.weapon);
     st.winsByWeapon[w] = (st.winsByWeapon[w] ?? 0) + 1;
   }
-  const before = maxDifficulty(meta);
+  const after = maxDifficulty(meta, run.classId);
   const unlocks = evaluateUnlocks(meta);
-  return { unlocks, newDifficulty: won && before > run.difficulty ? CONFIG.difficulty[before]?.name : null };
+  return { unlocks, newDifficulty: won && after > before0 ? CONFIG.difficulty[after]?.name : null };
 }
 
 __exports.createMeta = createMeta;
@@ -2912,6 +3030,7 @@ const SPECIALS = {
   },
   low_hp_win: (ev) => wonRun(ev) && ev.run.hp <= 5,
   rich: (ev) => (ev.run?.gold ?? 0) >= 500,
+  alle: (ev, meta) => Object.values(CONTENT.achievements).filter((a) => a.id !== "x_vollendung").every((a) => meta.achievements[a.id]),       // 100 %: alle anderen Erfolge
 };
 const SPECIAL_NAMES = Object.keys(SPECIALS);
 
@@ -2990,12 +3109,12 @@ const RARITY_ORDER = ["gewoehnlich", "ungewoehnlich", "selten", "legendaer"];
 const baseOf = (id) => id.replace(/:s$/, "");
 
 // Seltenheits-Gewichte mit Glück und Tiefe. Gewöhnlich bleibt konstant, Seltenes wird wahrscheinlicher.
-function rarityWeights({ luck = 0, depth = 0 }) {
+function rarityWeights({ luck = 0, depth = 0, stage = 99 }) {
   const L = Math.min(Math.max(luck, 0), CONFIG.luck.maxLuck);
   const out = {};
   for (const [r, { weight }] of Object.entries(CONFIG.rarities)) {
     const factor = 1 + L * (CONFIG.luck.perPoint[r] ?? 0) + depth * (CONFIG.depthBonus[r] ?? 0);
-    out[r] = { weight: weight * factor };
+    out[r] = { weight: stage < (CONFIG.rarityMinStage[r] ?? 1) ? 0 : weight * factor };           // zu starke Seltenheit erscheint erst ab ihrer Stage
   }
   return out;
 }
@@ -3145,7 +3264,7 @@ function generateShop(ctx, quick = false) {
     cards: pickMany(ctx, "cards", S.cardSlots, S.wildcardCards).map((d) => slot(ctx.rng, "cards", d, infl)),
     items: [...frozen, ...fresh],
     removeCost: removalCost(ctx.removedCards ?? 0), removals: 0,
-    rerollCost: S.rerollBase, rerolls: 0,
+    rerollCost: Math.max(1, Math.round(S.rerollBase * Math.max(0.2, 1 + (ctx.build?.stats?.rerollMod ?? 0) / 100))), freeRerolls: Math.max(0, Math.floor(ctx.build?.stats?.freeRerolls ?? 0)), rerolls: 0,
     quick,
     services: [{ id: "heal", price: S.services.heal.price, uses: 0 }, { id: "vitality", price: S.services.vitality.price, sold: false }],
   };
@@ -3153,9 +3272,9 @@ function generateShop(ctx, quick = false) {
 
 // Würfelt alle noch NICHT gekauften und NICHT gesperrten Slots neu. Reroll-Falle: Die Kosten verdoppeln sich bei jeder Nutzung (10, 20, 40, 80 ...).
 function rerollShop(shop, ctx, run) {
-  if (run.gold < shop.rerollCost) return { ok: false, reason: "Zu wenig Gold" };
-  run.gold -= shop.rerollCost;
-  shop.rerollCost *= CONFIG.shop.rerollMult;
+  const free = (shop.freeRerolls ?? 0) > 0;                                       // freie Rerolls (Wert) zuerst, ohne dass die Kosten steigen
+  if (!free && run.gold < shop.rerollCost) return { ok: false, reason: "Zu wenig Gold" };
+  if (free) shop.freeRerolls--; else { run.gold -= shop.rerollCost; shop.rerollCost *= CONFIG.shop.rerollMult; }
   shop.rerolls++;
   const infl = ctx.inflation ?? 1;
   const shown = new Set([...shop.cards, ...shop.items].map((s) => baseOf(s.id)));
@@ -3255,7 +3374,7 @@ function createRun({ classId = "nahkaempfer", seed = (Date.now() >>> 0), difficu
     deck: [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
-    xp: 0, level: 0, upStats: {}, pendingLevels: 0,
+    xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
     stats: { fights: 0, elites: 0, minibosses: 0, nodes: 0, shinyEnemies: 0, shinyLoot: 0, goldEarned: 0, purchases: 0 },
   };
   run.maxHp = computeMaxHp(run);
@@ -3286,6 +3405,7 @@ function queueAch(run, ev) {
 function found(run, kind, id) {
   if (!run.meta) return;
   discover(run.meta, kind, id);
+  if (String(id).endsWith(":s") && (kind === "items" || kind === "weapons")) recordShiny(run.meta.dex, kind, id);       // Sammlung: erst wenn man es wirklich gewählt oder gekauft hat
   queueAch(run, { type: "pickup" });
 }
 // Für die Oberfläche: neu erreichte Erfolge abholen (Meldung einblenden)
@@ -3295,15 +3415,15 @@ const specOf = (run) => {
   const cls = CONTENT.classes[run.classId];
   const stats = { ...cls.stats, luck: (cls.stats.luck ?? 0) + (run.shinyHero ? CONFIG.shiny.heroLuck : 0) };   // Chrom-Held: +1 Glück
   for (const [k, v] of Object.entries(run.upStats ?? {})) stats[k] = (stats[k] ?? 0) + v;                    // Wert-Aufstiege aus Erfahrung
-  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
+  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold, stage: run.stage };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
 };
 const buildOf = (run) => resolveBuild(specOf(run));
 const computeMaxHp = (run) => Math.max(1, CONTENT.classes[run.classId].hp + run.bonusMaxHp + buildOf(run).stats.maxHp);
 const currentLayer = (run) => (run.nodeId ? findNode(run.map, run.nodeId).layer : 0);
 const ctxOf = (run) => {
   const build = buildOf(run);
-  return { rng: run.rng, build, classId: run.classId, depth: currentLayer(run), luck: build.stats.luck, meta: run.meta,
-    inflation: (1 + CONFIG.shop.inflationPerFight * run.stats.fights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [] };
+  return { rng: run.rng, build, classId: run.classId, depth: (run.stage - 1) + currentLayer(run) / 10, stage: run.stage, luck: build.stats.luck + Math.floor((build.stats.curse ?? 0) / 5), meta: run.meta,
+    inflation: (1 + CONFIG.stageScale.price * (run.stage - 1) + CONFIG.shop.inflationPerFight * run.stageFights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)) * Math.max(0.4, 1 + (build.stats.priceMod ?? 0) / 100), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [] };
 };
 
 // Neue Max-HP-Boni heilen um den Zuwachs (wie bei Slay the Spire)
@@ -3321,7 +3441,11 @@ const addItem = (run, id) => {
 };
 const addCard = (run, id) => { run.deck.push(id); found(run, "cards", id); };
 const setWeapon = (run, id) => { run.weapon = id; found(run, "weapons", id); };
-const backToMap = (run) => { run.phase = "map"; run.pending = null; };
+function advanceStage(run) {                                                         // nächste Stage: neue Karte, Teil-Heilung, Hinweis
+  run.stage++; run.stageClear = false; run.stageFights = 0; run.map = generateMap(run.rng); run.path = []; run.nodeId = null;
+  healRun(run, Math.ceil(run.maxHp * CONFIG.stages.heal)); run.stageNotice = run.stage;
+}
+const backToMap = (run) => { if (run.stageClear) advanceStage(run); run.phase = "map"; run.pending = null; };
 
 // ---------------------------------------------------------------- Start
 // Nach der Geschichte: der feste erste Kampf (Ebene 0 hat nur einen Ort)
@@ -3362,9 +3486,10 @@ function enterNode(run, nodeId) {
 
 // ---------------------------------------------------------------- Kampf
 function pickEncounter(run, nodeKind, layer) {
-  if (layer === 0 && CONFIG.map.firstEncounter) { run.seenEncounters.push(CONFIG.map.firstEncounter); return CONFIG.map.firstEncounter; }
+  if (run.stage === 1 && layer === 0 && CONFIG.map.firstEncounter) { run.seenEncounters.push(CONFIG.map.firstEncounter); return CONFIG.map.firstEncounter; }
   const kind = nodeKind === "kampf" ? "normal" : nodeKind;
-  const tier = layer < CONFIG.map.tierSplit ? 1 : 2;
+  const tier = run.stage > 1 || layer >= CONFIG.map.tierSplit ? 2 : 1;
+  if (kind === "boss" && run.stage < CONFIG.stages.count) { const id = CONFIG.stages.guards[(run.stage - 1) % CONFIG.stages.guards.length]; run.seenEncounters.push(id); return id; }     // Stage-Wächter
   let list = Object.values(CONTENT.encounters).filter((e) => e.kind === kind && (kind === "normal" ? e.tier === tier : e.tier <= tier || kind === "boss"));
   if (!list.length) list = Object.values(CONTENT.encounters).filter((e) => e.kind === kind);
   const fresh = list.filter((e) => !run.seenEncounters.includes(e.id));
@@ -3413,8 +3538,8 @@ function completeCombat(run) {
   run.gold = Math.max(0, run.gold + (combat.gold - combat.goldStart));                       // Gold aus dem Kampf (Taschendiebstahl, Bestechung)
   run.stats.goldEarned += combat.goldGained;
   if (combat.maxHpGain) { run.bonusMaxHp += combat.maxHpGain; run.maxHp = computeMaxHp(run); }  // Photosynthese: dauerhaft (die HP wurden im Kampf schon erhöht)
-  run.stats.fights++;
-  run.xp += combat.killLog.reduce((a, k) => a + xpOf(k.id), 0);                              // Erfahrung für besiegte Gegner, volle Leiste = Aufstieg
+  run.stats.fights++; run.stageFights++;
+  run.xp += Math.round(combat.killLog.reduce((a, k) => a + xpOf(k.id), 0) * (1 + CONFIG.stageScale.xp * (run.stage - 1)));                              // Erfahrung für besiegte Gegner, volle Leiste = Aufstieg
   while (run.xp >= xpNeed(run.level)) { run.xp -= xpNeed(run.level); run.level++; run.pendingLevels++; }
   if (kind === "elite") run.stats.elites++;
   if (kind === "miniboss") run.stats.minibosses++;
@@ -3429,7 +3554,7 @@ function completeCombat(run) {
     run.stats.shinyEnemies++;
     if (run.meta) recordShiny(run.meta.dex, "enemies", id);
   }
-  if (kind === "boss") return endRun(run, true);
+  if (kind === "boss" && run.stage >= CONFIG.stages.count) return endRun(run, true);
 
   const ctx = ctxOf(run);
   const [lo, hi] = CONFIG.gold[kind];
@@ -3437,13 +3562,14 @@ function completeCombat(run) {
   const overkillGold = Math.floor(combat.overkill / CONFIG.economy.overkillPerGold);       // Überschuss-Schaden beim Töten
   const harvest = Math.max(0, Math.floor(combat.build.stats.ernte ?? 0));                  // Ernte: festes Einkommen nach jedem Kampf
   const midas = goldMult(combat.build.stats);                                                // Midas-Fluch: verdoppelt das gesamte erhaltene Gold
-  const gold = Math.round((goldDrop(ctx, lo + Math.floor(run.rng.next() * (hi - lo + 1))) + bonus + overkillGold + harvest) * midas);
-  run.gold += gold;
-  run.stats.goldEarned += gold;
+  const gold = Math.round((goldDrop(ctx, Math.round((lo + Math.floor(run.rng.next() * (hi - lo + 1))) * (1 + CONFIG.stageScale.gold * (run.stage - 1)))) + bonus + overkillGold + harvest) * midas);
+  let gold2 = gold; if (run.rng.next() * 100 < (combat.build.stats.doubleChance ?? 0)) gold2 *= 2; gold2 = Math.round(gold2 * (1 + 0.015 * (combat.build.stats.curse ?? 0)));   // Doppel-Gold-Chance und Fluch-Bonus
+  run.gold += gold2;
+  run.stats.goldEarned += gold2;
   queueAch(run, { type: "state" });                       // z. B. 500 Gold gleichzeitig
 
   const levelChoices = run.pendingLevels > 0 ? makeLevelChoices(run) : [];
-  const reward = { levelChoices, gold, shinyBonus: bonus, overkillGold, harvest, midas: midas > 1, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
+  const reward = { levelChoices, stageClear: kind === "boss", gold: gold2, shinyBonus: bonus, overkillGold, harvest, midas: midas > 1, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
   if (kind === "elite" || kind === "miniboss" || run.rng.next() < CONFIG.run.normalItemChance) {
     reward.items = generateItemChoices(ctx).map((d) => d.id);
   }
@@ -3451,10 +3577,6 @@ function completeCombat(run) {
   if (combat.shinyKills.length) {
     reward.shinyItems = generateShinyItemChoices(ctx).map((d) => d.id);
     reward.shinyWeapons = generateShinyWeaponChoices(ctx).map((d) => d.id);
-    if (run.meta) {                                           // Chrom-Funde gelten als gefunden (Sammlung), auch wenn man sie nicht wählt
-      for (const id of reward.shinyItems) recordShiny(run.meta.dex, "items", id);
-      for (const id of reward.shinyWeapons) recordShiny(run.meta.dex, "weapons", id);
-    }
   }
   countShiny(run, [
     ...reward.cards.map((id) => ({ id, kind: "cards" })), ...reward.items.map((id) => ({ id, kind: "items" })),
@@ -3469,7 +3591,6 @@ function countShiny(run, entries) {
   for (const { id, kind } of entries) {
     if (!id.endsWith(":s")) continue;
     run.stats.shinyLoot++;
-    if (run.meta) recordShiny(run.meta.dex, kind, id);
   }
 }
 
@@ -3491,6 +3612,7 @@ const takeShinyItem = (run, idx) => take(run, "shinyItems", idx, (id) => addItem
 const takeShinyWeapon = (run, idx) => take(run, "shinyWeapons", idx, (id) => setWeapon(run, id));
 function finishReward(run) {
   if (run.phase !== "reward") return fail("Keine Belohnung offen");
+  run.stageClear = Boolean(run.pending.reward.stageClear);                       // Wächter besiegt: nach Beute und Laden beginnt die nächste Stage
   if (!run.startShopDone && run.stats.fights === 1) {          // nach dem ersten (leichten) Kampf: Startladen mit Grundausrüstung
     run.startShopDone = true;
     const shop = generateStartShop(ctxOf(run));
@@ -3950,6 +4072,13 @@ const activeFrame = (meta) => {
 };
 const skinPal = (id) => CONTENT.skins[id]?.pal;
 
+// Reaktionen in Worten (für die Karten-Info): Wirkung der Effekte
+function reactionText(r) {
+  const E = getLang() === "en";
+  return r.effects.map((e) => ({ damage_all: E ? `${e.value} damage to ALL` : `${e.value} Schaden an ALLE`, damage: E ? `${e.value} damage` : `${e.value} Schaden`, heal: E ? `heal ${e.value} HP` : `heile ${e.value} HP`, block: `${e.value} Block`,
+    status: `${e.stacks}x ${stName(e.status)}` }[e.action] ?? e.action)).join(", ");
+}
+
 __exports.esc = esc;
 __exports.cap = cap;
 __exports.needsTarget = needsTarget;
@@ -3960,6 +4089,7 @@ __exports.describeItem = describeItem;
 __exports.activeSkin = activeSkin;
 __exports.activeFrame = activeFrame;
 __exports.skinPal = skinPal;
+__exports.reactionText = reactionText;
 
 });
 __define("ui/art/core.js", function (__exports, __require) {
@@ -4370,6 +4500,15 @@ Object.assign(ITEM_ART, {
   schattenklinge: ["dagger", "schatten", "wing"], rotes_siegel: ["scroll", "blut", "flame"], koenigsring: ["ring", "prisma", "coin"],
 });
 
+// Nebenwert- und Fluch-Items (content/packs/stat_items.js)
+Object.assign(ITEM_ART, {
+  gutschein: ["scroll", "gold", "coin"], handelsabkommen: ["book", "pergament", "coin"], wuerfelbecher: ["dice", "leder", null], gluecksrad: ["globe", "gold", "coin"],
+  drachentoeter: ["dagger", "blut", "skull"], henkersbeil: ["hammer", "blut", "skull"], schlangengift: ["vial", "knochen", "skull"], gluthoel: ["flask", "asche", "flame"],
+  dornenwein: ["flask", "blut", "thorn"], kraeutertee: ["flask", "pflanze", "leaf"], lebensquell: ["orb", "wasser", "drop"], goldwaescher: ["bowl", "gold", "coin"],
+  gluecksmuenze: ["medal", "gold", "coin"], verfluchter_dolch: ["dagger", "schatten", "skull"], fluchsiegel: ["scroll", "schatten", "skull"], daemonenpakt: ["book", "schatten", "flame"],
+});
+Object.assign(ITEM_ART, { herz_der_vollendung: ["heart", "perlmutt", "wing"] });
+
 __exports.SHAPES = SHAPES;
 __exports.MARKS = MARKS;
 __exports.ITEM_ART = ITEM_ART;
@@ -4632,26 +4771,26 @@ __define("ui/art/heroes2.js", function (__exports, __require) {
 // ERZEUGT von tools/figures/heroes.mjs (nicht von Hand ändern). Neue Helden und NPCs im detaillierten Stil (40x60 Pixel).
 const R = (rows) => rows.map((r) => [...r]);
 const HEROES2 = {
-  nahkaempfer: { w: 40, h: 60, cells: R(["........................................",".......................OOr..............","................iiiiiOOORr..............","...............iihhhhORRRrr.............","..............iihhhhOORRRr..............",".............iihhhhhORRRrrg.............","............iihhhhhOORRrrhhg............","............ihhhhhhrRrrrhhhg............","............ihhhhhhhrrhhhhhg............","............ihhhhhhhhhhhhhhg............","...........iihhhhhhhhhhhhhhhg...........","...........ihhhhhhhhhhhhhhhhg...........","...........iggggggghhgggggggg...........","...........igtsSSSshhsSSSsSig...........","...........igtssksshhsskssSig...........","...........igtssksshhsskssSig...........","...........igSssssshhssssSSig...........","...........ig.SsssshhsssSS.ig...........","...........ig..SssrrrrsSS..ig...........","...........gg...SSSSSSSS...gg...........",".........g.......tssssS.......g.........","......iiiiiig....SSSSSS....iiiiiig......",".....iihhhhhhgVVVVVVVVVVVuiihhhhhhg.....",".....ihhhhhhygUUUUUUUUUUUuiyhhhhhhg.....","....gihhhhhhyggUUUUUUUUUUgiyhhhhhhgg....",".....ihhhhhhygUUUUUUUUUUUuiyhhhhhhg.....",".....ghhhhhhygUUUUUUUUUUUugyhhhhhgg.....",".....iggggggyUUUUUUOOUUUUuuyggggggg.....","....iihhhg..yUUUUUOOOOUUUuuy..ghhhhg....","....ihhhhg..yUUUUJJwwUUUUuuy..ihhhhg....","....ihhhhg..yUUUUJJwwUUUUuuy..ihhhhg....","....ihhhhg..yUUUUUFFFFUUUuuy..ihhhhg....","....ihhhhg..yUUUUUUFFUUUUuuy..ihhhhg....","....ihhhhg.VyUUUUUUUUUUUUUuy..ihhhhg....","....ghhhhg.VyUUUUUUUUUUUUUuy..ihhhgg....",".....ihhhg.VyUUUUUUUUUUUUUuy..ihhhg.....",".....ihhhg.VynnnnnnYYnnnnnny..ihhhg.....",".....ggggg.VynnnnnnYYnnnnnny..ggggg.....","......ttS..VyUUUUUUUUUUUUUuy...ttS......",".....ttssS.VyUUUUUUUUUUUUUuy..ttssS.....",".....tsssS.VyUUUUUUUUUUUUUuy..tsssS.....",".....SssSS.uyuuuuuuuuuuuuuuy..SssSS.....","......SSS..uyuuuuuuuuuuuuuuy...SSS......","...........yyyyyyyyyyyyyyyyyy...........",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............",".............ihhhhg..ihhhhg.............","..........NNNNNNNxg..gNNNNNNNx..........",".........NNnnnnnnx....Nnnnnnnnx.........","........NNnnnnnnnx....Nnnnnnnnnx........","........xxxxxxxxxx....xxxxxxxxxx........","........................................"]), px: 1.65, hand: [36,41] },
-  fernkaempfer: { w: 40, h: 60, cells: R(["........................................","................GGGGGGGf................","..............GGGFGFFFFfff..............",".............GGFFGGFFFffFff.............","............GGFFFffffffFFFff............","...........GGFFFFFFFFFFFFFFff...........","...........GFFFFFFFFFFFFFFFff...........","..........GGFFFFFFFFFFFFFFFFff..........","..........GFFFFFFffffffFFFFFff..........","..........GFFFFffffffffffFFFff..........","..........GFFFfftttttttSffFFffR.........","..........GFFffttsssssssSffFffM.........","..........GFFfttsssssssssSfFffM.........","..........fFfftSSSssssSSSSffff..........","...........GfftskssssssksSfffggx........","...........ffftskssssssksSfffnnx........","............fftssssSSssssSffnnnx........",".............fSsssssssssSSfgnnnx........",".............ffSssrrrrsSSffgnnnx........","..............ffSSSSSSSSff.gnnnx........",".......GGGGGGGGffffffffffGGgnnnx........",".......GFFFFFFFFFffffffFFFFgnnnx........",".......GFFFFFFFFFFFFFFFFFFFgnnnx........",".......GFFFFMMMMMMMMMMMMMnngnnnx........","......MMMMnFMNNNNNNOONNNNnngnnnxMn......","......MNNNnFMNNNNNJwwUNNNnngnnnxNn......","......MNNNnFMNNNNNJwwUNNNnngnnnxNn......","......MNNNnFMNNNNNNFFNNNNnngnnnxNn......","......MNNNnFMNNNNNNNNNNNNnngnnnxNn......","......MNNNnFMNNNNNNNNNNNNnngnnnxNn......","......MNNNnFMNNNNNNNNNNNNnnxxxxxNn......","......MNNNnFMNNNNNNNNNNNNnnFFMNNNn......","......MNNNnFMNNNNNNNNNNNNnnFFMNNNn......",".....GMNNNnMMNNNNNNNNNNNNNnnFMNNNn......",".....GMNNNnMNNNNNNNNNNNNNNnnFMNNNn......",".....GMNNNnMxxxxxxxYYxxxxxxxFMNNNn......",".....GnnnnnMxxxxxxxYYxxxxxxxFnnnnn......",".....GFttSFMNNNNNNNNNNNNNNnnFFttSf......",".....GttssSMNNNNNNNNNNNNNNnnFttssS......",".....GtsssSMNNNNNNNNNNNNNNnnFtsssS......",".....GSssSSnnnnnnnnnnnnnnnnnFSssSS......",".....GFSSSFnnnnnnnnnnnnnnnnnFFSSSf......","....GGFFFFFFFFFFFFFFFFFFFFFFFFFFFff.....","....GFFFFFFFFFFFFFFFFFFFFFFFFFFFFff.....","....fffffffffffffffffffffffffffffff.....","....fffffffffffffffffffffffffffffff.....",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............MNNNn....MNNNn.............",".............nnnnn....nnnnn.............","..........NNNNNNNx....NNNNNNNx..........",".........NNnnnnnnx....Nnnnnnnnx.........","........NNnnnnnnnx....Nnnnnnnnnx........","........xxxxxxxxxx....xxxxxxxxxx........","........................................"]), px: 1.65, hand: [36,41] },
-  magier: { w: 40, h: 60, cells: R(["........................................","..................PPqq..................","................PPPQqq..................","................PQQQQqq.................","...............PPQQQQqq.................","...............PQQQQQQqq................","...............PQQQQQQQqq...............","..............PPQQQQQQQqq...............",".........PPPPPPQQQQQQQQQqqPPPPq.........","......PPPPQQQYYYYYYYYYYYYYYQQQQPPq......",".....qPQQQQQQYYYYYYYYYYYYYYQQQQQQqq.....","......qqqQQQQQQQQQQQQQQQQQQQQQqqqq......",".........qqqqqqqqqqqqqqqqqqqqqq.........",".............ttBBBssssBBBSS.............",".............ttsksssssskssS.............",".............tssksssssskssS.............",".............SsssssSSssssSS.............","........wwwwwwSsssmmmmssSSwwwBB.........","........BmmmmmmSSSSSSSSSSmmmBBB.........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........BmmmmmmmmmmmmmmmmmBBB..........","..........wmmmmmmmmmmmmmmmmBB...........","..........BmmmmmmmmmmmmmmmBBB...........","...........wmmmmmmmmmmmmmmBB............","....VVVVVuVBmmmmmmmmmmmmmBBBuuVVVVVu....","....VUUUUuUUwmmmmmmmmmmmmBBUuuVUUUUu....","....VUUUUuUUBmmmmmmmmmmmBBBUuuVUUUUu....","....VUUUUuUUUwmmmmmmmmmmBBUUuuVUUUUu....","....VUUUUuUUUBmmmmmmmmmBBBUUuuVUUUUu....","...VVUUUUuUUUUwmmmmmmmmBBUUUUuVUUUUUu...","...VUUUUUuUUUUBmmmmmmmBBBUUUUuVUUUUUu...","...VUUUUUuUUUUUwmmmmmmBBUUUUUuVUUUUUu...","...VUUUUUuUUUUUBmmmmmBBBUUUUUuVUUUUUu...","...VUUUUuuUUUUUUBBBBBBBUUUUUUuuUUUUUu...","...VUUUUuUUUUUUUBBBBBBBUUUUUUuuVUUUUu...","...VUUUUuUUUUUUUUUUUUUUUUUUUUuuVUUUUu...","...VUUUUuUUYYYYYYYYOOYYYYYYYYuuVUUUUu...","...VUUUUuUUYYYYYYYJwwUYYYYYYYUuVUUUUu...","...VUUUUuUUUUUUUUUJwwUUUUUUUUUuVUUUUu...","..VVUUUUuUUUUUUUUUUFFUUUUUUUUUuVUUUUUu..","..VUUUUUuUUUUUUUUUUUUUUUUUUUUUuVUUUUUu..","..VUUUUUuUUUUUUUUUUUUUUUUUUUUUuVUUUUUu..","..VUttSuuUUUUUUUUUUUUUUUUUUUUUuuuttSUu..","..uttssSUUUUUUUUUUUUUUUUUUUUUUuuttssSu..","...tsssSUUUUUUUUUUUUUUUUUUUUUUuutsssS...","...SssSSUUUUUUUUUUUUUUUUUUUUUUuuSssSS...","....SSSVUUUUUUUUUUUUUUUUUUUUUUUuuSSS....","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUUUUUUUUuu.......",".....VVUUUUUUUUUUUUUUUUUUUUUUUUUuu......",".....VUUUUUUUUUUUUUUUUUUUUUUUUUUuu......",".....uuuuuuuuuuuuuuuuuuuuuuuuuuuuu......",".....YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY.....",".....YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY.....","........................................"]), px: 1.65, hand: [36,43] },
-  pyromant: { w: 40, h: 60, cells: R(["...................r....................","................OOOOrOrr................","..............OOOOORRrRRrr..............",".............OOROORRRRrRRrr.............","............OORRORRRRRrRRRrr............","...........OORRrrrrOOrrrRRRrr...........","...........ORRRRRRJwwURRRRRrr...........","..........OORRRRRRJwwURRRRRRrr..........","..........ORRRRRRWWFFWWRRRRRrr..........","..........ORRRRWWWWWWWWWWRRRrr..........","..........ORRRWWWWWWWWWWWWRRrr..........",".........rORRRWWWWsssnWWWWRRrrr.........","..........ORRWWWsssSSSsnWWWRrr..........","..........ORRWWssSSSSSSSnWWRrr..........","..........ORRWWsYSSSSSSYnWWRrr..........","..........rRRWWsYSSSSSSYnWWrrr..........","...........ORWWsSSSSSSSSnWWrr...........","...........rRWWsSSSSSSSSnWWrr...........","............rRWnSSrrrrSnnWrr............",".............rWWnnSSSnnnWWr.............","..............rWWWnnnnWWWr..............","................rWWWWWWr................",".........OOOOOOOOOOOOOOOOOOOrr..........",".........ORRRRRRRRRRRRRRRRRRrr..........","....OOOOOrRRrRRRRRRRRRRRRRRrrrOOOOOr....","....ORRRRrRRrRRRRRRRRRRRRRRrrrORRRRr....","....ORRRRrRRrRRRRRRRRRRRRRRrRrORRRRr....","....ORRRRrRRrRRRRRRRRRRRRRRrRrORRRRr....","....ORRRRrRRrRRRRRRRRRRRRRRrRrORRRRr....","...OORRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRRrRRrRRRRRRRRRRRRRRrRrORRRRRr...","...ORRRRrrRRrRRRRRRRRRRRRRRrRRrRRRRRr...","...ORRRRrRRRrRRRRRRRRRRRRRRrRRrORRRRr...","...ORRRRrRRRrRRRRRRRRRRRRRRrRRrORRRRr...","...ORRRRrRRnnnnnnnnOOnnnnnnnnRrORRRRr...","...ORRRRrRRnnnnnnnJwwUnnnnnnnRrORRRRr...","...ORRRRrRRRRRRRRRJwwURRRRRRRRrORRRRr...","..OORRRRrRRRRRRRRRRFFRRRRRRRRRRORRRRRr..","..ORRRRRrRRRRRRRRRRRRRRRRRRRRRRORRRRRr..","..ORRRRRrRRRRRRRRRRRRRRRRRRRRRRORRRRRr..","..ORssnrrRRRRRRRRRRRRRRRRRRRRRRrrssnRr..","..rssSSnRRRRRRRRRRRRRRRRRRRRRRRrssSSnr..","...sSSSnRRRRRRRRRRRRRRRRRRRRRRRrsSSSn...","...nSSnnRRRRRRRRRRRRRRRRRRRRRRRrnSSnn...","....nnnRRRRRRRRRRRRRRRRRRRRRRRRRrnnn....",".....ORRRRRRRRRRRRRYoRRRRRRRRRRRrr......",".....ORRRRRRRRRRRRYYoRRRRRRRRRRRrr......",".....ORRRRRRRRRRRRYOOoRRRRRRRRRRrr......",".....ORRRRRYoRRRRYYOOoRRRRYoRRRRrr......",".....OoRRRRYoRRRRYOOOOoRRRYoRRRRor......",".....YoRRRYYOoRRYYOOOOoRRYYOoRRRYo......","....OYOoRRYOOoRRYOOOOOoRRYOOoRRYYor.....","....rYOorYYOOOYYYOOOOOOYYYOOOorYOor.....","....YYOOYYOOOOOOOOOOOOOOOOOOOOYYOOo.....","....oOOOOOOOOOOOOOOOOOOOOOOOOOOOOoo.....",".....YOOOOOOOOOOOOOOOOOOOOOOOOOOOo......",".....ooooooooooooooooooooooooooooo......","........................................"]), px: 1.65, hand: [36,43] },
-  aristokrat: { w: 40, h: 60, cells: R([".............gggggggggggggk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............gxxxxxxxxxxxxk.............",".............yyyyyyYYyyyyyy.............","...........ggyyyyyyYYyyyyyygk...........",".........gggxgxxxxxxxxxxxxkxxgk.........","........kgxxxkkkkkkkkkkkkkkxxxkk........",".........kkxxxxxxxxxxxxxxxxxkkk.........","...........kkkkkkkkkkkYYYkkkk...........",".............tsnnnsssYnnYsS.............",".............tsskssssYskYsS.............",".............tsskssssYskYsS.............",".............SssssssssYYsSS.............","..............SnnnnssnnnnS..............","..............nSsssssssSSn..............","................SSSSSSSS................",".................tttttS.................",".................tssssS.................","..........PPPPPPPSSSSSSPPPPqq...........","..........PQQQQQQwmmmmBQQQQqq...........","....PPPPPqPQQQQQQwmmmmBQQQQqq.PPPPPq....","....PQQQQqPQQQQQzwmmmmByQQQqq.PQQQQq....","....PQQQQqPQQQQQzBBBBBByQQQqq.PQQQQq....","....PQQQQqPQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYkkYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYkkYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....wwwwwwQQQQQQzYYkkYYyQQQQQqwwwwww....","....wwwwwwQQQQQQzYYYYYYyQQQQQqwwwwww....","....wwwwwwQQQQQQzYYYYYYyQQQQQqwwwwww....","......ttSQQQQQQQzYYYYYYyQQQQQqqttS......",".....ttssSQQQQQQyyyyyyyyQQQQQqttssS.....",".....tsssSQQQQQQQQQQQQQQQQQQQqtsssS.....",".....SssSSQQQQQQQQQQQQQQQQQQQQSssSS.....","......SSSQQQQQQQQQQQQQQQQQQQQQqSSS......",".......qqqqqqqqqqqqqqqqqqqqqqqqq........",".......qqqqqqqqqqqqqqqqqqqqqqqqq........","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","...........hhhhhhkk..khhhhhhk...........","..........hhxxxxxk....hxxxxxxk..........",".........hhxxxxxxk....hxxxxxxxk.........",".........kkkkkkkkk....kkkkkkkkk.........","........................................"]), px: 1.65, hand: [36,43] },
-  gaertnerin: { w: 40, h: 60, cells: R(["........................................","........................................","...............ttttttttN................","...............tMMMMMMMN................","..............ttMMMMMMMMN...............","..............tMMMMMMMMRN...............","..............tMMMMMMMRYR...............","..........ttttRRRRRRRRRRRRtttN..........",".......ttttMMNRRRRRRRRRRRRMMMMttN.......","......NtMMMMMMMMMMMMMMMMMMMMMMMMNN......",".......NNNMMMMMMMMMMMMMMMMMMMNNNN.......","..........NNNNNNNNNNNNNNNNNNNN..........","...........MnnttsssssssssnnNn...........","...........MnttsssssssssssnNn...........","...........MNtssssssssssssSNn...........",".........MMnNtssksssssskssSnnMn.........",".........MNNMtssksssssskssSnNNn.........",".........MNNnSSssssssssssSSnNNn.........",".........MNNnnSsssssssssSSnMNNn.........",".........MNNn.nSsssRRssSSn.MNNn.........",".........MNNn..nSSSSSSSSn..MNNn.........",".........MNNn....SSSSSS....MNNn.........","........MMNNn..............MNNNn........","........MNNNn..wwwwwwwwwB..MNNNn........","........MNNNnGGwmmmmmmmmBGGMNNNn........",".....wwwMNNNnFFBBBBBBBBBBFFMNNNnwwB.....",".....wmmMNNNnFFFFFFFFFFFFFFMNNNnmmB.....",".....wmmMNNNnFFFFFFFFFFFFFFMNNNnmmB.....",".....wmmMNNNnFFFFFFFFFFFFFFMNNNnmmB.....",".....wmmnNNNnFFFFFFFFFFFFFFMNNnnmmB.....",".....wmmmMNnnFFFFFFFFFFFFFFnNNnmmmB.....",".....wmmmRRnGFFFFFFFFFFFFFFfnRRmmmB.....",".....wmmmBFFGFFFFFFFFFFFFFFfffwmmmB.....",".....wmmmBFFNNNNNNNYYNNNNNNNffwmmmB.....",".....wmmmBFFNNNNNNNNNNNNNNNNFfwmmmB.....",".....wmmmBFFFFFFFFFFFFFFFFFFFfwmmmB.....",".....wmmmBFFFFFFFFFFFFFFFFFFFfwmmmB.....",".....BBBBBFFFFFFFFFFFFFFFFFFFfBBBBB.....","......ttSFFFFFFFFFFFFFFFFFFFFffttS......",".....ttssSFFFFFFFFFFFFFFFFFFFFttssS.....",".....tsssSFFFFFFFFFFFFFFFFFFFFtsssS.....",".....SssSSFFFFFFFFFFFFFFFFFFFFSssSS.....","......SSSFFFFFFFFFFFFFFFFFFFFFfSSS......","......GGFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......","......GFFFFFFFFFFFFFFFFFFFFFFFFff.......",".....GGFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......",".....GFFFFFFFFFFFFFFFFFFFFFFFFFFff......","....fffffffffffffffffffffffffffffff.....","....ffffffffffffffffffffffffffffffff....","....ffffffffffffffffffffffffffffffff....","..........MNNNNNNn....MNNNNNNn..........",".........MMNNNNNNn....MNNNNNNNn.........",".........nnnnnnnnn....nnnnnnnnn.........","........................................"]), px: 1.65, hand: [36,41] },
+  nahkaempfer: { w: 40, h: 60, cells: R(["........................................","........................................","...............x....xx..................","..............xx....xx....x.............","..............gxx..gxx...xx.............","..............gxx..gxx...gxx............","..........x...gWWgggWxx.ggxx.x..........","..........xx.ggWWWWWWWWggWxx.x..........","..........gWggWWWWWWWWWWWWWWxx..........","..........gWxxxxxxxxxxxxxxWWxx..........","..........xxxxxxxxxxxxxxxxxxxx..........","..........xggxttsssssssssSggxx..........","..........xgWxtssxssssrsssgWxx..........","...........gxxsxxsssssrxxsxWx...........","...........gxtsskssssssrssSgx...........","...........xxtsskssssssrssSxx...........","............xSssssssssssrSSx............","............x.SsssssssssrS.x............","...............SssrrrrsSS...............",".............OOOSSSSSSSSOr....g.........","............OORRRtssssSRRRriiiiigg......","...........OOOOrRSSSSSSRRRrihhhhhgg.....","...........ORRRrrrrrrrrrrrrrwwhhhhgg....","...........ORRRriiiiiiiigihhhhhhhhgg....",".....VVVVuOORRrrhhhhhhhhgihhhhhhhhggg...",".....VUUUuORRRrhhhhOOhhhgihhhhhhhhgg....",".....VUUUuORRRrhhhOOOOhhgghhhhhhhggg....",".....VUUUuORRRrhhJJwwUUhggggghggggg.....","....VVUUUuORRRrhhJJwwUUgggUgggggggUu....","....VUUUUuORRRrhhhFFFFhggUUuu.gUUUUu....","....VUUUUOORRRrhhhhFFhhggUUuu.VUUUUu....","....VUUUUORRRRrggggggggggUUuu.VUUUUu....","....VUUUUORRRrrggggggggggUUuu.VUUUUu....","....VUUUUrrRRrUUUgWWWWxUUUUuu.VUUUUu....","....uUUUUuVrRrUUUgWWWWxUUUUUuuVUUUuu....",".....VUUUuUUrrUUUgWWWWxUUUUUuuVUUUu.....","....iiiiiigUUUUUUgWWWWxUUUUUuiiiiiig....","....ihhhhhgUUUUUUgWWWWxUUUUUuihhhhhg....","....ihhghhgUUUUUUgWWWWxUUUUUuihhghhg....","....giiiiggnnnnnnnnYYnnnnnnnngiiiigg....",".....ihhhgnnnnnnnnnnnnnnnnnnnnihhhg.....","....gihhhggUUUUUUgWWWWxUUUUUugihhhgg....",".....ihhhgUUUUUUUgWWWWxUUUUUUuihhhg.....",".....ggggguuuuuuugWWWWxuuuuuuuggggg.....",".......guuuuuuuuugWWWWxuuuuuuuu.g.......",".............gWWWxxxxxxWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............",".............gWWWWx..gWWWWx.............","..........hhhhhhhkx..xhhhhhhhk..........",".........hhxxxxxxk....hxxxxxxxk.........","........hhxxxxxxxk....hxxxxxxxxk........","........kkkkkkkkkk....kkkkkkkkkk........","........................................"]), px: 1.65, hand: [36,41] },
+  fernkaempfer: { w: 40, h: 60, cells: R(["........................................","........................................",".................wBB....................","...............wwwmmwwwwwBB.............","..............wwmmmmmmmmmmBB............","............wwwmmmmmmmmmmmBB............","..........wwwJJJgBBBBmmJJJgBB...........","..........wmJwJJJgBBBBJJJJwgB...........","..........wxJJJJJgxxxxJJJJJgxx..........","..........BxgJJJggxxxxgJJJggxx..........","...........BBggggssssssggggB.MR.........","...........B..ttsssssssssS.BR.M.........",".............ttsssssssssssS.M.M.........",".............tsBBBssssBBBsS.M...........",".............tssJssssssJssSggggx........",".............tssksssssskssSgnnnx........",".............SsssssssssssSSgnnnx........","..............SsssssssssSS.gnnnx........","...............SssrrrrsSS..gnnnx........","............GGGGSSSSSSSSFGGfnnnx........","...........GGFFFFtssssSFFFFFfnnx........","..........fGFFFFFSSSSSSFFFFFffnx........","..........GfFFFFFFFFFFFFFFFffnnx........","..........GFfffFFFFFFFFFfffffnnx........",".....GGGGfGFNFFffffffffffFFNfnGGGGf.....",".....GFFFfGFFNFFFFFiGFFFFFNffnGFFFf.....",".....GFFFfGFFFNNFFFiGFFFNNFffnGFFFf.....",".....GFFFfGFFFFFNFFiGFFNFFFffnGFFFf.....",".....GFFFfGFFFFFFNFOOFNFFFFffnGFFFf.....",".....GFFFfGFFFFFFFJwwUFFFFFffnGFFFf.....",".....GFFFfGFFFFFFFJwwUFFFFFffxGFFFf.....",".....GFFFfGFFFFFFFNFFNFFFFFff.GFFFf.....",".....GFFFfGFFFFFFNFiGFNFFFFff.GFFFf.....",".....GFFFfGFFFFFNFFiGFFNFFFFffGFFFf.....",".....GFFFfFFFFNNFFFiGFFFNNFFffGFFFf.....",".....MMMMMnFFNFFFFFiGFFFFFNFfMMMMMn.....",".....MNNNNnFNFFFFFFiGFFFFFFNfMNNNNn.....",".....MNNNNnFFFFFFFFiGFFFFFFFfMNNNNn.....",".....ntttSnFFFFFFFFiGFFFFFFFfntttSn.....","......tssSxxxxxxxxxxxxxxxxxxxxtssS......",".....StssSSxxxxxxxxxxxxxxxxxxStssSS.....","......tssSfffffffffiGffffffffftssS......","......SSSSfffffffffiGfffffffffSSSS......",".............MNNNNn..MNNNNn.............",".............MNNNNn..MNNNNn.............",".............MNNNNn..MNNNNn.............",".............MNNNNn..MNNNNn.............",".............gggggx..gggggx.............",".............gnnnnx..gnnnnx.............",".............xxxxxx..xxxxxx.............",".............MNNNNn..MNNNNn.............",".............MNNNNn..MNNNNn.............",".............MNNNNn..MNNNNn.............",".............MNNNNn..MNNNNn.............",".............MNNNNn..MNNNNn.............","..........NNNNNNNxn..nNNNNNNNx..........",".........NNnnnnnnx....Nnnnnnnnx.........","........NNnnnnnnnx....Nnnnnnnnnx........","........xxxxxxxxxx....xxxxxxxxxx........","........................................"]), px: 1.65, hand: [36,41] },
+  magier: { w: 40, h: 60, cells: R(["........................................","..............B.....B...................","..............B.....BB....B.............","..............BB...wBB...BB.............",".............wwBB..wBB...wBB............",".............wmBB.wwmBB.wwBB............",".............wmmmwwmmmmwwmBB.BB.........",".........wwwwwmmmmmmmmmmmmmmwBB.........",".........wmmmmmmmmmmmmmmmmmmmBB.........",".........wmBBBBBBBBBBBBBBBmmBBB.........",".........BBBBBBBBBBBBBBBBBBmBB..........","..........BwwBttsssssssssSwwBB..........","..........BwmBtssssssssssSwmBB..........","..........BwBBtxxxssssxxxsBmBB..........","...........wBtssJssssssJssSwB...........","...........BBtssJssssssJssSBB...........","............BSsssssssssssSSB............","............B.tssssssssssS.B............","..............SsssrrrrssSS..............","...............SSsssssSSS...............","...........uuuuuuSSSSSSuuuux............","...........xWWWWWWWWWWWWWWxx............",".........uuuuWWWWWWWWWWWWWxuxx..........",".........uWWxWWWWWWWWWWWWxxWxx..........","....uuuuuxWWWxxxxxxxxxxxxxWWxxuuuuux....","....uWWWWxWWWWWWWWxxxxkWWWWWxxuWWWWx....","....uWWWWxWWWWWWWWxxxxkWWWWWxxuWWWWx....","....uWWWWxWWWWWWWWxxxxkWWWWWWxuWWWWx....","....uWWWWxWWWWWWWWYxxYkWWWWWWxuWWWWx....","...uuWWWWxWWWWWWWWxxxxkWWWWWWxuWWWWWx...","...uWWWWWxWWWWWWWWxxxxkWWWWWWxuWWWWWx...","...uWWWWWxWWWWWWWWxxxxkWWWWWWxuWWWWWx...","...uWWWWWxWWWWWWWWYxxYkWWWWWWxuWWWWWx...","...uWWWWxxWWWWWWWWxxxxkWWWWWWxxWWWWWx...","...uWWWWxWWWWWWWWWxxxxkWWWWWWxxuWWWWx...","...uWWWWxWWWWWWWWWxxxxkWWWWWWxxuWWWWx...","...uWWWWxWWWWWWWWWYxxYkWWWWWWWxuWWWWx...","...uWWWWxWWWWWWWWWxxxxkWWWWWWWxuWWWWx...","...uWWWWxWWxxxxxxxxOOxxxxxxxxWxuWWWWx...","..uuWWWWxWWxxxxxxxJwwUxxxxxxxWxuWWWWWx..","..uWWWWWxWWWWWWWWWJwwUkwwmWWWWxuWWWWWx..","..uWWWWWxWWWWWwwmWxFFxkwBmWWWWxuWWWWWx..","..uWttSxxWWWWWwBmWxxxxkwBmWWWWxxxttSWx..","..xttssSWWWWWWwBmWxxxxkwRmWWWWxxttssSx..","...tsssSWWWWWWwRmWxxxxkwBmWWWWxxtsssS...","...SssSSWWWWWWwBmWxxxxkwBmWWWWWxSssSS...","....SSSWWWWWWWwBmWxxxxkwRmWWWWWxxSSS....","......uWWWWWWWwRmWxxxxkwBmWWWWWxx.......","......uWWWWWWWwBmWxxxxkwBmWWWWWxx.......","......uWWWWWWWmmmWxxxxkwBmWWWWWxx.......","......uWWWWWWWWWWWxxxxkmmmWWWWWxx.......","......uWWWWWWWWWWWxxxxkWWWWWWWWxx.......","......uWWWWWWWWWWWxxxxkWWWWWWWWxx.......","......uWWWWWWWWWWWxxxxkWWWWWWWWxx.......",".....uuWWWWWWWWWWWxxxxkWWWWWWWWWxx......",".....uWWWWWWWWWWWWxxxxkWWWWWWWWWxx......",".....xxxxxxxxxxxxWxxxxkxxxxxxxxxxx......",".....YYYYYYYYYYYYWxxxxkYYYYYYYYYYYY.....",".....YYYYYYYYYYYYkkkkkkYYYYYYYYYYYY.....","........................................"]), px: 1.65, hand: [36,43] },
+  pyromant: { w: 40, h: 60, cells: R(["........................................","..................oo....................","............o.....oo......o.............","............oo...YYoo....oo.............","............oo...YOoo...Yoo.............","............Yoo.YYOOoo.YYOoo............","............YOOYYOOOOOYYOOoo............","............YOOOOOOOOOOOOOoo............","........oYYYYOOOOOOOOOOOOOOOYooo........",".........YOOooooooooooooooOOOoo.........",".........YooooooooooooooooooOoo.........",".........ooYYottsssssssssSYYooo.........","..........oYootssrssssrsssoOoo..........","...........YotsrrssssssrrsSYo...........","...........ootssYssssssYssSoo...........","............otssYssssssYssSo............","............oSsssssssssssSSo............","..............SsssssssssSS..............","...............SssrrrrsSS...............","................SSSSSSSS................",".........o......YtssssSo.....o..........",".........Yo....YYSSSSSSOo...Yo..........",".........ooogkgooooggoooogggoo..........",".........gxxxoxxxOOooOrxxgoxxk..........",".....ggggkxxxkxxxORRRRrxxgxxxkggggk.....",".....gxxxkxxxkxxxORRRRrxxgxxxkgxxxk.....",".....gxxxkxxxkxxxORRRRrxxgxxxkgxxxk.....",".....gxxxkxxkkxxxORRRRrxxkxxxkgxxxk.....",".....gxxxkxxkxxxxORRRRrxxxgxxkgxxxk.....",".....gxxxkxxkxxxxORRRRrxxxgxxkgxxxk.....",".....gxxxkxxkxxxxOROORrxxxgxxkgxxxk.....",".....gxxxkxxkxxxxOJwwUrxxxgxxkgxxxk.....",".....gxxxkxxkxxxxOJwwUrxxxgxxkgxxxk.....",".....gxxxkxxkxxxxORFFRrxxxgxxxgxxxk.....",".....gxxxkxxkxxxxORRRRrxxxgxxxgxxxk.....",".....gxxxkxxkxxxxORRRRrxxxgxxxgxxxk.....",".....gxxxkxxkxxxxORRRRrxxxgxxxgxxxk.....",".....kkkkkxxkxxxxORRRRrxxxgxxxkkkkk.....","........gxxkkxxxxORRRRrxxxkxxxk.........","....wwwwwwmkxxxxxORRRRrxxxxgxwwwwwwm....","....wDBBBBmnnnnnnnnnnnnnnnnnnwDBBBBm....","....wBBBBBmnnnnnnnnnnnnnnnnnnwBBBBBm....","....wBBBDBmkkkkkkORRRRrkkkkgxwBBBDBm....","....mmmmmmmkkkkkkORRRRrkkkkkkmmmmmmm....",".............uWWWrrrrrrWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............",".............uWWWWx..uWWWWx.............","..........OOOOOOOrx..xOOOOOOOr..........",".........OORRRRRRr....ORRRRRRRr.........","........rrrrrrrrrr....rrrrrrrrrr........","........................................"]), px: 1.65, hand: [36,43] },
+  aristokrat: { w: 40, h: 60, cells: R(["........................................","........................................",".................qqqqqq.................","..............qqqqxxxxxqqq..............",".............qqxxxxxxxxxxqq.............","............qqxxqqqqqxxxxxqq............","...........qqqqqqqqqqqqqxxqq............","..........qqqqqqq.....qqqxxqq...........","..........qqqq...........qxqq...........","..........qqq...tttttttS..qqq...........","..........qqq..ttsssssssS.qqq...........","...........q..ttsssssssssS.q............","...........q.ttsssssssssssSq............",".............kggkkkkkkkkggk.............",".............kkkkkkkkkkkkkk.............",".............kkkkkkkkkkkkkk.............",".............SsssssssssssSS.............","..............SsssssssssSS..............","...............SssrrrrsSS...............","................SSSSSSSS................",".................tttttS.................",".................tssssS.................","..........PPPPPPPSSSSSSPPPPqq...........","..........PQQQQQQwmmmmBQQQQqq...........","....PPPPPqPQQQQQQwmmmmBQQQQqq.PPPPPq....","....PQQQQqPQQQQQzwOOrmByQQQqq.PQQQQq....","....PQQQQqPQQQQQzBORrBByQQQqq.PQQQQq....","....PQQQQqPQQQQQzYORrYYyQQQQqqPQQQQq....","....PQQQQqQQYQQQzYORrYYyQQQYqqPQQQQq....","....PQQQQqQQQQQQzYORrYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYrrrYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYkkYYyQQQQqqPQQQQq....","....PQQQQqQQYQQQzYYrYYYyQQQYqqPQQQQq....","....PQQQQqQQQQQQzYYrYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYrYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYrYYYyQQQQqqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....PQQQQqQQQQQQzYYYYYYyQQQQQqPQQQQq....","....wwwwwwQQQQQQzYYYYYYyQQQQQqwwwwww....","....wwwwwwQQQQQQzYYYYYYyQQQQQqwwwwww....","....wwwwwwQQQQQQzYYYYYYyQQQQQqwwwwww....","......ttSQQQQQQQzYYYYYYyQQQQQqqttS......",".....ttssSQQQQQQzYYYYYYyQQQQQqttssS.....",".....tsssSQQQQQQyyyyyyyyQQQQQqtsssS.....",".....SssSSQQQQQQQQQQQQQQQQQQQqSssSS.....","......SSSQQQQQQQQQQQQQQQQQQQQQqSSS......",".......PQQQQQQQQQQQQQQQQQQQQQQqq........",".......qqqqqqqqqqqqqqqqqqqqqqqqq........",".......qqqqqqqqqqqqqqqqqqqqqqqqq........","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","..............xWWWk..xWWWk..............","...........hhhhhhkk..khhhhhhk...........","..........hhxxxxxk....hxxxxxxk..........",".........hhxxxxxxk....hxxxxxxxk.........",".........kkkkkkkkk....kkkkkkkkk.........","........................................"]), px: 1.65, hand: [36,43] },
+  gaertnerin: { w: 40, h: 60, cells: R(["........................................","................MMMMnn..................",".............MMMMNNNNNMnn...............","............MMNNNNNNNNNNnn..............","...........MMNNNNNNNNNNNNNnn............","..........MMFNNNNNNNNNNNNNNFn...........",".........MMFNNNNNNNNNNNNNNNNFn..........",".........MNNGnnnNNNNNNnnnnNGnn..........",".........MNnnnnnnnnnnnnnnnnNnn..........",".........Mnnn...tnnnnnnS...Mnn..........",".........Mnn...ttsssssssS..nnn..........",".........nnn..ttsssssssssS..nn..........",".........nn..ttYssssssssYsS..n..........","........Mnn..zzzzYsssszzzzY.Mnn.........","........MNNMnzwwwYsssszwwwYMMNn.........","........MNNNYzwkwYYYYYzwkwYYNNn.........","........MNNNnzwwwYsssszwwwYNNNn.........","........MNNNnYYYYYssssYYYYYNNNn.........","........MNNNn..YsssssssSY.MNNNn.........","........MNNNn...SSSRRSSS..MNNNn.........","........MNNNn.............MNNNn.........","........MNNNn.............MNNNn.........","........MNNnn....tttttS...nNNNn.........","........MNNn.....tssssS....MNNn.........","........MNNn...GGtssssSGf..MNNn.........",".....wwwMNNnwwwwFSSSSSSFwwwMNNnwwwB.....",".....wmmMNNnmmmwFFFFFFFFwmmMNNnmmmB.....",".....wmmMNNnmmmwFFFFFFFFwmmMNNnmmmB.....",".....wmmnNNnmmmwFFFFFFFFwmmMNnnmmmB.....",".....wmmmnnnmmmwFFFFFFFFwmmnnnwmmmB.....",".....wmmmBmnmmmwFFFFFFFFwmmnBBwmmmB.....",".....wmmmBmmmmmwFFFFFFFFwmmmBBwmmmB.....",".....wmmmBmmmmmwFFFFFFFFwmmmBBwmmmB.....",".....wGmmFmmmmmwFFFFFFFFwmmmBBwmmmB.....",".....wmmFBmmmmmwFFFFFFFFwmmmBBwmmmB.....",".....wFFmBmmmmmwFFFFFFFFwmmmBBwmmmB.....",".....FmmGBmmmmmwFFFFFFFFwmmmmBwmmmB.....",".....BBBBBmmmmmwFFFFFFFFwmmmmBBBBBB.....","......tttSmmmmmwFFFFFFFFwmmmmBtttS......","......tssSmmmmmwFFFFFFFFwmmmmBtssS......",".....StssSSmmmmwFFFFFFFFwmmmmStssSS.....","......tssSmmmmmwFFFFFFFFwmmmmBtssS......","......SSSSwwmmmwFFFFFFFFwmmwwwSSSS......",".......wwBFBmmmwFFFFFFFFwmmwBBBm........",".......wwBBBmmmwFFFFFFFFwmmwBBBm........",".......wwBBBmmmwFFFFFFFFwmmwBBBm........",".......wwBBBmmmwFFFFFFFFwmmwBBBm........",".......wmmmmmmmwFFFFFFFFwmmmmmmm........",".......wmmmmmmmwFFFFFFFFwmmmmmBB........",".......wmmmmmmmwFFFFFFFFwmmmmmBB........","......wwmmmmmmmwFFFFFFFFwmmmmmmBB.......","......BBBBBBBBBwFFFFFFFFwBBBBBBBB.......","......BBBBBBBBBwffffffffwBBBBBBBB.......","..............tssS....tssS..............","...........MMMMMMn....MMMMMMn...........","..........MMNNNNNn....MNNNNNNn..........","..........MNNNNNNn....MNNNNNNn..........",".........MMNNNNNNn....MNNNNNNNn.........",".........nnnnnnnnn....nnnnnnnnn.........","........................................"]), px: 1.65, hand: [36,41] },
 };
 const NPCS2 = {
-  brumm: { w: 40, h: 60, cells: R(["........................................","........................................",".........................wwB............","........................wwmmB...........","..................OOOrr.wmmmB...........","................OOORRRROBmmBB...........","..............OOORRRRRRRrBBB............","..............ORRRRRRRRRRrr.............",".............OORRRRRRRRRRrr.............",".............ORRRRRRRRRRRrr.............","............OORRRRRRRRRRRrr.............","............rrrrrwwwwwBrrrrr............","...........wwwwwwwmmmmmwwwwwB...........",".........BBwmmmmmmmmmmmmmmmmBBB.........","...........BBBBBBmmmmmBBBBBBB...........",".............ttwwBBBBBBwwsS.............",".............tssssssssssssS.............",".............tssksssssskssS.............","............StssksRRRSskssSS............",".............tswwwwwwwwwBsS.............",".............wwwmmmmmmmmmwB.............","..........wwBwmmmmmmmmmmmmBBB...........","..........wmmBBmmmmmmmmmBBBBB...........","..........wmmmmBBBBBBBBBBmmBB...........",".........wwmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........",".........wmmmmmmmmmmmmmmmmmmBB..........","........wwmmmmmmmmmmmmmmmmmmmBB.........","........wmmmmmmmmmmmmmmmmmmmmBB.........","...mmmmmBmmmmmmmmmmmmmmmmmmmBBBmmmmmD...","...mBBBBDwmmmmmmmmmmmmmmmmmmBB.mBBBBD...","...mBBBBDBmmmmmmmmmmmmmmmmmBBBDmBBBBD...","...mBBBBDmBmmmmmmmmmmmmmmmBBBBDmBBBBD...","...mBBBBDBBBmmmmmmmmmmmmmBBBBBDmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...mBBBBDBBBBBBBBBBBBBBBBBBBBBBmBBBBD...","...mBBBBDBBBwBBBBBBBBBBBBBBBBBBmBBBBD...","...mBBBBDnnnnnnnnnnYYnnnnnnnnnnmBBBBD...","...mBBBBDnnnnnnnnnnYYnnnnnnnnnnmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...mBBBBDBBBwmmmmmmmmmmmmBBBBBBmBBBBD...","...DDDSDDBBwwmmmmmmmmmmmmmBBBBDDDSDDD...","....ttttSBBwmmmmmmmmmmmmmmBBBBDttttS....","....tsssSBBwmmBBBBBmmmmmmmBBBDDtsssS....","...StsssSSBwmmwmmmBmmmmmmmBBDDStsssSS...","....tsssS.DwmmwmmmBmmmmmmmBBDD.tsssS....","....SSSSS..wmmwmmmBmmmmmmmBBD..SSSSS....","......S....wmmBBBBBmmmmmmmBB.....S......","...........wmmmmmmmmmmmmmmBB............","...........wmmmmmmmmmmmmmmBB............","...........BBBBBBBBBBBBBBBBB............","...........BBBBBBBBBBBBBBBBB............","...........NNNNNNxn..nNNNNNNx...........","..........NNnnnnnx....Nnnnnnnx..........",".........NNnnnnnnx....Nnnnnnnnx.........",".........xxxxxxxxx....xxxxxxxxx.........","........................................"]), px: 1.55, hand: [36,47] },
-  mira: { w: 40, h: 60, cells: R(["........................................","...................y....................","..................zzy...................",".................zzYYy..................",".............zy..zYYYy..zy..............",".............zYzzzYYYYzzzy..............",".............zYYYYYRRYYYYy..............",".............zYYYYYYYYYYYy..............",".............yyyyyyyyyyyyy..............","............MMMMMMMMMMMMMMn.............","........MMMMMNNNNNNNNNNNNNnMMnn.........","........MNNNMnnnnnnnnnnnnNnNNnn.........","........MNNNnnttsssssssssnnNNnn.........","........MMMMnttsssssssssssnMMMn.........","........MMNNntskksssssskksSMNNn.........","........MMNNntssussssssussSMNNn.........","........MMNNntssussssssussSMNNn.........","........MMNNnSsssssssssssSSMNNn.........",".......MMMNNnNSsssssssssSSNMNNnn........",".......MNMNNnNNSsssRRssSSNNMNNnn........",".......MNMNNnNNNSSSSSSSSNNNMNNnn........",".......MNMNNnNNNNtssssSNNNNMNNnn........",".......MMMNNnNNNNSSSSSSNNNNMNNNn........",".......MMNNNnNNNNNNNNNNNNNNMNNNn........","......PPMNNNnNNwwwwwwwwwBNNMNNNnPq......",".....PPQMNNNnPPwmmmmmmmmBPqMNNNnQQq.....","....PPQQMNNNnPQBBBBBBBBBBQqMNNNnQQQq....","....PQQQMNNNnPQQQQQQQQQQQQqMNNNnQQQq....","....qQQQMNNNnPQQQQQQQQQQQQqMNNNnQQqq....",".....wwwMNNNnPQQQQQQQQQQQQqMNNNnwwB.....",".....wmmMNNNnPQQQQQQQQQQQQqMNNNnmmB.....",".....wmmnNNNnPQQQQQQQQQQQQqMNNnnmmB.....",".....wmmBMNNnPQQQQQQQQQQQQqMNNnwmmB.....",".....wmmBnNNnPQQQQQQQQQQQQqMNnnwmmB.....",".....wmmBQMnnYYYYYYOOYYYYYYnNnqwmmB.....",".....wmmBQnnQYYYYYJwwUYYYYYQnnqwmmB.....",".....wmmBQQQQQQQQQJwwUQQQQQQQQqwmmB.....",".....wmmBQQQQQQQQQQFFQQQQQQQQQqwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....wmmBQQQQQQQQQQQQQQQQQQQQQQwmmB.....",".....tttSQQQQQQQQQQQQQQQQQQQQQQtttS.....",".....tssSQQQQQQQQQQQQQQQQQQQQQQtssS.....","....StssSSQQQQQQQQQQQQQQQQQQQQStssSS....",".....tssSQQQQQQQQQQQQQQQQQQQQQQtssS.....",".....SSSSQQQQQQQQQQQQQQQQQQQQQQSSSS.....",".....PQQQQQQQQQQQQQQQQQQQQQQQQQQqq......","....PPQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","....PQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq.....","...PPQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","...PQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQqq....","..qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq...","..YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY..","..YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY..","........................................"]), px: 1.55, hand: [36,43] },
+  brumm: { w: 40, h: 60, cells: R(["........................................","........................................","........................................","........................................","........................................","..................VVVuu.................","................VVVUUUUVuu..............","..............VVVUUUUUUUuu..............","..............VUUUURRUUUUuu.............",".............VVUUUUUUUUUUuu.............",".............VUUUUUUUUUUUuu.............","............VVUUUUUUUUUUUuu.............","............uuuuuuuuuuuuuuuu............","..........wwwwwwwwwwwwwwwwwwww..........","..........wwwwwwwwwwwwwwwwwwww..........",".............ttxxxssssxxxsS.............",".............tssssssssssssS.............",".............tssksssssskssS.............","............StssksRRRSskssSS............",".............tsqqqqqqqqqqsS.............",".............qqqxxxxxxxxxqq.............","............qqxxxxxxxxxxxxqq............",".............qqxxxxxxxxxqqq.............","...............qqqqqqqqqq...............","................SSSSSSSS................","........................................","........................................","........................................","................wwwwwwmm................","..............wwwBBBBBBBmm..............","............wwwBBBBBBBBBBBmm............","...wwwwwm..wwBBBBBBBBBBBBBBmm..wwwwwm...","...wBBBBm.wwVVVVVVVVVVVVVuuBmm.wBBBBm...","...wBBBBmwwBVUUUUUUUUUUUUuuBBmmwBBBBm...","...wBBBBmwBBVUUUUUUUUUUUUuuBBBmwBBBBm...","...wBBBBmBBBVUUUUUUUUUUUUuuBBBmwBBBBm...","...wBBBBmBBBwwwwwwwwwwwwwwwwBBBwBBBBm...","...wBBBBmBBBwwwwwwwwwwwwwwwwBBBwBBBBm...","...wBBBBmBBBVUUUUUUUUUUUUuuBBBBwBBBBm...","...wBBBBmxxxxxxxxxxxxxxxxxxxxxxwBBBBm...","...wBBBBmxxxxxxxxxxxxxxxxxxxxxxwBBBBm...","...wBBBBmBBBwwwwwwwwwwwwwwwwBBBwBBBBm...","...wBBBBmBBBwwwwwwwwwwwwwwwwBBBwBBBBm...","...wBBBBmBBBVUUUUUUUUUUUUuuBBBBwBBBBm...","...mmmSmmBBVVUUUUUUUUUUUUUuuBBmmmSmmm...","....ttttSBBVUUUUUUUUUUUUUUuuBBmttttS....","....tsssSBBVwwwwwwwwwwwwwwwwBmmtsssS....","...StsssSSBVwwwwwwwwwwwwwwwwmmStsssSS...","....tsssS.mVUUwwRwwUUUUUUUuumm.tsssS....","....SSSSS..VUUwwwwwUUUUUUUuum..SSSSS....","......S....VUUwwwwwUUUUUUUuu.....S......","...........Vwwwwwwwwwwwwwwww............","...........Vwwwwwwwwwwwwwwww............","...........VUUUUUUUUUUUUUUuu............","...........uuuuuuuuuuuuuuuuu............","...........uuuuuuuuuuuuuuuuu............","...........hhhhhhkx..xhhhhhhk...........","..........hhxxxxxk....hxxxxxxk..........",".........kkkkkkkkk....kkkkkkkkk.........","........................................"]), px: 1.55, hand: [36,47] },
+  mira: { w: 40, h: 60, cells: R(["........................................","................JJJJJuu.................",".............JJJJVVVVVVJuu..............","............JJVVVVVVVVVVVuu.............","...........JJVVVVVVVVVVVVVuu............","..........JJVVVVVVVVVVVVVVVuu...........",".........JJVVVVVVVVVVVVVVVVVuu..........",".........JVVVVVVVVVVVVVVVVVVuu..........",".........JVVuuuuVVVVVVuuuuVVuu..........",".........JVuuuuuuuuuuuuuuuuVuu..........",".........Juuu...tuuuuuuS...uuu..........",".........uuu...ttsssssssS...uu..........",".......JJuuu..tYssssssssYS..uuJJu.......",".......JVuVu.zzzzYsssszzzzY.JuVVu.......",".......JVVVu.zwwwYsssszwwwY.JVVVu.......","......JJVVVuYzwuwYYYYYzwuwYYJVVVVu......","......JVVVVu.zwwwYsssszwwwY.JVVVVu......","......JVVVVu.YYYYYssssYYYYY.JVVVVu......","......JVRVVu..SYssssssssYS..JVVRVu......","......JVVVVu...SsssRRssSS...JVVVVu......","......JVVVVu....SSSSSSSS....JVVVVu......",".....JJVVVVu.....tttttS.....JVVVVVu.....",".....JVVVVVu.....tssssS.....JVVVVVu.....",".....JVVVVVu.....tssssS.....JVVVVVu.....",".....JVVVVuuwwwwPtssssSqwwwwuVVVVVu.....",".....JVVVVummmmmwSSSSSSwmmmmBJVVVVu.....",".....JVVVVummmmmwQQQQQQwmmmmBJVVVVu.....","....JJVVVVummmmmwQQQQQQwmmmmBJVVVVVu....","....JVVVVVummmmmwQQQQQQwmmmmBJVVVVVu....","....JVVVVVummmmmwQQQQQQwmmmmBJVVVVVu....","....JVVVVVummmmmwQQOOQQwmmmmBJVVVVVu....","....uVVVVVummmmmwQJwwUQwmmmmmJVVVVuu....",".....JVVVVummmmmwQJwwUQwmmmmmJVVVVu.....",".....JVVVVummmmmwQQFFQQwmmmmmJVVVVu.....",".....JVVVVummmmmwQQQQQQwmmmmmJVVVVu.....",".....uVVVVummmmmwQQQQQQwmmmmmJVVVuu.....",".....wJVVuummmmmwQQQQQQwmmmmmuVVVuB.....",".....wJVuummmmmmwQQQQQQwmmmmmBuVVuB.....",".....wuuuBmmmmmmwQQQQQQwmmmmmBwuuuB.....",".....BBuBBmmmmmmwQQQQQQwmmmmmBBBuBB.....","........wmmmmmmmwQQQQQQwmmmmmBB.........","......ttSmmmmmmmwQQQQQQwmmmmmBBttS......",".....ttssSmmmmmmwQQQQQQwmmmmmBttssS.....",".....tsssSmmmmmmwQQQQQQwmmmmmBtsssS.....",".....SssSSmmmmmmwQQQQQQwmmmmmBSssSS.....","......SSSmmmmmmmwQQQQQQwmmmmmmBSSS......",".......wmmmmmmmmwQQQQQQwmmmmmmBB........",".......wmmmmmmmmwQQQQQQwmmmmmmBB........",".......wmmmmmmmmwQQQQQQwmmmmmmBB........","......uwmmmmmmmmwQQQQQQwmmmmmmBBx.......","......uBBBBBBBBBwQQQQQQwBBBBBBBBx.......","......uBBBBBBBBBwQQQQQQwBBBBBBBBx.......","......uWWWWWWWWWwqqqqqqwWWWWWWWxx.......","......uWWWWWWWWWWWWWWWWWWWWWWWWxx.......","......uWWWWWWWWWWWWWWWWWWWWWWWWxx.......",".....uuWWWWWWWWWWWWWWWWWWWWWWWWWxx......",".....xxxxxxxxxxxxxxxxxxxxxxxxxxxxx......",".....xxxxxxxxxxxxxxxxxxxxxxxxxxxxx......",".........xxxxxxxxx....xxxxxxxxx.........","........................................"]), px: 1.55, hand: [36,43] },
 };
 const RIGS2 = {
-  nahkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.6949],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"plume","parent":"up","box":[0.4359,0,0.7179,0.1356],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.8,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":4.6,"at":0.8}]},
-  fernkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7119],"seq":[[0,0],[0,1]],"dur":2},{"id":"hood","parent":"up","box":[0.2564,0,0.7436,0.322],"seq":[[0,0],[0,0],[1,0],[1,0],[0,0],[0,0],[-1,0],[-1,0]],"dur":4.4,"under":true},{"id":"cl","parent":"up","box":[0.0769,0.4068,0.2051,0.7797],"seq":[[0,0],[-1,0],[0,0],[0,0]],"dur":2.8,"under":true},{"id":"cr","parent":"up","box":[0.7949,0.4068,0.9231,0.7797],"seq":[[0,0],[1,0],[0,0],[0,0]],"dur":2.8,"phase":1.4,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":3.8,"at":1.5}]},
-  magier: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7458],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"tip","parent":"up","box":[0.359,0,0.6667,0.1356],"seq":[[0,0],[0,0],[1,0],[1,0]],"dur":2.6,"under":true},{"id":"beard","parent":"up","box":[0.3077,0.4068,0.6923,0.5932],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.6,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":5,"at":2}]},
-  pyromant: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7797],"seq":[[0,0],[0,1]],"dur":2},{"id":"hood","parent":"up","box":[0.2308,0,0.7692,0.322],"seq":[[0,0],[0,0],[1,0],[0,0],[0,0],[-1,0]],"dur":3.8,"under":true},{"id":"hem","box":[0.0513,0.7966,0.9487,1],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":0.9,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"S","every":4.2,"at":1}],"glow":[{"letters":"Y","box":[0.359,0.2034,0.641,0.2712],"color":"w","max":0.7,"dur":1.4}]},
-  aristokrat: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7966],"seq":[[0,0],[0,1]],"dur":2.6},{"id":"hat","parent":"up","box":[0.3077,0,0.6923,0.1864],"seq":[[0,0],[0,0],[1,0],[0,0]],"dur":3.4,"under":true},{"id":"tail","parent":"up","box":[0.1538,0.7119,0.8462,0.8136],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.4,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":5,"at":1.6}]},
-  gaertnerin: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.5593],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"flower","parent":"up","box":[0.5385,0.0678,0.641,0.1356],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":1.8,"under":true},{"id":"bl","parent":"up","box":[0.1795,0.2712,0.3077,0.5424],"seq":[[0,0],[-1,0],[0,0]],"dur":2.6,"under":true},{"id":"br","parent":"up","box":[0.6923,0.2712,0.8205,0.5424],"seq":[[0,0],[1,0],[0,0]],"dur":2.6,"phase":1.3,"under":true},{"id":"hem","box":[0.0769,0.7458,0.9231,0.9322],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.8,"under":true}],"blink":[{"cells":[[0.4103,0.2542],[0.5897,0.2542]],"color":"s","every":4.4,"at":0.9}]},
-  brumm: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7627],"seq":[[0,0],[0,1]],"dur":2},{"id":"cap","parent":"up","box":[0.2564,0.0339,0.7436,0.2373],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3,"under":true},{"id":"beard","parent":"up","box":[0.2051,0.3729,0.7949,0.661],"seq":[[0,0],[0,0],[1,0],[0,0],[-1,0],[0,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.4103,0.2881],[0.5897,0.2881]],"color":"s","every":3.6,"at":1.2}]},
-  mira: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7797],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"bl","parent":"up","box":[0.1538,0.2373,0.3077,0.7458],"seq":[[0,0],[-1,0],[0,0]],"dur":3,"under":true},{"id":"br","parent":"up","box":[0.6923,0.2373,0.8462,0.7458],"seq":[[0,0],[1,0],[0,0]],"dur":3,"phase":1.5,"under":true},{"id":"hem","box":[0.0513,0.8475,0.9487,0.9831],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.4103,0.2542],[0.5897,0.2542]],"color":"s","every":4.8,"at":0.5}]},
+  nahkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7458],"seq":[[0,0],[0,1]],"dur":2.2}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":4.6,"at":0.8}]},
+  fernkaempfer: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7119],"seq":[[0,0],[0,1]],"dur":2}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":3.8,"at":1.5}]},
+  magier: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7458],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"hem","parent":null,"box":[0.1026,0.8475,0.8974,0.9831],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"s","every":5,"at":2}],"glow":[{"letters":"J","box":[0.359,0.2034,0.641,0.2712],"color":"w","max":0.7,"dur":1.8}]},
+  pyromant: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7627],"seq":[[0,0],[0,1]],"dur":2}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"S","every":4.2,"at":1}],"glow":[{"letters":"Y","box":[0.359,0.2034,0.641,0.2712],"color":"w","max":0.7,"dur":1.4}]},
+  aristokrat: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7966],"seq":[[0,0],[0,1]],"dur":2.6},{"id":"tail","parent":"up","box":[0.1538,0.7119,0.8462,0.8305],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.4,"under":true}],"blink":[{"cells":[[0.4103,0.2373],[0.5897,0.2373]],"color":"k","every":99,"at":0}]},
+  gaertnerin: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.6102],"seq":[[0,0],[0,1]],"dur":2.2},{"id":"hem","parent":null,"box":[0.1026,0.7458,0.8974,0.8983],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":2.8,"under":true}],"blink":[{"cells":[[0.3846,0.2542],[0.6154,0.2542]],"color":"s","every":4.4,"at":0.9}]},
+  brumm: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7627],"seq":[[0,0],[0,1]],"dur":2}],"blink":[{"cells":[[0.4103,0.2881],[0.5897,0.2881]],"color":"s","every":3.6,"at":1.2}]},
+  mira: {"rel":true,"regions":[{"id":"up","box":[0,0,1,0.7797],"seq":[[0,0],[0,1]],"dur":2.4},{"id":"hem","parent":null,"box":[0.0513,0.8475,0.9487,0.9831],"seq":[[0,0],[1,0],[0,0],[-1,0]],"dur":3.2,"under":true}],"blink":[{"cells":[[0.3846,0.2542],[0.6154,0.2542]],"color":"s","every":4.8,"at":0.5}]},
 };
 
 __exports.HEROES2 = HEROES2;
@@ -5637,6 +5776,7 @@ const FX = {
   fx_spark: A(["..w..", "..w..", "wwwww", "..w..", "..w.."]),
   torch: S(["...", "..Y", "..o", "..O", "..o", "..n", "..N", "..n", "..N", "..n", "..n", "..n"]),
 };
+ICONS.thorns = S([".....i", "i....i", ".i.hhh", "..hhhi", "i.hhhg", "..hhgg", "..hhgg", "i.hhhg", "..hhhi", ".i.hhh", "i....i", ".....i"]);      // Dornen: Stachelkugel (eigenes Symbol, nicht mehr der Block-Schild)
 const ALL_ICONS = { ...ICONS, ...NODES, ...FX };
 
 __exports.ICONS = ICONS;
@@ -5849,7 +5989,7 @@ function itemHtml(def, kind = "items", o = {}) {
   const text = kind === "weapons" ? describeWeapon(def) : describeItem(def);
   return `<div class="itemcard ${def.shiny ? "shiny sh" : ""}" style="--rar:${rar[1]}">
     <div class="i-art ${kind === "weapons" ? "tall" : ""}">${art}</div>
-    <div class="i-body"><b>${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}</span><span class="d">${esc(text)}</span></div></div>`;
+    <div class="i-body"><b>${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}${kind === "items" && def.maxStack === 1 ? " · Einzigartig" : ""}</span><span class="d">${esc(text)}</span></div></div>`;
 }
 const itemIcon = (def, px = 30, kind = "item") =>
   `<span class="mini ${def.shiny ? "sh" : ""}">${spr(kind, def.id.replace(/:s$/, ""), { shiny: def.shiny, attrs: `width="${px}" height="${px}"` })}</span>`;
@@ -5864,8 +6004,9 @@ const FONT = {
   E: ["11111", "1....", "1....", "1111.", "1....", "1....", "11111"], D: ["1111.", "1...1", "1...1", "1...1", "1...1", "1...1", "1111."],
   C: [".1111", "1....", "1....", "1....", "1....", "1....", ".1111"], K: ["1...1", "1..1.", "1.1..", "11...", "1.1..", "1..1.", "1...1"],
   "-": [".....", ".....", ".....", ".111.", ".....", ".....", "....."],
+  A: [".111.", "1...1", "1...1", "11111", "1...1", "1...1", "1...1"], N: ["1...1", "11..1", "11..1", "1.1.1", "1..11", "1..11", "1...1"], I: ["11111", "..1..", "..1..", "..1..", "..1..", "..1..", "11111"],
 };
-function logoText(textStr = "ROGUE-DECK") {
+function logoText(textStr = "ANI-ROGUE") {
   const chars = [...textStr];
   const width = chars.length * 6 - 1;
   let main = "", shadow = "", inner = "";
@@ -5880,11 +6021,11 @@ function logoText(textStr = "ROGUE-DECK") {
   const sheen = `<defs><mask id="lgm" maskUnits="userSpaceOnUse" x="-1" y="-1" width="${width + 3}" height="10"><path fill="#fff" d="${inner}"/></mask>
     <linearGradient id="lgs"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
     <g mask="url(#lgm)"><rect x="-12" y="-1" width="9" height="10" fill="url(#lgs)" transform="skewX(-20)"><animate attributeName="x" from="-14" to="${width + 8}" dur="4.2s" repeatCount="indefinite"/></rect></g>`;
-  return `<svg class="logo" viewBox="-1 -1 ${width + 3} 10" shape-rendering="crispEdges" role="img" aria-label="Rogue-Deck"><g fill="#17121f">${shadow}</g>${main}${sheen}</svg>`;
+  return `<svg class="logo" viewBox="-1 -1 ${width + 3} 10" shape-rendering="crispEdges" role="img" aria-label="Ani-Rogue"><g fill="#17121f">${shadow}</g>${main}${sheen}</svg>`;
 }
 
-// Wahrzeichen des Spiels: der Herzstein, umkreist von den vier Elementen, darunter der Schriftzug
-function logo(textStr = "ROGUE-DECK") {
+// Wahrzeichen des Spiels: der Mana-Kern, umkreist von den vier Elementen, darunter der Schriftzug
+function logo(textStr = "ANI-ROGUE") {
   const orb = (icon, a) => `<span class="orb" style="--a:${a}deg">${ico(icon, 18)}</span>`;
   return `<div class="logoblock"><div class="emblemwrap">${ico("emblem", 88, { cls: "emblem" })}<div class="orbit">${orb("flame", 0)}${orb("water", 90)}${orb("leaf", 180)}${orb("snow", 270)}</div></div>${logoText(textStr)}</div>`;
 }
@@ -5927,7 +6068,7 @@ function rewardChip(a) {
 function achCard(meta, a) {
   const done = Boolean(meta.achievements[a.id]);
   const prog = done ? null : progressOf(meta, a);
-  return `<div class="ach px ${done ? "done" : "open"}"><div class="achicon">${ico(done ? "trophy" : "lock", 28)}</div>
+  return `<div class="ach px ${done ? "done" : "open"}"${at("ach-info", a.id)}><div class="achicon">${ico(done ? "trophy" : "lock", 28)}</div>
     <div class="achbody"><b>${esc(a.name)}</b><div class="d">${esc(a.text)}</div>
       ${prog ? `<div class="prog"><div class="bar"><i style="width:${pctOf(prog.value, prog.target)}%"></i></div><span class="small">${prog.value}/${prog.target}</span></div>` : ""}
       ${rewardChip(a)}</div></div>`;
@@ -5986,10 +6127,19 @@ function bannerHtml(id) {
   return `<div class="achbanner"><span class="achicon">${ico("trophy", 26)}</span><div><b>Erfolg freigeschaltet</b><div>${esc(a.name)}</div>${r ? `<div class="small">Belohnung: ${esc(r.name)} (${esc(r.label)})</div>` : ""}</div></div>`;
 }
 
+// Info zu einem Erfolg: Text, Belohnung und Datum der Freischaltung
+function achInfoView(ui) {
+  const a = CONTENT.achievements[ui.achInfo], got = ui.meta.achievements[ui.achInfo], lang = document?.documentElement?.lang === "en" ? "en-US" : "de-DE";
+  const when = got?.at ? new Date(got.at).toLocaleDateString(lang, { day: "2-digit", month: "2-digit", year: "numeric" }) : null;
+  return `<div class="overlay"><div class="sheet mid stack center"><div>${ico(got ? "trophy" : "lock", 32)}</div><h2>${esc(a.name)}</h2><div>${esc(a.text)}</div>${rewardChip(a)}
+    <div class="muted small">${got ? (when ? `Freigeschaltet am ${when}` : "Freigeschaltet (Datum unbekannt)") : "Noch nicht freigeschaltet"}</div>${btn("Schließen", "close-ach-info", undefined, { cls: "primary" })}</div></div>`;
+}
+
 __exports.rewardChip = rewardChip;
 __exports.achievementsView = achievementsView;
 __exports.cosmeticsView = cosmeticsView;
 __exports.bannerHtml = bannerHtml;
+__exports.achInfoView = achInfoView;
 
 });
 __define("engine/story.js", function (__exports, __require) {
@@ -6064,8 +6214,8 @@ __exports.keywordsOf = keywordsOf;
 
 });
 __define("ui/backdrop.js", function (__exports, __require) {
-// Kulissen: ein Dungeon-Raum mit Tiefe (Säulen, Tor, Fackeln, Banner mit dem Herzstein, perspektivischer Boden, Runenkreis der vier Elemente)
-// plus Atmosphäre (Lichtstrahl, Nebel, Staub, Funken). Drei Räume: Keller, Höhle, Thronsaal.
+// Kulissen im Gate-Stil: Gasse, U-Bahn und Gate-Kern mit Tiefe (Säulen, wirbelndes Portal, Neonlampen, Gilden-Flaggen mit dem Mana-Kern, perspektivischer Boden, Runenkreis der vier Elemente)
+// plus Atmosphäre (Lichtstrahl, Nebel, Staub, Funken).
 // Alles reine SVG-Strings in der virtuellen Größe 400x232. Animationen laufen per CSS (siehe style.css).
 const { CONTENT } = __require("content/index.js");
 const { spr } = __require("ui/art/index.js");
@@ -6074,9 +6224,9 @@ const { elementColor } = __require("ui/theme.js");
 const W = 400, H = 232, HORIZON = 150;
 
 const BIOMES = [
-  { name: "Keller",    wall: "#2b2234", brick: "#382c44", brick2: "#31263c", mortar: "#150f1d", floor: "#30273a", tile: "#3a2f47", line: "#1c1525", glow: "#ff9a4a", cloth: "#7a2230", trim: "#e8b93d", props: "cellar", fog: "#8c7ca3" },
-  { name: "Höhle",     wall: "#1a2433", brick: "#26354a", brick2: "#202d40", mortar: "#0d131e", floor: "#212b3c", tile: "#2b384d", line: "#131a27", glow: "#7fd6ff", cloth: "#1f4a6b", trim: "#bfeaff", props: "cave", fog: "#7fa3c4" },
-  { name: "Thronsaal", wall: "#2f1621", brick: "#3f1d2b", brick2: "#361829", mortar: "#190a11", floor: "#34202e", tile: "#412a3b", line: "#21111a", glow: "#d68aff", cloth: "#5a1f6b", trim: "#ff8be6", props: "throne", fog: "#a572b6" },
+  { name: "Gasse",     wall: "#1b2233", brick: "#27304a", brick2: "#212a40", mortar: "#0d1220", floor: "#1d2538", tile: "#27304a", line: "#121827", glow: "#ff4fa3", cloth: "#2a2f5a", trim: "#4fe3ff", props: "alley",  fog: "#6f86c9" },
+  { name: "U-Bahn",    wall: "#14232b", brick: "#1f3944", brick2: "#1a2f39", mortar: "#0a1519", floor: "#182b33", tile: "#21404c", line: "#0f1c22", glow: "#33ffd1", cloth: "#124a4a", trim: "#9ffff0", props: "subway", fog: "#6fc4b8" },
+  { name: "Gate-Kern", wall: "#1e1236", brick: "#2b1a4d", brick2: "#251642", mortar: "#0f0820", floor: "#241540", tile: "#33205a", line: "#150a2a", glow: "#b46bff", cloth: "#3a1d73", trim: "#ff7ae0", props: "core",   fog: "#9d7be0" },
 ];
 
 // Zufall, der immer gleich ist (die Kulisse darf nicht bei jedem Zeichnen anders aussehen)
@@ -6091,11 +6241,10 @@ function pillar(x, b, id) {
     ${px(x - 3, HORIZON - 9, w + 6, 9, b.brick2)}${px(x - 3, HORIZON - 9, w + 6, 2, "#fff", ' opacity=".08"')}${px(x - 5, HORIZON - 3, w + 10, 3, b.mortar)}
     ${[24, 52, 88, 118].map((y) => px(x, y, w, 1, "#000", ' opacity=".28"')).join("")}${px(x + 2, 14, 2, HORIZON - 26, "#fff", ' opacity=".07"')}</g>`;
 }
-function torch(x, y, b) {
-  const embers = [0, 1, 2].map((i) => `<rect class="ember" x="${x + 9 + i * 3}" y="${y + 6}" width="1.5" height="1.5" fill="${b.glow}" style="--dx:${(i - 1) * 5}px;--dur:${(1.6 + i * 0.5).toFixed(1)}s;--d:${(i * 0.45).toFixed(2)}s"/>`).join("");
-  return `<g>${px(x + 8, y + 26, 8, 4, "#4a4458")}${px(x + 10, y + 30, 4, 12, "#33303d")}
-    <circle class="glow" cx="${x + 12}" cy="${y + 10}" r="44" fill="url(#tg${b.props})"/>
-    ${spr("icon", "torch", { attrs: `x="${x}" y="${y}" width="24" height="42"`, cls: "flick" })}${embers}</g>`;
+function torch(x, y, b) {                                                          // Neonlampe an der Wand (statt Fackel)
+  return `<g>${px(x + 11, y + 28, 2, 14, "#2a3350")}${px(x + 3, y + 26, 18, 3, "#2a3350")}
+    <circle class="glow" cx="${x + 12}" cy="${y + 12}" r="46" fill="url(#tg${b.props})"/>
+    <g class="flick">${px(x + 4, y + 4, 16, 22, "#0a0e1c")}${px(x + 6, y + 6, 12, 18, b.glow, ' opacity=".9"')}${px(x + 8, y + 8, 3, 14, "#fff", ' opacity=".55"')}${px(x + 14, y + 8, 2, 14, "#fff", ' opacity=".25"')}</g></g>`;
 }
 function banner(cx, b) {
   const x = cx - 15;
@@ -6105,16 +6254,15 @@ function banner(cx, b) {
     <polygon points="${x + 3},12 ${x + 27},12 ${x + 27},56 ${cx},66 ${x + 3},56" fill="none" stroke="${b.trim}" stroke-width="1" opacity=".55"/>
     ${spr("icon", "emblem", { attrs: `x="${cx - 12}" y="24" width="24" height="24"` })}</g>`;
 }
-function gate(b, id) {
-  const x = 164, w = 72, top = 40;
-  const bars = Array.from({ length: 7 }, (_, i) => px(x + 6 + i * 10, top + 12, 2, HORIZON - top - 12, "#0b0910")).join("");
-  return `<g>${px(x - 7, top - 6, w + 14, HORIZON - top + 6, b.mortar)}
-    <path d="M${x} ${HORIZON} V${top + 28} Q${x} ${top} ${x + w / 2} ${top} Q${x + w} ${top} ${x + w} ${top + 28} V${HORIZON} Z" fill="#07050b"/>
-    <path d="M${x} ${HORIZON} V${top + 28} Q${x} ${top} ${x + w / 2} ${top} Q${x + w} ${top} ${x + w} ${top + 28} V${HORIZON} Z" fill="url(#gl${id})"/>
-    ${bars}${px(x + 4, top + 34, w - 8, 3, "#0b0910")}
-    <path d="M${x + 36} ${top + 6} l-3 12 l4 8 l-3 14" stroke="${b.glow}" stroke-width="2" fill="none" class="glow" opacity=".9"/>
-    <path d="M${x - 4} ${HORIZON} V${top + 28} Q${x - 4} ${top - 4} ${x + w / 2} ${top - 4} Q${x + w + 4} ${top - 4} ${x + w + 4} ${top + 28} V${HORIZON}" fill="none" stroke="${b.brick2}" stroke-width="5"/>
-    ${[0, 1, 2, 3, 4].map((i) => px(x - 4 + (i * (w + 8)) / 4 - 2, top - 8 + Math.abs(i - 2) * -0 + (i === 2 ? 0 : 5 - Math.abs(i - 2) * 2), 5, 5, b.brick)).join("")}</g>`;
+function gate(b, id) {                                                             // das GATE: ein wirbelndes Portal in der Wand
+  const x = 164, w = 72, top = 34, cx = x + w / 2, cy = top + 60, shape = `M${x} ${HORIZON} V${top + 28} Q${x} ${top} ${cx} ${top} Q${x + w} ${top} ${x + w} ${top + 28} V${HORIZON} Z`;
+  const rings = [0, 1, 2, 3].map((i) => `<ellipse class="${i % 2 ? "" : "glow"}" cx="${cx}" cy="${cy + 6}" rx="${10 + i * 9}" ry="${16 + i * 15}" fill="none" stroke="${b.glow}" stroke-width="${(2.2 - i * 0.4).toFixed(1)}" opacity="${(0.9 - i * 0.18).toFixed(2)}"/>`).join("");
+  const sparks = [[x + 12, top + 70], [x + 58, top + 52], [x + 22, top + 30], [x + 50, top + 96], [cx, top + 14]].map(([sx, sy], i) => `<rect class="mote" x="${sx}" y="${sy}" width="2" height="2" fill="#fff" style="--d:${(i * 0.5).toFixed(1)}s"/>`).join("");
+  return `<g>${px(x - 8, top - 8, w + 16, HORIZON - top + 8, b.mortar)}
+    <path d="${shape}" fill="#05030c"/><path d="${shape}" fill="url(#gl${id})"/>${rings}
+    <path d="${shape}" fill="url(#pg${id})" opacity=".9"/>${sparks}
+    <path d="M${x - 4} ${HORIZON} V${top + 28} Q${x - 4} ${top - 4} ${cx} ${top - 4} Q${x + w + 4} ${top - 4} ${x + w + 4} ${top + 28} V${HORIZON}" fill="none" stroke="${b.trim}" stroke-width="2.5" opacity=".85" class="glow"/>
+    ${px(x - 10, HORIZON - 4, w + 20, 4, b.brick2)}</g>`;
 }
 function barrel(x, y) {
   return `<g>${px(x, y - 20, 18, 20, "#5a3b26")}${px(x + 2, y - 20, 3, 20, "#7a5232", ' opacity=".7"')}${px(x, y - 15, 18, 2, "#2c1c12")}${px(x, y - 6, 18, 2, "#2c1c12")}${px(x + 1, y - 22, 16, 3, "#6b4630")}${px(x + 14, y - 20, 4, 20, "#000", ' opacity=".25"')}</g>`;
@@ -6129,16 +6277,21 @@ function cobweb(x, flip) {
   const s = flip ? -1 : 1;
   return `<g stroke="#fff" stroke-opacity=".16" stroke-width=".8" fill="none"><path d="M${x} 0 L${x + 34 * s} 0 M${x} 0 L${x} 34 M${x} 0 L${x + 30 * s} 30"/><path d="M${x + 14 * s} 0 Q${x + 12 * s} 12 ${x} 14 M${x + 24 * s} 0 Q${x + 20 * s} 20 ${x} 24"/></g>`;
 }
+function vending(x, y, glow) {                                                      // Getränkeautomat
+  return `<g>${px(x, y - 38, 24, 38, "#1c2440")}${px(x + 2, y - 36, 14, 24, "#0a0e1c")}${px(x + 3, y - 35, 12, 22, glow, ' opacity=".55"')}${[0, 1, 2].map((r) => [0, 1, 2].map((c) => px(x + 4 + c * 4, y - 33 + r * 7, 3, 5, ["#ff4fa3", "#4fe3ff", "#ffd166"][(r + c) % 3], ' opacity=".9"')).join("")).join("")}${px(x + 18, y - 34, 4, 20, "#2a3350")}${px(x + 4, y - 8, 10, 4, "#05070f")}</g>`;
+}
+function bin(x, y) { return `<g>${px(x, y - 16, 14, 16, "#2a3350")}${px(x - 1, y - 18, 16, 3, "#3b4770")}${px(x + 3, y - 14, 1, 12, "#fff", ' opacity=".12"')}</g>`; }
 const props = (b) => {
-  if (b.props === "cave") {
-    const ceil = [20, 70, 120, 215, 262, 330, 372].map((x, i) => `<polygon points="${x},0 ${x + 12},0 ${x + 6},${22 + Math.round(rnd(i + 3) * 26)}" fill="${b.mortar}"/>`).join("");
-    return `${ceil}${crystal(22, HORIZON + 2, 26, "#2f8fb0", "#bfeaff")}${crystal(32, HORIZON + 2, 16, "#3aa0c0", "#dff7ff")}${crystal(358, HORIZON + 2, 22, "#2f8fb0", "#bfeaff")}${crystal(370, HORIZON + 2, 30, "#3aa0c0", "#dff7ff")}`;
+  if (b.props === "subway") {
+    const pipes = [0, 1, 2].map((i) => px(0, 10 + i * 7, W, 3, "#1b3038")).join("") + [30, 90, 150, 250, 310, 370].map((x) => px(x, 6, 12, 26, b.mortar)).join("");
+    const lights = [40, 120, 280, 360].map((x) => `<g class="flick">${px(x, 34, 28, 4, b.glow, ' opacity=".8"')}<ellipse cx="${x + 14}" cy="40" rx="30" ry="8" fill="${b.glow}" opacity=".08"/></g>`).join("");
+    return `${pipes}${lights}${crystal(22, HORIZON + 2, 22, "#2fb09a", "#bffff0")}${crystal(366, HORIZON + 2, 26, "#2fb09a", "#bffff0")}${bin(48, HORIZON + 4)}${crate(340, HORIZON + 3)}`;
   }
-  if (b.props === "throne") {
-    return `<polygon points="170,${H} 230,${H} 214,${HORIZON + 1} 186,${HORIZON + 1}" fill="#6b1f33" opacity=".75"/>${px(186, HORIZON + 1, 28, 2, "#e8b93d", ' opacity=".6"')}
-      ${[[30, "feuer"], [62, "wasser"], [320, "pflanze"], [352, "eis"]].map(([x, el]) => `<g>${px(x - 2, HORIZON - 10, 18, 10, b.brick2)}${crystal(x, HORIZON - 10, 28, elementColor(el), "#fff")}<circle class="glow" cx="${x + 5}" cy="${HORIZON - 26}" r="26" fill="url(#eg_${el})"/></g>`).join("")}`;
+  if (b.props === "core") {
+    return `<polygon points="170,${H} 230,${H} 214,${HORIZON + 1} 186,${HORIZON + 1}" fill="#3a1d73" opacity=".6"/>${px(186, HORIZON + 1, 28, 2, "#ff7ae0", ' opacity=".6"')}
+      ${[[30, "feuer"], [62, "wasser"], [320, "pflanze"], [352, "eis"]].map(([x, el]) => `<g>${px(x - 2, HORIZON - 10, 18, 10, b.brick2)}${crystal(x, HORIZON - 10, 28, elementColor(el), "#fff")}<circle class="glow" cx="${x + 5}" cy="${HORIZON - 24}" r="22" fill="url(#eg_${el})"/></g>`).join("")}`;
   }
-  return `${barrel(22, HORIZON + 4)}${barrel(44, HORIZON + 2)}${crate(348, HORIZON + 3)}${crate(366, HORIZON + 3, 18)}${crate(357, HORIZON - 13, 14)}${cobweb(0, false)}${cobweb(W, true)}`;
+  return `${vending(24, HORIZON + 4, b.glow)}${bin(54, HORIZON + 4)}${bin(70, HORIZON + 5)}${crate(348, HORIZON + 3)}${crate(366, HORIZON + 3, 18)}${crate(357, HORIZON - 13, 14)}`;
 };
 
 // ---- Boden mit Perspektive
@@ -6183,6 +6336,7 @@ function backdrop(b, id = "", o = {}) {
     <linearGradient id="sh${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
     <linearGradient id="fg${id}" x1="0" x2="1"><stop offset="0" stop-color="${b.fog}" stop-opacity="0"/><stop offset=".3" stop-color="${b.fog}" stop-opacity=".22"/><stop offset=".7" stop-color="${b.fog}" stop-opacity=".16"/><stop offset="1" stop-color="${b.fog}" stop-opacity="0"/></linearGradient>
     ${Object.keys(CONTENT.elements).map((el) => `<radialGradient id="eg_${el}"><stop offset="0" stop-color="${elementColor(el)}" stop-opacity=".6"/><stop offset=".55" stop-color="${elementColor(el)}" stop-opacity=".18"/><stop offset="1" stop-color="${elementColor(el)}" stop-opacity="0"/></radialGradient>`).join("")}
+    <radialGradient id="pg${id}" cx="50%" cy="55%" r="60%"><stop offset="0" stop-color="${b.glow}" stop-opacity=".55"/><stop offset=".6" stop-color="${b.glow}" stop-opacity=".12"/><stop offset="1" stop-color="#000" stop-opacity=".0"/></radialGradient>
     <radialGradient id="vg${id}" cx="50%" cy="58%" r="78%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".62"/></radialGradient></defs>`;
   const arch = (x0, x1) => `<path d="M${x0} ${HORIZON} V50 Q${(x0 + x1) / 2} 12 ${x1} 50 V${HORIZON} Z" fill="#000" opacity=".22"/><path d="M${x0} ${HORIZON} V50 Q${(x0 + x1) / 2} 12 ${x1} 50 V${HORIZON}" fill="none" stroke="${b.mortar}" stroke-width="2" opacity=".7"/>`;
   // breitere Bühne (Querformat): Wand und Boden laufen weiter, links und rechts stehen zusätzliche Säulen mit Bannern
@@ -6379,7 +6533,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const fxLayer = shots.map((s) => {
     const to = layout[s.uid]; if (!to) return "";
     const fromX = HERO.x + 34, fromY = HERO.feet - 52, dx = to.x - fromX, dy = (to.y - 40) - fromY;
-    if (s.style === "slash") return `<g class="slash" style="--d:${(s.t + 0.2).toFixed(2)}s" transform="translate(${to.x - 24} ${to.y - 66})">${spr("icon", "fx_slash", { attrs: 'width="48" height="48"' })}</g>`;
+    if (s.style === "slash") return `<g transform="translate(${to.x - 24} ${to.y - 66})"><g class="slash" style="--d:${(s.t + 0.2).toFixed(2)}s">${spr("icon", "fx_slash", { attrs: 'width="48" height="48"' })}</g></g>`;       // Position außen, Animation innen (sonst springt der Strich nach oben links)
     const body = s.style === "shoot" ? spr("icon", "fx_arrow", { attrs: 'width="30" height="11"' }) : spr("icon", "fx_orb", { attrs: 'width="22" height="22"', pal: s.element ? { b: elementColor(s.element), c: "#ffffff" } : undefined });
     return `<g transform="translate(${fromX} ${fromY})"><g class="shot" style="--dx:${Math.round(dx)}px;--dy:${Math.round(dy)}px;--d:${(s.t + 0.1).toFixed(2)}s"><g transform="translate(-12 -6)">${body}</g></g></g>`;
   }).join("");
@@ -6436,10 +6590,11 @@ const { tagCount } = __require("engine/modifiers.js");
 const { maxDifficulty, describeUnlock, isUnlocked } = __require("engine/meta.js");
 const { dexProgress } = __require("engine/dex.js");
 const { storyLines, storySpeaker } = __require("engine/story.js");
-const { CORE_STATS, STAT_LABELS, STAT_DESC, TIER_NAME, TIER_COLOR } = __require("ui/theme.js");
+const { CORE_STATS, STAT_LABELS, STAT_DESC, TIER_NAME, TIER_COLOR, NODE_INFO } = __require("ui/theme.js");
 const { xpNeed } = __require("engine/run.js");
+const { reactionText } = __require("ui/util.js");
 const { esc, needsTarget, describeWeapon, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
-const { achievementsView, cosmeticsView } = __require("ui/achview.js");
+const { achInfoView, achievementsView, cosmeticsView } = __require("ui/achview.js");
 const { spr, elementIconId } = __require("ui/art/index.js");
 const { NODE_ICON, NODE_NAME, STATUS, RARITY, elementName } = __require("ui/theme.js");
 const { at, ico, btn, ibtn, bar, pctOf, cardHtml, itemHtml, itemIcon, statusChips, logo } = __require("ui/widgets.js");
@@ -6451,7 +6606,7 @@ const sceneExt = (ui, areaH) => Math.max(0, Math.round((232 * ((ui.stageW ?? 800
 
 function hud(ui) {
   const run = ui.run, cls = CONTENT.classes[run.classId];
-  const where = run.nodeId ? `Ebene ${currentLayer(run) + 1}/${CONFIG.map.layers}` : "Start";
+  const where = `Stage ${run.stage}/${CONFIG.stages.count} · ` + (run.nodeId === "boss" ? (run.stage >= CONFIG.stages.count ? "Endboss" : "Wächter") : run.nodeId ? `Ebene ${Math.min(currentLayer(run) + 1, CONFIG.map.layers)}/${CONFIG.map.layers}` : "Start");
   return `<div class="hud"><div class="hud-l">${ico("heart", 18)}<span class="hudhp">${run.hp}/${run.maxHp}</span>${ico("coin", 18)}<b class="gold">${run.gold}</b><span class="xpbar" title="Erfahrung"><b>St. ${run.level + 1}</b><i style="width:${Math.round((100 * run.xp) / xpNeed(run.level))}%"></i></span></div>
     <div class="hud-m">${esc(cls.name)} · ${esc(CONFIG.difficulty[run.difficulty].name)} · ${where}</div>
     <div class="hud-r">${ibtn("pile", "show-deck", "Deck", `<span class="cnt">${run.deck.length}</span>`)}${ibtn("bag", "show-items", "Ausrüstung", `<span class="cnt">${run.items.length + 1}</span>`)}${ibtn("menu", "show-menu", "Menü")}</div></div>`;
@@ -6462,7 +6617,7 @@ const SIZE_NAMES = { normal: "Normal", gross: "Groß", riesig: "Sehr groß" };
 function titleView(ui) {
   const m = ui.meta;
   return `<div class="screen title"><div class="bgscene">${menuBackdrop(sceneExt(ui, ui.stageH ?? 400))}</div>
-    <div class="title-body"><div class="title-l">${logo()}<div class="tag">Ein Deckbuilder-Roguelite</div></div>
+    <div class="title-body"><div class="title-l">${logo()}<div class="tag">Ein Anime-Roguelite-Deckbuilder</div></div>
       <div class="title-r"><div class="menu-buttons">${ui.hasSave ? btn("Run fortsetzen", "continue", undefined, { cls: "good big" }) : ""}
         ${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}</div>
         <div class="row wrap center">${btn("Einstellungen", "open-settings", undefined, { cls: "small" })}</div>
@@ -6487,7 +6642,7 @@ function setupView(ui) {
     return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deinen Helden</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Weiter", "setup-next", undefined, { cls: "primary" })}</div></div>
       <div class="herogrid6">${classes.map(card).join("")}</div></div></div>`;
   }
-  const maxD = maxDifficulty(ui.meta);
+  const maxD = maxDifficulty(ui.meta, cur.id);
   const sig = (w) => (w.signature === cur.id ? "Dein Held" : esc(CONTENT.classes[w.signature]?.name ?? ""));
   return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Wähle deine Waffe</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${btn("Aufbrechen", "start-run", undefined, { cls: "primary" })}</div></div>
     <div class="weapongrid2"><div class="hero-big px">${heroPortrait(cur.id, st.weaponId, activeSkin(ui.meta, cur.id))}<b>${esc(cur.name)}</b></div>
@@ -6497,7 +6652,7 @@ function setupView(ui) {
           return `<div class="wdetail px"><span class="wico big">${spr("weapon", st.weaponId, { attrs: 'width="100%" height="100%"' })}</span><div><b>${esc(w.name)}</b> <span class="rar" style="color:${r[1]}">${esc(r[0])} · Signatur: ${esc(CONTENT.classes[w.signature]?.name ?? "-")}</span><div>${esc(describeWeapon(w))}</div></div></div>`; })()}
         <div class="optsbar px"><div class="optrow"><b>Schwierigkeit</b><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
           ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div></div>
-          <div class="optrow"><b>Seed</b><input class="seed" inputmode="numeric" placeholder="leer = Zufall" value="${esc(st.seed)}" data-change="set-seed"></div>
+          <div class="optrow"><b>Seed</b><input class="seed" inputmode="numeric" placeholder="Zufall" value="${esc(st.seed)}" data-change="set-seed" readonly autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
           <div class="muted small optnote">Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Bessere Waffen findest du später, zum Beispiel nach dem Mini-Boss.</div></div></div></div></div></div>`;
 }
 
@@ -6524,20 +6679,23 @@ function mapView(ui) {
     return { x: PAD + n.layer * SP, y: 26 + lane * (SPAN - 52) };
   };
   const nodes = [...map.layers.flat(), map.boss];
+  const reach = new Set(), stack = [...avail];                                  // von hier aus noch erreichbare Orte (alles andere ist für diese Route verloren)
+  if (!stack.length && run.nodeId) stack.push(...findNode(map, run.nodeId).next);
+  while (stack.length) { const id = stack.pop(); if (reach.has(id)) continue; reach.add(id); stack.push(...(findNode(map, id)?.next ?? [])); }
   const edges = nodes.flatMap((n) => n.next.map((id) => {
-    const a = pos(n), b = pos(findNode(map, id)), on = path.includes(n.id) && (path.includes(id) || avail.includes(id)), soft = !on && avail.includes(n.id);
-    return `<line class="edge ${on ? "on" : soft ? "soft" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
+    const a = pos(n), b = pos(findNode(map, id)), on = path.includes(n.id) && (path.includes(id) || avail.includes(id)), soft = !on && avail.includes(n.id), gone = !on && !soft && !(reach.has(id) || reach.has(n.id));
+    return `<line class="edge ${on ? "on" : soft ? "soft" : gone ? "gone" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
   })).join("");
   const plates = nodes.map((n) => {
     const p = pos(n), isAvail = avail.includes(n.id), done = path.includes(n.id), cur = run.nodeId === n.id, r = n.type === "boss" ? 24 : 18;
-    return `<g class="node ${isAvail ? "avail" : done ? "done" : "dim"} ${cur ? "cur" : ""}"${isAvail ? at("node", n.id) : ""}><title>${NODE_NAME[n.type]}</title>
+    return `<g class="node ${isAvail ? "avail" : done ? "done" : reach.has(n.id) ? "dim" : "gone"} ${cur ? "cur" : ""}"${isAvail ? at("node", n.id) : at("node-info", n.type)}><title>${NODE_NAME[n.type]}</title>
       <circle cx="${p.x}" cy="${p.y}" r="${r}"/>${spr("icon", NODE_ICON[n.type], { attrs: `x="${p.x - r * 0.75}" y="${p.y - r * 0.75}" width="${r * 1.5}" height="${r * 1.5}"` })}</g>`;
   }).join("");
   const here = run.nodeId ? pos(findNode(map, run.nodeId)) : null;
   const hero = here ? `<g class="mapHero" transform="translate(${here.x - 10} ${here.y - 52})">${spr("hero", run.classId, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: 'width="20" height="29"' })}</g>` : "";
-  return `${hud(ui)}<div class="screen mapscreen"><div class="maphead"><h3>${run.nodeId ? "Wohin als Nächstes?" : "Der Weg beginnt"}</h3><span class="muted small">Leuchtende Orte sind erreichbar.</span>
-    <span class="grow"></span><div class="legend">${Object.entries(NODE_ICON).map(([k, v]) => `<span>${ico(v, 14)}${NODE_NAME[k]}</span>`).join("")}</div></div>
-    <div class="mapwrap"><svg class="mapsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Dungeon-Karte">${edges}${plates}${hero}</svg></div></div>`;
+  return `${hud(ui)}<div class="screen mapscreen"><div class="maphead"><h3>${run.nodeId ? "Wohin als Nächstes?" : "Der Weg beginnt"}</h3><span class="muted small">Leuchtende Orte sind erreichbar. Tippe auf ein Symbol für Infos.</span>
+    <span class="grow"></span><div class="legend">${Object.entries(NODE_ICON).map(([k, v]) => `<span${at("node-info", k)}>${ico(v, 14)}${NODE_NAME[k]}</span>`).join("")}</div></div>
+    <div class="mapwrap"><svg class="mapsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gate-Karte">${edges}${plates}${hero}</svg></div></div>`;
 }
 
 // ---------------------------------------------------------------- Kampf
@@ -6597,7 +6755,7 @@ function shopView(ui) {
   const run = ui.run, shop = run.pending.shop, build = buildOf(run);
   const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""}">${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
     ${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}</div>`).join("");
-  const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}">${itemHtml(CONTENT.get("items", s.id))}
+  const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}"><div class="itemwrap">${itemHtml(CONTENT.get("items", s.id))}<span class="c-info iinfo"${at("item-info", `items:${s.id}`)} role="button" aria-label="Details">i</span></div>
     <div class="buyrow">${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Item für die nächste Runde sperren" })}</div></div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
   const npc = brumm
@@ -6605,7 +6763,7 @@ function shopView(ui) {
     : `<div class="shop-npc plain"><div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="44" height="44"' })}</div></div>`;
   return `${hud(ui)}<div class="screen shop"><div class="shop-side">${npc}<h2>${shop.start ? "Startladen" : shop.quick ? "Schnellladen" : "Händler"}</h2><div class="muted">Dein Gold: <b class="gold">${run.gold}</b></div>
       <div class="muted small">Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div>
-      ${btn(`${ico("star", 14)} Neu würfeln (${shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: run.gold < shop.rerollCost })}
+      ${btn(`${ico("star", 14)} Neu würfeln (${shop.freeRerolls > 0 ? `gratis x${shop.freeRerolls}` : shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: !(shop.freeRerolls > 0) && run.gold < shop.rerollCost })}
       ${btn(`${ico("discard", 14)} Schredder (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
       ${(shop.services ?? []).map((s) => btn(`${ico(s.id === "heal" ? "heart" : "star", 14)} ${s.id === "heal" ? `Verband +${Math.round(CONFIG.shop.services.heal.pct * 100)}% HP` : `Trank +${CONFIG.shop.services.vitality.maxHp} Max-HP`} (${s.price})`, "service", s.id, { cls: "small", disabled: s.sold || run.gold < s.price })).join("")}
       <span class="grow"></span>${btn("Weiter", "leave-shop", undefined, { cls: "primary" })}</div>
@@ -6629,7 +6787,7 @@ function endView(ui) {
   const run = ui.run, s = run.summary, won = s.won, m = s.meta, outro = CONTENT.stories.outro, sp = CONTENT.speakers[outro?.speaker];
   const mira = won && outro ? `<div class="outro"><div class="npc">${spr("npc", outro.speaker, { attrs: 'width="58" height="82"' })}</div><div class="bubble static"><div class="who">${esc(sp.name)}</div>${storyLines("outro", run.classId).map((l) => `<p>${esc(l)}</p>`).join("")}</div></div>` : "";
   const ach = (s.achievements ?? []).map((id) => CONTENT.achievements[id].name);
-  return `<div class="screen end"><div class="end-l stack"><h1>${won ? "Sieg! Der Wandler ist gefallen." : "Der Run ist zu Ende."}</h1>${mira}</div>
+  return `<div class="screen end"><div class="end-l stack"><h1>${won ? "Sieg! Der Gate-Lord ist gefallen." : "Der Run ist zu Ende."}</h1>${mira}</div>
     <div class="end-r stack"><div class="px pad left"><div>Klasse: <b>${esc(CONTENT.classes[run.classId].name)}</b> · ${esc(CONFIG.difficulty[run.difficulty].name)}</div>
       <div>Kämpfe: <b>${s.stats.fights}</b> · Orte: <b>${s.stats.nodes}</b> · Gold verdient: <b>${s.stats.goldEarned}</b></div>
       <div>Items: <b>${s.items}</b> · Deckgröße: <b>${s.deck}</b></div><div>Shinys gesehen: <b>${s.stats.shinyEnemies + s.stats.shinyLoot}</b> · Seed: <b>${run.seed}</b></div></div>
@@ -6643,7 +6801,12 @@ function endView(ui) {
 function collectionView(ui) {
   const meta = ui.meta, prog = dexProgress(meta.dex), found = (kind, id) => Boolean(meta.dex.shiny[`${kind}/${id}`]);
   const labels = { heroes: "Helden", cards: "Karten", weapons: "Waffen", items: "Items", enemies: "Gegner" };
+  const disc = (kind, id) => Boolean(meta.discovered?.[kind]?.[id]);
   const tile = (kind, id, svgKind) => {
+    if (kind === "items" || kind === "weapons" || kind === "enemies") {                              // Sammlung: erst sichtbar, wenn gewählt, gekauft oder besiegt; ✦ = Chrom-Variante gefunden
+      const d = disc(kind, id), sh = found(kind, id), name = CONTENT[kind][id].name;
+      return `<div class="dextile ${d ? "found" : "unknown"}" title="${d ? esc(name) : "???"}"${d && kind !== "enemies" ? at("item-info", `${kind}:${id}`) : ""}>${spr(svgKind, id, { attrs: 'width="100%" height="100%"' })}${sh ? '<span class="shbadge">✦</span>' : ""}</div>`;
+    }
     const f = found(kind, id);
     return `<div class="dextile ${f ? "found sh" : "unknown"}" title="${f ? esc((kind === "heroes" ? CONTENT.classes : CONTENT[kind])[id].name) : "???"}">${spr(svgKind, id, { shiny: f, attrs: 'width="100%" height="100%"' })}</div>`;
   };
@@ -6651,20 +6814,28 @@ function collectionView(ui) {
   const unlockables = ["cards", "weapons", "items"].flatMap((kind) => Object.values(CONTENT[kind])
     .filter((d) => d.unlock && !(d.unlock.type === "achievement" && CONTENT.achievements[d.unlock.id]?.secret && !meta.unlocked[`${kind}/${d.id}`]))   // Belohnungen geheimer Erfolge bleiben verborgen
     .map((d) => ({ kind, d })));
-  const tabs = [["heroes", "Helden"], ["items", "Items"], ["weapons", "Waffen"], ["enemies", "Gegner"], ["frei", "Freischaltungen"], ["mehr", "Mehr"]];
+  const tabs = [["heroes", "Helden"], ["items", "Items"], ["weapons", "Waffen"], ["enemies", "Gegner"], ["stat", "Statistik"], ["frei", "Freischaltungen"], ["mehr", "Mehr"]];
   const tab = tabs.some(([k]) => k === ui.tab.collection) ? ui.tab.collection : "items";
   let body;
   if (tab === "frei") {
     body = `<div class="unlocklist">${unlockables.map(({ kind, d }) => { const open = Boolean(meta.unlocked[`${kind}/${d.id}`]);
       return `<div class="dexrow"><span>${open ? ico("plus", 12) : ico("lock", 12)} ${esc(d.name)}</span><span class="muted right">${open ? "frei" : esc(describeUnlock(d.unlock))}</span></div>`; }).join("")}</div>`;
+  } else if (tab === "stat") {
+    const st = meta.stats, lost = meta.runs - meta.wins, rate = meta.runs ? Math.round((100 * meta.wins) / meta.runs) : 0;
+    const row = (k, v) => `<div class="dexrow"><span>${k}</span><b>${v}</b></div>`;
+    const heroes = Object.values(CONTENT.classes).map((c) => { const b = st.byClass?.[c.id] ?? { runs: 0, wins: 0, bestStage: 0 }; return `<div class="dexrow"><span>${esc(c.name)}</span><span class="muted">${b.runs} Runs · ${b.wins} Siege · Stage ${b.bestStage} · ${esc(CONFIG.difficulty[Math.max(0, st.maxDiffByClass?.[c.id] ?? 0)].name)}</span></div>`; }).join("");
+    const hist = (meta.history ?? []).slice(0, 5).map((h) => `<div class="dexrow"><span>${esc(CONTENT.classes[h.classId]?.name ?? h.classId)} · ${esc(CONFIG.difficulty[h.difficulty]?.name ?? "")}</span><span class="${h.won ? "good" : "muted"}">${h.won ? "Sieg" : `Niederlage in Stage ${h.stage}`} · ${h.fights} Kämpfe</span></div>`).join("");
+    body = `<div class="stack"><div class="statcols"><div>${row("Runs", meta.runs)}${row("Siege", meta.wins)}${row("Niederlagen", lost)}${row("Siegrate", `${rate} %`)}${row("Beste Stage", `${st.bestStage ?? 0}/${CONFIG.stages.count}`)}</div>
+      <div>${row("Gegner besiegt", st.kills)}${row("Kämpfe gewonnen", st.fightsWon)}${row("Gold verdient", st.goldTotal ?? 0)}${row("Elite besiegt", st.elites)}${row("Chrom-Gegner", st.shinyEnemies)}</div></div>
+      <h3>Helden</h3><div class="unlocklist">${heroes}</div>${hist ? `<h3>Letzte Runs</h3><div class="unlocklist">${hist}</div>` : ""}</div>`;
   } else if (tab === "mehr") {
     body = `<div class="stack"><div class="muted small">Ein Shiny taucht mit 1 zu ${Math.round(1 / CONFIG.shiny.enemyChance)} pro Gegner auf. Ein Chrom-Held erscheint mit 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)} beim Run-Start. Gefundene Shinys erscheinen hier als Chrom-Variante.</div>
       <div class="row wrap">${btn("Chrom-Vorschau starten", "start-preview", undefined, { cls: "small" })}<span class="muted small">Ein Run, in dem alles Shiny ist. Nichts wird gespeichert.</span></div>
       ${ui.confirmReset ? `<div class="px pad stack"><b class="bad">Wirklich alles löschen?</b><div class="row">${btn("Ja, löschen", "reset-yes", undefined, { cls: "danger" })}${btn("Abbrechen", "reset-no")}</div></div>` : btn("Spielstand löschen", "reset-ask", undefined, { cls: "small" })}</div>`;
   } else {
-    body = `<div class="muted small dexcount">${labels[tab]}: ${prog[tab].found} von ${prog[tab].total} als Shiny gefunden</div>${grid(tab, { heroes: "hero", items: "item", weapons: "weapon", enemies: "enemy" }[tab], tab)}`;
+    body = `<div class="muted small dexcount">${labels[tab]}: ${tab === "heroes" ? `${prog[tab].found} von ${prog[tab].total} als Shiny gefunden` : `${Object.keys(CONTENT[tab]).filter((id) => disc(tab, id)).length} von ${Object.keys(CONTENT[tab]).length} entdeckt · ${prog[tab].found} Shiny`}</div>${grid(tab, { heroes: "hero", items: "item", weapons: "weapon", enemies: "enemy" }[tab], tab)}`;
   }
-  return `<div class="screen collection"><div class="pg-head"><h2>Shiny-Sammlung</h2><div class="tabs">${tabs.map(([k, label]) => `<span class="tab ${tab === k ? "on" : ""}"${at("set-tab", "collection", k)}>${label}</span>`).join("")}</div><span class="grow"></span>${btn("Zurück", "to-title", undefined, { cls: "primary small" })}</div>
+  return `<div class="screen collection"><div class="pg-head"><h2>Sammlung</h2><div class="tabs">${tabs.map(([k, label]) => `<span class="tab ${tab === k ? "on" : ""}"${at("set-tab", "collection", k)}>${label}</span>`).join("")}</div><span class="grow"></span>${btn("Zurück", "to-title", undefined, { cls: "primary small" })}</div>
     <div class="pg-body">${body}</div></div>`;
 }
 
@@ -6719,8 +6890,17 @@ function cardDetailView(ui) {
   return `<div class="overlay"><div class="sheet cdetail"><div class="cd-card">${cardHtml(def, { size: "lg", build, info: false, ctx: ui.run.pending?.combat ? { hp: ui.run.pending.combat.player.hp, maxHp: ui.run.pending.combat.player.maxHp, gold: ui.run.pending.combat.gold } : { hp: ui.run.hp, maxHp: ui.run.maxHp, gold: ui.run.gold } })}</div>
     <div class="cd-body"><h2>${esc(def.name)}</h2><div class="muted small">Kosten ${def.cost} · ${esc(rar[0])}${def.element ? ` · ${esc(elementName(def.element))}` : ""}</div>
       <p>${esc(def.text ?? "")}</p>
+      ${def.element ? `<div class="cd-kw"><div><b>Reaktionen</b> Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion aus:</div>${Object.values(CONTENT.reactions).filter((r) => r.pair.includes(def.element)).map((r) => `<div>${esc(r.name)} (${r.pair.map((p) => esc(elementName(p))).join(" + ")}): ${esc(reactionText(r))}</div>`).join("")}</div>` : ""}
       ${kws.length ? `<div class="cd-kw">${kws.map((k) => `<div><b>${esc(k.name)}</b> ${esc(k.text)}</div>`).join("")}</div>` : ""}
       ${btn("Schließen", "close-cardinfo", undefined, { cls: "primary" })}</div></div></div>`;
+}
+const nodeInfoView = (ui) => `<div class="overlay"><div class="sheet mid stack center">${ico(NODE_ICON[ui.nodeInfo], 32)}<h2>${esc(NODE_NAME[ui.nodeInfo])}</h2><div>${esc(NODE_INFO[ui.nodeInfo] ?? "")}</div>${btn("Schließen", "close-node-info", undefined, { cls: "primary" })}</div></div>`;
+function itemInfoView(ui) {
+  const [kind, id] = ui.itemInfo.split(":"), def = CONTENT.get(kind, id), rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
+  const stats = Object.entries(def.stats ?? {}).filter(([, v]) => v).map(([k, v]) => `<span class="chip">${v > 0 ? "+" : ""}${v} ${STAT_LABELS[k] ?? k}</span>`).join(" ");
+  const hero = def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : "";
+  const text = kind === "weapons" ? describeWeapon(def) : def.text ?? "";
+  return `<div class="overlay"><div class="sheet mid stack"><div class="row">${itemHtml(def, kind)}</div><h2>${esc(def.name)}</h2><div class="muted small">${esc(rar[0])}${hero}</div><p>${esc(text)}</p>${stats ? `<div class="chips">${stats}</div>` : ""}${btn("Schließen", "close-item-info", undefined, { cls: "primary" })}</div></div>`;
 }
 const noticeView = (n) => `<div class="overlay"><div class="sheet mid stack center"><h2>${esc(n.title)}</h2>${n.lines.map((l) => `<div>${esc(l)}</div>`).join("")}${btn("OK", "ack-notice", undefined, { cls: "primary" })}</div></div>`;
 
@@ -6737,7 +6917,7 @@ function render(ui) {
     body = p === "intro" ? storyView(ui) : p === "map" ? mapView(ui) : p === "combat" ? combatView(ui) : p === "reward" ? rewardView(ui) : p === "shop" ? shopView(ui)
       : p === "rest" ? restView(ui) : p === "event" ? eventView(ui) : endView(ui);
   }
-  const overlay = (ui.screen === "game" && ui.overlay ? overlayView(ui) : "") + (ui.settingsOpen ? settingsView(ui) : "") + (ui.screen === "game" && ui.run && ui.cardInfo ? cardDetailView(ui) : "");
+  const overlay = (ui.screen === "game" && ui.overlay ? overlayView(ui) : "") + (ui.settingsOpen ? settingsView(ui) : "") + (ui.nodeInfo ? nodeInfoView(ui) : "") + (ui.achInfo ? achInfoView(ui) : "") + (ui.itemInfo ? itemInfoView(ui) : "") + (ui.screen === "game" && ui.run && ui.cardInfo ? cardDetailView(ui) : "");
   const frame = activeFrame(ui.meta);
   return `<div class="app ${ui.landscape ? "land" : "port"}${frame !== "default" ? ` frame-${frame}` : ""}">${body}</div>${overlay}${ui.notice ? noticeView(ui.notice) : ""}${ui.toast ? `<div class="toast">${esc(ui.toast)}</div>` : ""}`;
 }
@@ -6788,7 +6968,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
-    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, settingsOpen: false, updateStatus: null, importPending: null, reloadNeeded: false,
+    tab: { collection: "items", ach: "gegner", cosm: "farben", reward: null }, cardInfo: null, achInfo: null, nodeInfo: null, itemInfo: null, settingsOpen: false, updateStatus: null, importPending: null, reloadNeeded: false,
     auto: false, speed: CONFIG.ui.speeds.includes(meta.settings.speed) ? meta.settings.speed : 1, manual: meta.settings.manual, autoEnd: meta.settings.autoEnd, focus: null,
   };
   applyContentLanguage(CONTENT, meta.settings.lang ?? "de");                  // gespeicherte Sprache anwenden
@@ -6881,7 +7061,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "start-run": {
         endPreview();
         const seed = parseInt(st.seed, 10) || seedFn();
-        openRun(createRun({ classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
+        openRun(createRun({ classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
         if (ui.run.shinyHero) ui.notice = { title: "Chrom-Held!", lines: ["Sehr selten: Dein Held schimmert wie Chrom.", `Bonus für diesen Run: +${CONFIG.shiny.heroLuck} Glück.`, `Chance beim Start: 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)}.`] };
         break;
       }
@@ -6963,7 +7143,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "set-tab": ui.tab[arg] = arg2; break;                                  // Reiter in Sammlung, Erfolge und Aussehen
       case "import-save": {                                                      // Datei gelesen: erst prüfen, dann nachfragen
         let d; try { d = JSON.parse(arg); } catch { d = null; }
-        if (!d || d.game !== "rogue-deck" || typeof d.meta !== "object" || !d.meta) { toast("Das ist keine Rogue-Deck-Sicherung"); break; }
+        if (!d || d.game !== "rogue-deck" || typeof d.meta !== "object" || !d.meta) { toast("Das ist keine Ani-Rogue-Sicherung"); break; }
         ui.importPending = { text: arg, wins: d.meta.wins ?? 0, runs: d.meta.runs ?? 0, version: d.version ?? "?", hasRun: Boolean(d.run) };
         break;
       }
@@ -6978,6 +7158,12 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "import-no": ui.importPending = null; break;
       case "open-settings": ui.settingsOpen = true; break;                          // Einstellungen (Titel und Spiel)
       case "reload-page": ui.reloadNow = true; break;                          // main.js lädt die Seite mit frischem Cache neu
+      case "ach-info": ui.achInfo = arg; break;                                // Info und Datum eines Erfolgs
+      case "close-ach-info": ui.achInfo = null; break;
+      case "node-info": ui.nodeInfo = arg; break;                              // Info zu einem Ortstyp der Karte
+      case "close-node-info": ui.nodeInfo = null; break;
+      case "item-info": ui.itemInfo = arg; break;                              // volle Beschreibung eines Items (Shop)
+      case "close-item-info": ui.itemInfo = null; break;
       case "close-settings": ui.settingsOpen = false; break;
       case "set-lang": ui.meta.settings = { ...ui.meta.settings, lang: arg === "en" ? "en" : "de" }; applyContentLanguage(CONTENT, ui.meta.settings.lang); break;
       case "set-size": ui.meta.settings = { ...ui.meta.settings, size: ["normal", "gross", "riesig"].includes(arg) ? arg : "gross" }; break;
@@ -7076,6 +7262,10 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       else if (c.waveIndex !== lastWave) { ui.enter = "enemies"; lastWave = c.waveIndex; }
     }
     if (ui.run) achEvents.push(...takeNewAchievements(ui.run));   // Erfolge, die in diesem Schritt erreicht wurden
+    if (ui.run?.stageNotice) {                                    // neue Stage: kurzer Hinweis
+      const n = ui.run.stageNotice; ui.run.stageNotice = null;
+      ui.notice = { title: `Stage ${n} von ${CONFIG.stages.count}`, lines: [n >= CONFIG.stages.count ? "Das ist die letzte Stage. Am Ende wartet der Endboss." : "Du hast die Stage geschafft. Die Gegner werden stärker, dafür wird die Beute besser.", `Du wurdest zu ${Math.round(CONFIG.stages.heal * 100)} % geheilt.`] };
+    }
     persist();
     return rerender;
   }
@@ -7090,7 +7280,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     },
     autoWait: () => {
       const r = ui.run;
-      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo || ui.settingsOpen || ui.importPending) return null;
+      if (!ui.auto || ui.screen !== "game" || !r || r.phase !== "combat" || r.pending.combat.result || ui.overlay || ui.notice || ui.cardInfo || ui.settingsOpen || ui.importPending || ui.nodeInfo || ui.itemInfo || ui.achInfo) return null;
       const c = r.pending.combat;
       const first = c.turn === 1 && c.metrics.plays === 0;                                // Auftritt der Figuren abwarten
       return Math.round((first ? 1800 : 700) / ui.speed);
@@ -7178,6 +7368,11 @@ root.addEventListener("change", (ev) => {                          // Sicherung 
   inp.files[0].text().then((txt) => { ctrl.dispatch("import-save", txt); render(); }).catch(() => {});
 });
 
+root.addEventListener("click", (ev) => {                           // Seed-Feld: erst auf Antippen schreibbar (verhindert versehentliche Tastatur und die Safari-Warnung im Vollbild)
+  const inp = ev.target.closest("input.seed[readonly]");
+  if (inp) { inp.removeAttribute("readonly"); inp.focus(); inp.addEventListener("blur", () => inp.setAttribute("readonly", ""), { once: true }); }
+});
+
 root.addEventListener("click", (ev) => {
   const el = ev.target.closest("[data-action]");
   if (!el || el.disabled) return;
@@ -7195,7 +7390,7 @@ root.addEventListener("click", (ev) => {
   }
   if (el.dataset.action === "export-save") {                       // Sicherung als Datei herunterladen
     const blob = new Blob([ctrl.exportSave()], { type: "application/json" }), a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = `rogue-deck-sicherung-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    a.href = URL.createObjectURL(blob); a.download = `ani-rogue-sicherung-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     return;
   }
   const res = ctrl.dispatch(el.dataset.action, el.dataset.arg, el.dataset.arg2);

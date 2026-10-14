@@ -1,18 +1,8 @@
 :root{
-  --bg:#eadfc6; --panel:#f6eed8; --panel2:#dccfae; --ink:#2a2318; --muted:#6f624b; --line:#2a2318;
-  --accent:#c2562a; --good:#2f8f55; --bad:#b83232; --gold:#9a6a08; --shadow:#2a2318;
+  --bg:#080c18; --panel:#101a33; --panel2:#18264d; --ink:#e6f1ff; --muted:#8aa2cf; --line:#3fb6e8;
+  --accent:#ff4fa3; --good:#5df0a0; --bad:#ff6b8a; --gold:#ffd166; --shadow:#02040c;
   --cw:92px; --ch:136px;
   box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#120f19; --panel:#1f1b2b; --panel2:#2c2740; --ink:#ece6d6; --muted:#9a93ad; --line:#4a4466;
-    --accent:#ff8a4c; --good:#58d68d; --bad:#ff6b6b; --gold:#ffd166; --shadow:#000;
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#120f19; --panel:#1f1b2b; --panel2:#2c2740; --ink:#ece6d6; --muted:#9a93ad; --line:#4a4466;
-  --accent:#ff8a4c; --good:#58d68d; --bad:#ff6b6b; --gold:#ffd166; --shadow:#000;
 }
 
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
@@ -438,7 +428,7 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .pg-head{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pg-head h2{margin:0;font-size:15px}
 .tabs{display:flex;gap:4px;flex-wrap:wrap}
 .tab{border:2px solid var(--line);background:var(--panel2);padding:3px 9px;font-weight:700;font-size:11px;cursor:pointer}.tab.on{background:var(--accent);color:#fff}
-.pg-body{flex:1;min-height:0;overflow:hidden}
+.pg-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .achgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .ach{padding:6px;gap:8px}.achicon{width:24px}.achicon svg{width:24px;height:24px}
 .skingrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -488,7 +478,7 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 
 /* ---- Info-Symbol auf Karten und Detailansicht */
 .card .c-info{position:absolute;left:3px;top:19px;z-index:2;width:15px;height:15px;border-radius:50%;background:rgba(20,16,30,.82);color:#fff;border:1px solid rgba(255,255,255,.55);font:800 10px/13px ui-monospace,monospace;text-align:center;cursor:pointer}
-.card .c-info::after{content:"";position:absolute;inset:-7px}
+.card .c-info{width:18px;height:18px;font-size:11px;line-height:16px}
 .cdetail{display:flex;gap:14px;align-items:flex-start;width:min(94%,560px);padding:12px}
 .cd-card{flex:none;width:120px;display:flex}.cd-card .card{width:100%;min-height:150px}
 .cd-body{flex:1;min-width:0}.cd-body p{margin:6px 0}
@@ -589,3 +579,13 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .itemcard.upg{min-height:64px;border-color:var(--rar)}.itemcard.upg b{font-size:14px}
 .compact .statgrid,.tiny .statgrid{grid-template-columns:repeat(3,1fr);font-size:10px}
 .rw-body .items3.lv4{grid-template-columns:repeat(4,minmax(0,1fr));max-width:none}.items3.lv4 .itemcard.upg b{font-size:12px}
+
+/* ---- Karte: verlorene Wege, Info; Shop */
+.node.gone{opacity:.22;filter:grayscale(1)}.edge.gone{opacity:.1}.legend span[data-action]{cursor:pointer}
+.itemwrap{position:relative}.itemwrap .iinfo{position:absolute;right:4px;top:4px;left:auto;z-index:3;cursor:pointer;background:rgba(20,16,30,.82);color:#fff;border:1px solid rgba(255,255,255,.55);border-radius:50%;width:18px;height:18px;font:800 11px/16px ui-monospace,monospace;text-align:center}
+.shop{justify-content:center;max-width:980px;margin:0 auto;width:100%}
+.maphead{flex-wrap:wrap;row-gap:2px}.legend{flex-wrap:wrap}
+
+/* ---- Sammlung, Statistik */
+.dextile{position:relative}.dextile.found:not(.sh){cursor:pointer}.shbadge{position:absolute;right:1px;top:0;font-size:10px;color:#ffe58a;text-shadow:0 0 3px #000,0 0 3px #000}
+.statcols{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}.compact .statcols{gap:2px 10px;font-size:11px}.ach[data-action]{cursor:pointer}
