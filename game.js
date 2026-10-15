@@ -12,7 +12,7 @@ function __require(p) {
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "6.8",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "7.1",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
@@ -93,6 +93,7 @@ const CONFIG = {
     tierSplit: 4,               // ab dieser Ebene kommen Begegnungen der Stufe 2
   },
   // Erfahrung und Wert-Aufstiege (Brotato-Richtung): Gegner geben Erfahrung nach ihren Lebenspunkten, volle Leiste = ein Aufstieg mit 4 Wert-Angeboten
+  weaponUpgrades: { max: 8, offer: 3, tierAt: [0, 1, 3, 6] },                      // Veredelungen: höchstens 8 je Run, 3 zur Wahl nach Mini-Bossen; Stufe I bis IV (nur Optik) nach Anzahl
   weaponTiers: { power: [0, 1, 2, 3], names: ["I", "II", "III", "IV"] },     // Waffen-Stufen: Zusatzstärke je Stufe; dieselbe Waffe nochmal gewählt = nächste Stufe
   draft: { rounds: 4, options: 3, ownWeight: 2.5 },        // Startdeck-Draft: 4 Züge, je 3 Karten zur Wahl, eigene Klassenkarten 2,5x so wahrscheinlich
   xp: { hpPerXp: 14, base: 8, step: 4 },
@@ -128,7 +129,7 @@ __define("content/registry.js", function (__exports, __require) {
 // Ein neues Set = eine neue Datei in content/packs + eine Zeile in content/index.js.
 const { CONFIG } = __require("data/config.js");
 
-const KINDS = ["cards", "weapons", "items", "enemies", "encounters", "classes", "abilities", "events", "reactions", "speakers", "stories", "skins", "frames", "achievements"];
+const KINDS = ["cards", "weapons", "items", "enemies", "encounters", "classes", "abilities", "upgrades", "events", "reactions", "speakers", "stories", "skins", "frames", "achievements"];
 const uniq = (a) => [...new Set(a)];
 
 function normalize(kind, id, def, packId) {
@@ -146,6 +147,7 @@ function normalize(kind, id, def, packId) {
   if (kind === "achievements") { out.group = def.group ?? "runs"; out.secret = Boolean(def.secret); }
   if (kind === "classes") { out.stats = def.stats ?? {}; out.starterWeapons = def.starterWeapons ?? [def.weapon]; out.shopBasics = def.shopBasics ?? []; out.passive = def.passive ?? null;
     out.passives = def.passives ?? []; out.perks = def.perks ?? []; out.cardPools = def.cardPools ?? [out.id]; out.abilities = def.abilities ?? []; out.coreCards = def.coreCards ?? []; }      // passives: Klassen-Passive als Daten, perks: Vor- und Nachteile für die Anzeige, cardPools: welche Kartenpools der Held findet
+  if (kind === "upgrades") { out.effect = def.effect ?? {}; out.families = def.families ?? null; out.maxStack = def.maxStack ?? 1; }
   if (kind === "abilities") { out.levels = def.levels ?? []; out.cooldown = def.cooldown ?? 4; }
   if (kind === "reactions") out.key = [...def.pair].sort().join("+");   // ungeordnetes Elementpaar
   if (kind === "encounters") { out.kind = def.kind ?? "normal"; out.tier = def.tier ?? 1; }   // normal | elite | miniboss | boss
@@ -178,7 +180,7 @@ function makeShiny(def) {
 }
 
 function createContent() {
-  const c = { packs: [], elements: {}, relations: [], matrix: {}, cards: {}, weapons: {}, items: {}, enemies: {}, encounters: {}, classes: {}, abilities: {}, events: {}, reactions: {}, reactionIndex: {}, speakers: {}, stories: {}, skins: {}, frames: {}, achievements: {} };
+  const c = { packs: [], elements: {}, relations: [], matrix: {}, cards: {}, weapons: {}, items: {}, enemies: {}, encounters: {}, classes: {}, abilities: {}, upgrades: {}, events: {}, reactions: {}, reactionIndex: {}, speakers: {}, stories: {}, skins: {}, frames: {}, achievements: {} };
   const shinyCache = {};
   c.clearShinyCache = () => { for (const k of Object.keys(shinyCache)) delete shinyCache[k]; };         // nach Sprachwechsel: Chrom-Namen neu bilden
 
@@ -1552,6 +1554,42 @@ __exports.default = {
 
 
 });
+__define("content/packs/waffen_upgrades.js", function (__exports, __require) {
+// WAFFEN-VEREDELUNGEN: Statt Waffenwechsel baut man die Startwaffe aus. Nach Mini-Bossen wählt man 1 von 3 Veredelungen (max. CONFIG.weaponUpgrades.max pro Run).
+// effect: power (Stärke), stats (Werte), passives (neue Wirkungen wie bei Items), buffPassives (Zahlen der Waffen-Wirkung +N).
+// families: Waffen-Tags (nahkampf, fernkampf, zauber) oder null = für jede Waffe. maxStack: wie oft dieselbe Veredelung vorkommen darf.
+__exports.default = {
+  id: "waffen_upgrades",
+  name: "Waffen-Veredelungen",
+  upgrades: {
+    u_staerke: { name: "Schärfung", text: "Stärke +1.", families: null, maxStack: 3, effect: { power: 1 } },
+    u_krit: { name: "Kritischer Schliff", text: "+8% Krit-Chance.", families: null, maxStack: 2, effect: { stats: { crit: 8 } } },
+    u_ruestung: { name: "Verstärkter Griff", text: "+1 Rüstung.", families: null, maxStack: 2, effect: { stats: { armor: 1 } } },
+    u_leben: { name: "Lebensfaden", text: "+8 Max-HP.", families: null, maxStack: 2, effect: { stats: { maxHp: 8 } } },
+    u_raub: { name: "Blutdurst-Schliff", text: "+3% Lebensraub.", families: null, maxStack: 2, effect: { stats: { lifesteal: 3 } } },
+    u_glueck: { name: "Glücksbringer", text: "+2 Glück.", families: null, maxStack: 2, effect: { stats: { luck: 2 } } },
+    u_ernte: { name: "Beute-Sinn", text: "+2 Ernte.", families: null, maxStack: 1, effect: { stats: { ernte: 2 } } },
+    u_regen: { name: "Ruhige Hand", text: "+1 Regeneration.", families: null, maxStack: 2, effect: { stats: { regen: 1 } } },
+    u_block: { name: "Kampfbereit", text: "Kampfbeginn: 4 Block.", families: null, maxStack: 2, effect: { passives: [{ trigger: "on_combat_start", action: "block", value: 4 }] } },
+    u_zusatz: { name: "Wirkung verstärken", text: "Die Zusatzwirkung deiner Waffe wird um 1 stärker.", families: null, maxStack: 3, effect: { buffPassives: 1 } },
+    n_wucht: { name: "Wuchtiger Schliff", text: "Nahkampfkarten: +2 Schaden.", families: ["nahkampf"], maxStack: 2, effect: { passives: [{ trigger: "damage_calc", cardTag: "nahkampf", op: "add", value: 2 }] } },
+    n_blut: { name: "Blutender Schnitt", text: "Nahkampfkarte gespielt: 1 Blutung auf das Ziel (max. 3/Zug).", families: ["nahkampf"], maxStack: 1, effect: { passives: [{ trigger: "on_card_played", cardTag: "nahkampf", action: "status", status: "blutung", stacks: 1, target: "event_target", maxPerTurn: 3 }] } },
+    n_konter: { name: "Gegenhieb", text: "Wirst du getroffen: 3 Schaden an den Angreifer (max. 4/Zug).", families: ["nahkampf"], maxStack: 1, effect: { passives: [{ trigger: "on_player_hit", action: "damage", value: 3, target: "event_target", maxPerTurn: 4 }] } },
+    n_kill: { name: "Siegesrausch", text: "Gegner besiegt: 4 Block (max. 2/Zug).", families: ["nahkampf"], maxStack: 1, effect: { passives: [{ trigger: "on_kill", action: "block", value: 4, maxPerTurn: 2 }] } },
+    f_treffer: { name: "Treffsicherer Schliff", text: "Fernkampfkarten: +2 Schaden.", families: ["fernkampf"], maxStack: 2, effect: { passives: [{ trigger: "damage_calc", cardTag: "fernkampf", op: "add", value: 2 }] } },
+    f_markiert: { name: "Zielmarkierung", text: "Fernkampfkarte gespielt: Ziel 1 Zug markiert (max. 2/Zug).", families: ["fernkampf"], maxStack: 1, effect: { passives: [{ trigger: "on_card_played", cardTag: "fernkampf", action: "status", status: "markiert", stacks: 1, target: "event_target", maxPerTurn: 2 }] } },
+    f_streu: { name: "Streufeuer", text: "Fernkampfkarte gespielt: 1 Schaden an ALLE (max. 4/Zug).", families: ["fernkampf"], maxStack: 1, effect: { passives: [{ trigger: "on_card_played", cardTag: "fernkampf", action: "damage_all", value: 1, maxPerTurn: 4 }] } },
+    f_zug: { name: "Schnellzug", text: "Fernkampfkarte gespielt: 15% Chance, 1 Karte zu ziehen (max. 2/Zug).", families: ["fernkampf"], maxStack: 1, effect: { passives: [{ trigger: "on_card_played", cardTag: "fernkampf", chance: 0.15, action: "draw", value: 1, maxPerTurn: 2 }] } },
+    z_zauber: { name: "Arkaner Schliff", text: "Zauberkarten: +2 Schaden.", families: ["zauber"], maxStack: 2, effect: { passives: [{ trigger: "damage_calc", cardTag: "zauber", op: "add", value: 2 }] } },
+    z_element: { name: "Elementarfokus", text: "+2 Elementarschaden.", families: ["zauber"], maxStack: 2, effect: { stats: { elementDmg: 2 } } },
+    z_mana: { name: "Manaquelle", text: "Zauberkarte gespielt: 15% Chance auf 1 Energie (max. 1/Zug).", families: ["zauber"], maxStack: 1, effect: { passives: [{ trigger: "on_card_played", cardTag: "zauber", chance: 0.15, action: "energy", value: 1, maxPerTurn: 1 }] } },
+    z_reaktion: { name: "Resonanz", text: "Reaktion ausgelöst: 2 Schaden an ALLE (max. 3/Zug).", families: ["zauber"], maxStack: 1, effect: { passives: [{ trigger: "on_reaction", action: "damage_all", value: 2, maxPerTurn: 3 }] } },
+  },
+};
+
+
+
+});
 __define("content/packs/stat_items.js", function (__exports, __require) {
 // WERT-ITEMS (Brotato-Richtung): Items geben Werte, oft mit Plus UND Minus. Dazu skalieren drei Items mit einem Wert (perStat).
 // ADAPT: bestehende Items werden auf die Werte umgebaut (ersetzen ihre alten Boni).
@@ -1683,11 +1721,12 @@ const helden2 = __require("content/packs/helden2.js").default;
 const story = __require("content/packs/story.js").default;
 const heldenItems = __require("content/packs/helden_items.js").default;
 const abilityPack = __require("content/packs/abilities.js").default;
+const upgradePack = __require("content/packs/waffen_upgrades.js").default;
 const statItems = __require("content/packs/stat_items.js").default;
 const thema = __require("content/packs/thema_anime.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems, abilityPack].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems, abilityPack, upgradePack].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; if (patch.text) d.text = patch.text; if (patch.maxStack) d.maxStack = patch.maxStack; } }     // bestehende Items auf die Werte umbauen
@@ -1780,10 +1819,20 @@ function validStartDeck(ids, classId) {
   return Array.isArray(ids) && ids.length === CONFIG.draft.rounds && ids.every((id) => pool.has(id)) && ids.some((id) => isAttackCard(CONTENT.cards[id]));
 }
 
+// Empfehlung: nur aus den tatsächlich angebotenen Karten. Wertung: Karte aus dem Standarddeck der Klasse, eigene Klassenkarte, fehlender Angriff oder fehlende Abwehr im bisherigen Deck.
+const isDefenseCard = (def) => def.play.some((a) => a.action === "block");
+function recommendIndex(classId, offer, picks = []) {
+  const cls = CONTENT.classes[classId], haveAtk = picks.some((id) => isAttackCard(CONTENT.cards[id])), haveDef = picks.some((id) => isDefenseCard(CONTENT.cards[id]));
+  const score = (id) => { const c = CONTENT.cards[id]; return (cls.deck.includes(id) ? 3 : 0) + (c.pools.includes("alle") ? 0 : 2) + (!haveAtk && isAttackCard(c) ? 4 : 0) + (!haveDef && picks.length >= 2 && isDefenseCard(c) ? 3 : 0) - picks.filter((p) => p === id).length * 2; };
+  return offer.map((id, i) => [score(id), -i]).reduce((best, s, i) => (s[0] > best[0] || (s[0] === best[0] && s[1] > best[1]) ? [...s, i] : best), [-Infinity, 0, 0])[2];
+}
+
 __exports.isAttackCard = isAttackCard;
 __exports.starterPool = starterPool;
 __exports.draftOffer = draftOffer;
 __exports.validStartDeck = validStartDeck;
+__exports.isDefenseCard = isDefenseCard;
+__exports.recommendIndex = recommendIndex;
 
 });
 __define("engine/abilities.js", function (__exports, __require) {
@@ -1989,6 +2038,30 @@ const EN_ABILITIES = {
   wuchernder_wald: { name: "Overgrown Forest", text: "A forest bursts from the ground: 7 + 2x weapon plant damage to ALL enemies and 4 Bleed on all. Every 4 turns.",
     levels: [{ task: "Deal 2,500 damage with the Overgrown Forest.", reward: "Bleed rises to 6.", text: "A forest bursts from the ground: 7 + 2x weapon plant damage to ALL enemies and 6 Bleed on all. Every 4 turns." }] },
 };
+const EN_UPGRADES = {
+  u_staerke: ["Honing", "Power +1."],
+  u_krit: ["Critical Edge", "+8% Crit Chance."],
+  u_ruestung: ["Reinforced Grip", "+1 Armor."],
+  u_leben: ["Life Thread", "+8 Max HP."],
+  u_raub: ["Bloodthirst Edge", "+3% Lifesteal."],
+  u_glueck: ["Lucky Charm", "+2 Luck."],
+  u_ernte: ["Loot Sense", "+2 Harvest."],
+  u_regen: ["Steady Hand", "+1 Regeneration."],
+  u_block: ["Battle Ready", "Start of combat: 4 Block."],
+  u_zusatz: ["Empower Effect", "Your weapon's extra effect becomes 1 stronger."],
+  n_wucht: ["Heavy Edge", "Melee cards: +2 damage."],
+  n_blut: ["Bleeding Cut", "Melee card played: 1 Bleed on the target (max. 3/turn)."],
+  n_konter: ["Counter Strike", "When you are hit: 3 damage to the attacker (max. 4/turn)."],
+  n_kill: ["Victory Rush", "Enemy defeated: 4 Block (max. 2/turn)."],
+  f_treffer: ["Sharpshooter's Edge", "Ranged cards: +2 damage."],
+  f_markiert: ["Target Mark", "Ranged card played: target marked 1 (max. 2/turn)."],
+  f_streu: ["Scatter Fire", "Ranged card played: 1 damage to ALL (max. 4/turn)."],
+  f_zug: ["Quick Draw", "Ranged card played: 15% chance to draw 1 card (max. 2/turn)."],
+  z_zauber: ["Arcane Edge", "Spell cards: +2 damage."],
+  z_element: ["Elemental Focus", "+2 Elemental Damage."],
+  z_mana: ["Mana Spring", "Spell card played: 15% chance for 1 Energy (max. 1/turn)."],
+  z_reaktion: ["Resonance", "Reaction triggered: 2 damage to ALL (max. 3/turn)."],
+};
 
 __exports.EN_WEAPONS = EN_WEAPONS;
 __exports.EN_ENEMIES = EN_ENEMIES;
@@ -2002,6 +2075,7 @@ __exports.EN_SPEAKERS = EN_SPEAKERS;
 __exports.EN_STORIES = EN_STORIES;
 __exports.EN_REACTIONS = EN_REACTIONS;
 __exports.EN_ABILITIES = EN_ABILITIES;
+__exports.EN_UPGRADES = EN_UPGRADES;
 
 });
 __define("ui/en_ui.js", function (__exports, __require) {
@@ -2062,9 +2136,12 @@ const EN_UI = {
   "Sieg!": "Victory!", "Niederlage": "Defeat",
   "Lebensraub": "Lifesteal", "Schaden": "Damage", "Krit-Chance": "Crit Chance", "Ausweichen": "Dodge", "Gold": "Gold", "Preise": "Prices", "Reroll-Preis": "Reroll price", "Schaden gegen Bosse": "Damage vs bosses", "Heilung": "Healing", "Doppel-Gold": "Double Gold", "Reaktionen": "Reactions",
   "Wird behalten": "Will be kept", "Am Zugende behalten": "Keep at end of turn", "Gratis": "Free",
-  "Empfohlenes Deck": "Recommended deck", "Neu wählen": "Choose again", "Dein Startdeck steht. Mit Aufbrechen beginnt der Run.": "Your starting deck is set. Set out to begin the run.", "Weiter": "Next",
+  "Automatisch wählen": "Choose automatically", "Empfohlen": "Recommended", "NEU": "NEW", "Neu wählen": "Choose again", "Dein Startdeck steht. Mit Aufbrechen beginnt der Run.": "Your starting deck is set. Set out to begin the run.", "Weiter": "Next",
   "Karte für die nächste Runde sperren": "Lock card for the next round",
   "Waffe ▲": "Weapon ▲",
+  "Wirkt immer, unabhängig von deinem Deck.": "Always works, independent of your deck.", "Passende Karten in deinem Deck": "Matching cards in your deck", "Keine passende Karte in deinem Deck": "No matching card in your deck",
+  "Fernkampf": "Ranged", "Nahkampf": "Melee", "Zauber": "Spell", "Fläche": "Area", "Angriff": "Attack", "Hilfe": "Utility", "Blut": "Blood", "Gift": "Poison", "Heilung": "Healing", "Rüstung": "Armor", "Dornen": "Thorns", "Pakt": "Pact",
+  "Veredelung ▲": "Refinement ▲", "Für jede Waffe": "For any weapon", "Stärke": "Power",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -2086,6 +2163,13 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^Veredle deine Waffe \((.+), Veredelung (\d+) von (\d+)\)$/, (t, n, a, b) => `Refine your weapon (${n}, refinement ${a} of ${b})`], [/^Waffe veredelt: (.+)$/, (t, n) => `Weapon refined: ${n}`],
+  [/^(Stärke|Rüstung|Glück|Ernte|Max-HP|Regeneration|Krit-Chance|Lebensraub|Elementarschaden): (\d+) → (\d+)$/, (t, s, a, b) => `${t(s)}: ${a} → ${b}`],
+  [/^Veredelungen \((\d+)\/(\d+)\)$/, (t, a, b) => `Refinements (${a}/${b})`],
+  [/^Wirkt auf (\d+) (Karte|Karten) in deinem Deck \((.+)\)\.$/, (t, n, k, tags) => `Works on ${n} ${n === "1" ? "card" : "cards"} in your deck (${tags.split(", ").map((x) => t(x)).join(", ")}).`],
+  [/^Keine passende Karte in deinem Deck \((.+)\)\. Erst sinnvoll, wenn du solche Karten sammelst\.$/, (t, tags) => `No matching card in your deck (${tags.split(", ").map((x) => t(x)).join(", ")}). Only useful once you collect such cards.`],
+  [/^(Feuer|Wasser|Pflanze|Eis) ist stark gegen (.+) und schwach gegen (.+)\.$/, (t, e, s, w) => `${t(e)} is strong against ${s.split(", ").map((x) => t(x)).join(", ")} and weak against ${w.split(", ").map((x) => t(x)).join(", ")}.`],
+  [/^Deck (\d+)$/, (t, n) => `Deck ${n}`],
   [/^AUFWERTEN: Stufe (I|II|III|IV) → (I|II|III|IV) · Stärke (\d+) → (\d+) \(\+(\d+)\)$/, (t, a, b, p, q, d) => `UPGRADE: Tier ${a} → ${b} · Power ${p} → ${q} (+${d})`], [/^Höchste Stufe$/, () => "Highest tier"],
   [/^(Waffe aufwerten oder tauschen|Waffe tauschen)\? \(aktuell: (.+?)( Stufe (I|II|III|IV))?, Stärke (\d+)\)$/, (t, q, n, x, tr, p) => `${q === "Waffe tauschen" ? "Swap weapon" : "Upgrade or swap weapon"}? (current: ${n}${tr ? ` Tier ${tr}` : ""}, Power ${p})`],
   [/^Waffe aufgewertet: (.+) Stufe (I|II|III|IV)$/, (t, n, tr) => `Weapon upgraded: ${n} Tier ${tr}`],
@@ -2135,14 +2219,14 @@ __exports.EN_PATTERNS = EN_PATTERNS;
 __define("ui/i18n_en.js", function (__exports, __require) {
 // Englische Texte. EN_UI: genauer deutscher Text -> englisch (Oberfläche, ui/en_ui.js). EN_PATTERNS: Texte mit Zahlen. EN_CONTENT: Inhalte nach Art und ID (ui/en_cards_items.js, ui/en_world.js).
 const { EN_CARDS, EN_ITEMS } = __require("ui/en_cards_items.js");
-const { EN_WEAPONS, EN_ENEMIES, EN_ENCOUNTERS, EN_SKINS, EN_FRAMES, EN_CLASSES, EN_EVENTS, EN_ACH, EN_SPEAKERS, EN_STORIES, EN_REACTIONS, EN_ABILITIES } = __require("ui/en_world.js");
+const { EN_WEAPONS, EN_ENEMIES, EN_ENCOUNTERS, EN_SKINS, EN_FRAMES, EN_CLASSES, EN_EVENTS, EN_ACH, EN_SPEAKERS, EN_STORIES, EN_REACTIONS, EN_ABILITIES, EN_UPGRADES } = __require("ui/en_world.js");
 const { EN_UI, EN_PATTERNS } = __require("ui/en_ui.js");
 
 const obj = (src, names) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, Object.fromEntries(names.map((n, i) => [n, v[i]]))]));
 const named = (src) => Object.fromEntries(Object.entries(src).map(([k, v]) => [k, { name: v }]));
 const EN_CONTENT = {
   cards: obj(EN_CARDS, ["name", "text"]), items: obj(EN_ITEMS, ["name", "text"]), weapons: named(EN_WEAPONS), enemies: named(EN_ENEMIES), encounters: named(EN_ENCOUNTERS),
-  skins: named(EN_SKINS), abilities: EN_ABILITIES, reactions: named(EN_REACTIONS), frames: named(EN_FRAMES), classes: EN_CLASSES, achievements: obj(EN_ACH, ["name", "text"]), events: EN_EVENTS, speakers: EN_SPEAKERS, stories: EN_STORIES,
+  skins: named(EN_SKINS), abilities: EN_ABILITIES, upgrades: obj(EN_UPGRADES, ["name", "text"]), reactions: named(EN_REACTIONS), frames: named(EN_FRAMES), classes: EN_CLASSES, achievements: obj(EN_ACH, ["name", "text"]), events: EN_EVENTS, speakers: EN_SPEAKERS, stories: EN_STORIES,
 };
 
 __exports.EN_UI = EN_UI;
@@ -2184,7 +2268,7 @@ function translateDom(root) {
 }
 
 // Inhalte: je Art die Felder, die übersetzt werden. Die deutschen Originale werden beim ersten Tausch gemerkt.
-const FIELDS = { cards: ["name", "text"], items: ["name", "text"], weapons: ["name"], enemies: ["name"], encounters: ["name"], classes: ["name", "blurb", "perks"], skins: ["name"], frames: ["name"], achievements: ["name", "text"], events: ["name", "text"], abilities: ["name", "text"], speakers: ["name", "title"], reactions: ["name"] };
+const FIELDS = { cards: ["name", "text"], items: ["name", "text"], weapons: ["name"], enemies: ["name"], encounters: ["name"], classes: ["name", "blurb", "perks"], skins: ["name"], frames: ["name"], achievements: ["name", "text"], events: ["name", "text"], abilities: ["name", "text"], upgrades: ["name", "text"], speakers: ["name", "title"], reactions: ["name"] };
 function swap(obj, fields, en) {
   if (!orig.has(obj)) orig.set(obj, Object.fromEntries(fields.map((f) => [f, structuredClone(obj[f])])));
   const o = orig.get(obj);
@@ -2246,6 +2330,9 @@ const NODE_INFO = { kampf: "Normale Gegner. Du bekommst Gold, eine Karte zur Wah
   rast: "Ein Lagerfeuer: Heile dich oder entferne eine Karte aus deinem Deck.", haendler: "Hier kaufst du Karten, Items und Dienste (Verband, Stärkungstrank). Gold ausgeben lohnt sich.", ereignis: "Eine Begegnung mit einer Wahl. Sie kann dir nützen oder etwas kosten.", boss: "Der Endboss. Besiegst du ihn, gewinnst du den Run." };
 
 
+// Kauf-Sinn: Anzeigenamen der Karten-Tags (Items wirken auf Karten mit diesen Tags)
+const TAG_NAME = { wasser: "Wasser", feuer: "Feuer", pflanze: "Pflanze", eis: "Eis", gift: "Gift", blut: "Blut", fernkampf: "Fernkampf", nahkampf: "Nahkampf", zauber: "Zauber", block: "Block", heilung: "Heilung", gold: "Gold", flaeche: "Fläche", angriff: "Angriff", dornen: "Dornen", ausweichen: "Ausweichen", ruestung: "Rüstung", pakt: "Pakt", debuff: "Debuff", utility: "Hilfe" };
+
 __exports.elementColor = elementColor;
 __exports.elementName = elementName;
 __exports.STATUS = STATUS;
@@ -2263,6 +2350,62 @@ __exports.STAT_DESC = STAT_DESC;
 __exports.TIER_NAME = TIER_NAME;
 __exports.TIER_COLOR = TIER_COLOR;
 __exports.NODE_INFO = NODE_INFO;
+__exports.TAG_NAME = TAG_NAME;
+
+});
+__define("engine/upgrades.js", function (__exports, __require) {
+// WAFFEN-VEREDELUNGEN: Die Startwaffe wird über Veredelungen ausgebaut (Stärke, Werte, neue Wirkungen), nicht durch Waffenwechsel.
+// Eine Veredelung hat effect: { power, stats, passives, buffPassives }. Stufe I bis IV der Waffe (Optik) hängt an der Anzahl der Veredelungen.
+const { CONTENT } = __require("content/index.js");
+const { CONFIG } = __require("data/config.js");
+
+const tierOfCount = (n) => { const T = CONFIG.weaponUpgrades.tierAt; let t = 1; for (let i = 1; i < T.length; i++) if (n >= T[i]) t = i + 1; return t; };
+const countOf = (list, id) => list.filter((x) => x === id).length;
+const weaponHasBuff = (def) => def.passives.some((p) => typeof p.value === "number" || typeof p.stacks === "number");
+
+function applyUpgrades(def, ids = []) {                                         // Waffe mit allen Veredelungen (Stärke, Passive); Werte kommen über upgradeStats
+  let power = def.power, passives = def.passives.map((p) => ({ ...p })); const extra = [];
+  for (const id of ids) {
+    const e = CONTENT.upgrades[id]?.effect; if (!e) continue;
+    power += e.power ?? 0;
+    if (e.buffPassives) passives = passives.map((p) => ({ ...p, ...(typeof p.value === "number" ? { value: p.value + e.buffPassives } : {}), ...(typeof p.stacks === "number" ? { stacks: p.stacks + e.buffPassives } : {}) }));
+    for (const p of e.passives ?? []) extra.push({ ...p });
+  }
+  return { ...def, power, passives: [...passives, ...extra], tier: tierOfCount(ids.length), upgrades: ids };
+}
+function upgradeStats(ids = []) {
+  const out = {};
+  for (const id of ids) for (const [k, v] of Object.entries(CONTENT.upgrades[id]?.effect?.stats ?? {})) out[k] = (out[k] ?? 0) + v;
+  return out;
+}
+function upgradeAllowed(def, ids, up) {
+  if (up.families && !up.families.some((f) => (def.tags ?? []).includes(f))) return false;
+  if (countOf(ids, up.id) >= up.maxStack) return false;
+  if (up.effect.buffPassives && !weaponHasBuff(def)) return false;
+  return true;
+}
+function upgradeChoices(def, ids, rng, n = CONFIG.weaponUpgrades.offer) {          // bis zu n verschiedene Veredelungen; die zur Waffenart passenden etwas häufiger
+  if (ids.length >= CONFIG.weaponUpgrades.max) return [];
+  const pool = Object.values(CONTENT.upgrades).filter((u) => upgradeAllowed(def, ids, u)), out = [];
+  while (out.length < n && pool.length) { const pick = rng.weighted(pool.map((u) => ({ value: u, weight: u.families ? 1.6 : 1 }))); out.push(pick); pool.splice(pool.indexOf(pick), 1); }
+  return out;
+}
+// Vorher-nachher-Zeilen für die Anzeige: Stärke und Werte (neue Wirkungen stehen im Text der Veredelung)
+function upgradeDeltas(def, ids, upId) {
+  const before = applyUpgrades(def, ids), after = applyUpgrades(def, [...ids, upId]), sb = upgradeStats(ids), sa = upgradeStats([...ids, upId]), out = [];
+  if (after.power !== before.power) out.push({ stat: "power", from: before.power, to: after.power });
+  for (const k of new Set([...Object.keys(sb), ...Object.keys(sa)])) if ((sa[k] ?? 0) !== (sb[k] ?? 0)) out.push({ stat: k, from: sb[k] ?? 0, to: sa[k] ?? 0 });
+  return out;
+}
+
+__exports.tierOfCount = tierOfCount;
+__exports.countOf = countOf;
+__exports.weaponHasBuff = weaponHasBuff;
+__exports.applyUpgrades = applyUpgrades;
+__exports.upgradeStats = upgradeStats;
+__exports.upgradeAllowed = upgradeAllowed;
+__exports.upgradeChoices = upgradeChoices;
+__exports.upgradeDeltas = upgradeDeltas;
 
 });
 __define("engine/map.js", function (__exports, __require) {
@@ -2369,6 +2512,7 @@ __exports.pathLengths = pathLengths;
 });
 __define("engine/modifiers.js", function (__exports, __require) {
 // Synergie- und Schadensberechnung. Hier liegt das Herzstück des Build-Systems.
+const { applyUpgrades, upgradeStats } = __require("engine/upgrades.js");
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
 
@@ -2382,20 +2526,16 @@ const get = (kind, id) => {
 const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal", "priceMod", "rerollMod", "freeRerolls", "bossDmg", "poisonPower", "burnPower", "bleedPower", "healPct", "doubleChance", "curse"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
-function tierWeapon(def, tier = 1) {                                  // Waffe in ihrer Stufe: Stärke wächst, Stufe merken
-  const P = CONFIG.weaponTiers.power, t = Math.min(Math.max(1, tier), P.length);
-  return { ...def, power: def.power + (P[t - 1] ?? 0), tier: t };
-}
 function resolveBuild(spec) {
   const cls = spec.classId ? CONTENT.classes[spec.classId] : null;
   // Klassen-Passive (cls.passives, Daten wie bei Items) zählen wie ein verstecktes Item: sie erscheinen nicht in der Ausrüstung, wirken aber in allen Trigger-Ketten
   const classSrc = cls?.passives?.length ? [{ id: `klasse_${cls.id}`, name: cls.passive?.name ?? cls.name, tags: [], stats: {}, passives: cls.passives }] : [];
-  const items = [...(spec.items ?? []).map((id) => get("items", id)), ...classSrc];
+  const items = [...(spec.items ?? []).map((id) => get("items", id)), ...classSrc], upStats = upgradeStats(spec.weaponUpgrades ?? []);
   return {
     cards: spec.deck.map((id) => get("cards", id)),
-    weapon: tierWeapon(get("weapons", spec.weapon), spec.weaponTier ?? 1),
+    weapon: applyUpgrades(get("weapons", spec.weapon), spec.weaponUpgrades ?? []),
     items,
-    stats: Object.fromEntries(STAT_KEYS.map((k) => [k, (spec.stats?.[k] ?? 0) + items.reduce((sum, i) => sum + (i.stats[k] ?? 0), 0)])),
+    stats: Object.fromEntries(STAT_KEYS.map((k) => [k, (spec.stats?.[k] ?? 0) + items.reduce((sum, i) => sum + (i.stats[k] ?? 0), 0) + (upStats[k] ?? 0)])),
   };
 }
 
@@ -2498,8 +2638,20 @@ function computeDamage({ build, card, action, target, playsBefore = 0, hp = 0, m
   return { amount, detail: { base, add, pct, elem, vuln, xMult } };
 }
 
+// Kauf-Sinn: Welche Karten-Tags braucht ein Item, damit seine Wirkung greift? (Passive mit cardTag oder perTag; Stat-Items und tag-lose Passive wirken immer.)
+function itemTagNeeds(def) {
+  const out = new Set();
+  for (const p of def.passives ?? []) { if (typeof p.cardTag === "string") out.add(p.cardTag); if (typeof p.perTag === "string") out.add(p.perTag); }
+  return out;
+}
+function itemFit(def, cards) {                                                   // { kind: "always" | "fit" | "none", count, tags }
+  const tags = [...itemTagNeeds(def)];
+  if (!tags.length) return { kind: "always", count: 0, tags };
+  const count = cards.filter((c) => tags.some((t) => (c.tags ?? []).includes(t))).length;
+  return { kind: count ? "fit" : "none", count, tags };
+}
+
 __exports.STAT_KEYS = STAT_KEYS;
-__exports.tierWeapon = tierWeapon;
 __exports.resolveBuild = resolveBuild;
 __exports.tagCount = tagCount;
 __exports.distinctTypes = distinctTypes;
@@ -2508,6 +2660,8 @@ __exports.conditionsMet = conditionsMet;
 __exports.magnitude = magnitude;
 __exports.elementMultiplier = elementMultiplier;
 __exports.computeDamage = computeDamage;
+__exports.itemTagNeeds = itemTagNeeds;
+__exports.itemFit = itemFit;
 
 });
 __define("engine/combat.js", function (__exports, __require) {
@@ -3174,7 +3328,7 @@ const { CONTENT } = __require("content/index.js");
 const { createDex } = __require("engine/dex.js");
 
 const createMeta = () => ({
-  runs: 0, wins: 0, highestWon: -1, bossKills: 0, unlocked: {}, dex: createDex(),
+  runs: 0, wins: 0, highestWon: -1, bossKills: 0, unlocked: {}, freshUnlocks: {}, dex: createDex(),
   // Zähler für Erfolge
   stats: { kills: 0, fightsWon: 0, elites: 0, minibosses: 0, shinyEnemies: 0, winsByClass: {}, winsByWeapon: {}, bestStage: 0, goldTotal: 0, fightsTotal: 0, byClass: {}, maxDiffByClass: {} },
   abilities: {},                                       // je Fähigkeit: Stufe und Zähler (Einsätze, Schaden in der Sphäre), nur hier steigen Stufen auf
@@ -3193,6 +3347,7 @@ function normalizeMeta(meta) {
     if (meta[k] === undefined) meta[k] = base[k];
     else if (base[k] && typeof base[k] === "object" && !Array.isArray(base[k])) meta[k] = { ...base[k], ...meta[k] };
   }
+  meta.freshUnlocks ??= {};
   meta.abilities ??= {};
   for (const id of Object.keys(CONTENT.abilities ?? {})) meta.abilities[id] = { level: 1, uses: 0, damage: 0, fieldDamage: 0, ...(meta.abilities[id] ?? {}) };
   if (!Object.keys(meta.stats.maxDiffByClass ?? {}).length && meta.highestWon >= 0) {        // ältere Spielstände: Schwierigkeit gilt nur für Helden, mit denen schon gewonnen wurde
@@ -3258,7 +3413,7 @@ function evaluateUnlocks(meta) {
   for (const kind of ["cards", "weapons", "items", "skins", "frames", "classes"]) {
     for (const d of Object.values(CONTENT[kind])) {
       const key = `${kind}/${d.id}`;
-      if (d.unlock && !meta.unlocked[key] && conditionMet(meta, d.unlock)) { meta.unlocked[key] = true; fresh.push({ kind, id: d.id, name: d.name }); }
+      if (d.unlock && !meta.unlocked[key] && conditionMet(meta, d.unlock)) { meta.unlocked[key] = true; (meta.freshUnlocks ??= {})[key] = true; fresh.push({ kind, id: d.id, name: d.name }); }
     }
   }
   return fresh;
@@ -3422,7 +3577,7 @@ __define("engine/loot.js", function (__exports, __require) {
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
 const { rollRarity } = __require("engine/rng.js");
-const { tagCount } = __require("engine/modifiers.js");
+const { tagCount, itemTagNeeds } = __require("engine/modifiers.js");
 const { isUnlocked } = __require("engine/meta.js");
 
 const RARITY_ORDER = ["gewoehnlich", "ungewoehnlich", "selten", "legendaer"];
@@ -3460,6 +3615,18 @@ function maxedItems(build) {
     .map(([id]) => id));
 }
 
+// Ein Item, dessen Wirkung nur auf Karten mit bestimmtem Tag greift, ist für Klassen, deren Kartenpool dieses Tag kaum hat, wenig sinnvoll: es erscheint selten (Gewicht 0,15).
+const POOL_TAGS = new Map();
+function poolTagCount(classId, tag) {
+  const key = `${classId}/${tag}`; if (POOL_TAGS.has(key)) return POOL_TAGS.get(key);
+  const pools = CONTENT.classes[classId]?.cardPools ?? [classId];
+  const n = Object.values(CONTENT.cards).filter((c) => (c.tags ?? []).includes(tag) && (c.pools.includes("alle") || c.pools.some((p) => pools.includes(p)))).length;
+  POOL_TAGS.set(key, n); return n;
+}
+function poolFit(def, classId) {
+  const needs = [...itemTagNeeds(def)]; if (!needs.length || !classId) return 1;
+  return needs.some((t) => poolTagCount(classId, t) >= 3) ? 1 : 0.15;
+}
 function candidates(kind, ctx, rarity, exclude) {
   return Object.values(CONTENT[kind]).filter((d) =>
     d.rarity === rarity && !exclude.has(d.id) && !d.noReward && isUnlocked(ctx.meta, kind, d) &&
@@ -3477,7 +3644,7 @@ function pickOne(ctx, kind, exclude, biased, minIdx = 0) {
   }
   if (!list.length) return null;
   const dom = biased ? dominantTags(ctx.build) : null;
-  return ctx.rng.weighted(list.map((d) => ({ value: d, weight: (d.hero === ctx.classId ? CONFIG.heroItemBias : 1) * (dom ? biasWeight(d, dom) : 1) })));          // Helden-Items erscheinen bei jedem Helden, beim passenden Helden öfter
+  return ctx.rng.weighted(list.map((d) => ({ value: d, weight: (d.hero === ctx.classId ? CONFIG.heroItemBias : 1) * (dom ? biasWeight(d, dom) : 1) * (kind === "items" ? poolFit(d, ctx.classId) : 1) })));          // Helden-Items erscheinen bei jedem Helden, beim passenden Helden öfter
 }
 
 // Jeder gewürfelte Slot kann mit sehr geringer Chance zur Shiny-Variante werden.
@@ -3507,8 +3674,7 @@ function generateWeaponChoices(ctx, n = 2) {
     if (!def) break;
     taken.add(def.id); out.push(def);
   }
-  const w = ctx.build.weapon;                                                      // Verschmelzen: solange die Waffe nicht auf der höchsten Stufe ist, wird ihre Aufwertung zuerst angeboten
-  return (w.tier ?? 1) < CONFIG.weaponTiers.power.length ? [CONTENT.get("weapons", w.id), ...out] : out;
+  return out;
 }
 
 const generateItemChoices = (ctx, n = 3) =>
@@ -3560,7 +3726,7 @@ function generateStartShop(ctx) {
   const S = CONFIG.shop, cls = CONTENT.classes[ctx.classId];
   const cheap = (kind, def) => ({ ...slot(ctx.rng, kind, def), price: Math.max(5, Math.round((priceFor(ctx.rng, kind, def) * S.startDiscount) / 5) * 5) });
   const basics = cls.shopBasics.map((id) => ({ ...cheap("cards", CONTENT.get("cards", id)), fixed: true }));
-  const core = cls.coreCards.map((id) => ({ ...slot(ctx.rng, "cards", CONTENT.get("cards", id)), price: 0, core: true }));          // Kernkarten: eine davon gratis
+  const core = cls.coreCards.map((id) => { const c = cheap("cards", CONTENT.get("cards", id)); return { ...c, regularPrice: c.price, price: 0, core: true }; });          // Kernkarten: eine davon gratis, die übrigen kosten danach den normalen Preis
   const pickPlain = (kind, rarities, n, exclude) => {                                   // zufällig aus einfachen Seltenheiten, ohne Wiederholung
     const out = [], taken = new Set(exclude);
     for (let i = 0; i < n; i++) {
@@ -3671,6 +3837,7 @@ __define("engine/run.js", function (__exports, __require) {
 const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
 const { validStartDeck } = __require("engine/draft.js");
+const { upgradeChoices } = __require("engine/upgrades.js");
 const { createRng } = __require("engine/rng.js");
 const { generateMap, findNode } = __require("engine/map.js");
 const { resolveBuild } = __require("engine/modifiers.js");
@@ -3699,7 +3866,7 @@ function createRun({ startDeck, ability, classId = "nahkaempfer", seed = (Date.n
     deck: validStartDeck(startDeck, classId) ? [...startDeck] : [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
-    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, weaponTier: 1, xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
+    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, weaponUpgrades: [], xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
     stats: { fights: 0, elites: 0, minibosses: 0, nodes: 0, shinyEnemies: 0, shinyLoot: 0, goldEarned: 0, purchases: 0 },
   };
   run.maxHp = computeMaxHp(run);
@@ -3740,7 +3907,7 @@ const specOf = (run) => {
   const cls = CONTENT.classes[run.classId];
   const stats = { ...cls.stats, luck: (cls.stats.luck ?? 0) + (run.shinyHero ? CONFIG.shiny.heroLuck : 0) };   // Chrom-Held: +1 Glück
   for (const [k, v] of Object.entries(run.upStats ?? {})) stats[k] = (stats[k] ?? 0) + v;                    // Wert-Aufstiege aus Erfahrung
-  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold, stage: run.stage, weaponTier: run.weaponTier ?? 1, ability: run.ability ?? null, abilityLevel: run.meta?.abilities?.[run.ability]?.level ?? 1 };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
+  return { deck: run.deck, weapon: run.weapon, items: run.items, hp: cls.hp + run.bonusMaxHp, stats, classId: run.classId, gold: run.gold, stage: run.stage, weaponUpgrades: run.weaponUpgrades ?? [], ability: run.ability ?? null, abilityLevel: run.meta?.abilities?.[run.ability]?.level ?? 1 };   // hp inkl. dauerhafter Max-HP-Boni (vorher gingen sie im Kampf verloren)
 };
 const buildOf = (run) => resolveBuild(specOf(run));
 const computeMaxHp = (run) => Math.max(1, CONTENT.classes[run.classId].hp + run.bonusMaxHp + buildOf(run).stats.maxHp);
@@ -3769,6 +3936,10 @@ const setWeapon = (run, id) => { run.weapon = id; found(run, "weapons", id); };
 function advanceStage(run) {                                                         // nächste Stage: neue Karte, Teil-Heilung, Hinweis
   run.stage++; run.stageClear = false; run.stageFights = 0; run.map = generateMap(run.rng); run.path = []; run.nodeId = null;
   healRun(run, Math.ceil(run.maxHp * CONFIG.stages.heal)); run.stageNotice = run.stage;
+}
+function stampNew(run, shop) {                                                      // frisch freigeschaltete Items: im ersten Shop, in dem sie auftauchen, mit "Neu" markieren
+  const fresh = run.meta?.freshUnlocks; if (!fresh) return;
+  for (const [kind, list] of [["items", shop.items], ["cards", shop.cards]]) for (const s of list ?? []) { const key = `${kind}/${String(s.id).replace(/:s$/, "")}`; if (fresh[key]) { s.isNew = true; delete fresh[key]; } }
 }
 const backToMap = (run) => { if (run.stageClear) advanceStage(run); run.phase = "map"; run.pending = null; };
 
@@ -3799,7 +3970,7 @@ function enterNode(run, nodeId) {
       run.phase = "rest"; run.pending = {};
       return ok({ type: "rast" });
     case "haendler": {
-      const shop = generateShop(ctxOf(run));
+      const shop = generateShop(ctxOf(run)); stampNew(run, shop);
       countShiny(run, [...shop.cards, ...shop.items].map((s) => ({ id: s.id, kind: s.kind })));
       run.phase = "shop"; run.pending = { shop };
       return ok({ type: "haendler" });
@@ -3899,10 +4070,10 @@ function completeCombat(run) {
   if (kind === "elite" || kind === "miniboss" || run.rng.next() < CONFIG.run.normalItemChance) {
     reward.items = generateItemChoices(ctx).map((d) => d.id);
   }
-  if (kind === "miniboss") reward.weapons = generateWeaponChoices(ctx).map((d) => d.id);
+  reward.upgrades = kind === "miniboss" ? upgradeChoices(CONTENT.get("weapons", run.weapon), run.weaponUpgrades ?? [], run.rng).map((u) => u.id) : [];       // Mini-Boss: 1 von 3 Veredelungen für die Waffe
   if (combat.shinyKills.length) {
     reward.shinyItems = generateShinyItemChoices(ctx).map((d) => d.id);
-    reward.shinyWeapons = generateShinyWeaponChoices(ctx).map((d) => d.id);
+    reward.shinyWeapons = !run.weapon.endsWith(":s") && CONTENT.get("weapons", `${run.weapon}:s`) ? [`${run.weapon}:s`] : [];       // Chrom-Fund: die eigene Waffe wird chromatisch (Veredelungen bleiben)
   }
   countShiny(run, [
     ...reward.cards.map((id) => ({ id, kind: "cards" })), ...reward.items.map((id) => ({ id, kind: "items" })),
@@ -3933,25 +4104,22 @@ function take(run, list, idx, apply) {
 }
 const takeCard = (run, idx) => take(run, "cards", idx, (id) => addCard(run, id));
 const takeItem = (run, idx) => take(run, "items", idx, (id) => addItem(run, id));
-function equipWeapon(run, id) {                                                  // dieselbe Waffe = nächste Stufe (Verschmelzen), eine andere Waffe = Tausch auf Stufe I
-  if (id === run.weapon) { run.weaponTier = Math.min(CONFIG.weaponTiers.power.length, (run.weaponTier ?? 1) + 1); run.upgradeNotice = { id, tier: run.weaponTier }; }
-  else { setWeapon(run, id); run.weaponTier = 1; }
-}
-const takeWeapon = (run, idx) => take(run, "weapons", idx, (id) => equipWeapon(run, id));
+const takeUpgrade = (run, idx) => take(run, "upgrades", idx, (id) => { if ((run.weaponUpgrades ?? []).length < CONFIG.weaponUpgrades.max) { run.weaponUpgrades.push(id); run.upgradeNotice = { id }; } });
+const takeWeapon = (run, idx) => take(run, "weapons", idx, (id) => setWeapon(run, id));
 const takeShinyItem = (run, idx) => take(run, "shinyItems", idx, (id) => addItem(run, id));
-const takeShinyWeapon = (run, idx) => take(run, "shinyWeapons", idx, (id) => equipWeapon(run, id));
+const takeShinyWeapon = (run, idx) => take(run, "shinyWeapons", idx, (id) => setWeapon(run, id));
 function finishReward(run) {
   if (run.phase !== "reward") return fail("Keine Belohnung offen");
   run.stageClear = Boolean(run.pending.reward.stageClear);                       // Wächter besiegt: nach Beute und Laden beginnt die nächste Stage
   if (!run.startShopDone && run.stats.fights === 1) {          // nach dem ersten (leichten) Kampf: Startladen mit Grundausrüstung
     run.startShopDone = true;
-    const shop = generateStartShop(ctxOf(run));
+    const shop = generateStartShop(ctxOf(run)); stampNew(run, shop);
     countShiny(run, [...shop.cards, ...shop.items].map((s) => ({ id: s.id, kind: s.kind })));
     run.phase = "shop"; run.pending = { shop };
     return ok({ startShop: true });
   }
   if (CONFIG.shop.afterFight && run.stats.fights >= 2) {                             // ab dem zweiten Kampf: Schnellladen nach jedem Kampf
-    const shop = generateShop(ctxOf(run), true);
+    const shop = generateShop(ctxOf(run), true); stampNew(run, shop);
     countShiny(run, [...shop.cards, ...shop.items].map((s) => ({ id: s.id, kind: s.kind })));
     run.phase = "shop"; run.pending = { shop };
     return ok({ quickShop: true });
@@ -3989,7 +4157,7 @@ function shopBuy(run, kind, idx) {
   if (!res.ok) return res;
   run.stats.purchases = (run.stats.purchases ?? 0) + 1;
   if (kind === "cards") addCard(run, res.id); else addItem(run, res.id);
-  if (kind === "cards" && run.pending.shop.cards[idx].core) for (const s of run.pending.shop.cards) if (s.core) s.sold = true;          // nur eine Kernkarte gratis
+  if (kind === "cards" && run.pending.shop.cards[idx].core) for (const s of run.pending.shop.cards) if (s.core && !s.sold) { s.core = false; s.price = s.regularPrice ?? s.price; }          // nur eine Kernkarte gratis; die anderen bleiben käuflich zum normalen Preis
   return res;
 }
 function shopService(run, id) {                                         // Dienste beim Händler: Verband und Stärkungstrank
@@ -4157,6 +4325,7 @@ __exports.specOf = specOf;
 __exports.buildOf = buildOf;
 __exports.currentLayer = currentLayer;
 __exports.ctxOf = ctxOf;
+__exports.stampNew = stampNew;
 __exports.startAdventure = startAdventure;
 __exports.availableNodes = availableNodes;
 __exports.enterNode = enterNode;
@@ -4167,6 +4336,7 @@ __exports.takeLevelUp = takeLevelUp;
 __exports.completeCombat = completeCombat;
 __exports.takeCard = takeCard;
 __exports.takeItem = takeItem;
+__exports.takeUpgrade = takeUpgrade;
 __exports.takeWeapon = takeWeapon;
 __exports.takeShinyItem = takeShinyItem;
 __exports.takeShinyWeapon = takeShinyWeapon;
@@ -6369,7 +6539,8 @@ function itemHtml(def, kind = "items", o = {}) {
   const rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
   const art = spr(kind === "weapons" ? "weapon" : "item", def.id.replace(/:s$/, ""), { shiny: def.shiny, attrs: 'width="100%" height="100%"' });
   const text = kind === "weapons" ? describeWeapon(def) : describeItem(def);
-  return `<div class="itemcard ${def.shiny ? "shiny sh" : ""}" style="--rar:${rar[1]}" data-tip-ref="${kind}:${def.id}">
+  const fit = o.fit && o.fit.kind !== "always" ? `<span class="fitchip ${o.fit.kind}" title="${o.fit.kind === "fit" ? "Passende Karten in deinem Deck" : "Keine passende Karte in deinem Deck"}">Deck ${o.fit.count}</span>` : "";
+  return `<div class="itemcard ${def.shiny ? "shiny sh" : ""}" style="--rar:${rar[1]}" data-tip-ref="${kind}:${def.id}">${fit}
     <div class="i-art ${kind === "weapons" ? "tall" : ""}">${art}</div>
     <div class="i-body"><b class="${nameLen(def.name).trim()}">${esc(def.name)}</b><span class="rar" style="color:${rar[1]}">${esc(rar[0])}${kind === "weapons" ? " · Waffe" : ""}${kind === "weapons" && (o.tier ?? 1) > 1 ? ` · Stufe ${CONFIG.weaponTiers.names[o.tier - 1]}` : ""}${def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : ""}${kind === "items" && def.maxStack === 1 ? " · Einzigartig" : ""}</span><span class="d">${esc(text)}</span></div></div>`;
 }
@@ -6744,6 +6915,7 @@ __exports.backdrop = backdrop;
 __define("ui/scene.js", function (__exports, __require) {
 // Szenen als SVG: Kampf (Boden, Held links, Gegner rechts), Intro und Menü-Hintergrund. Reine Funktionen, kein DOM.
 // Virtuelle Größe 400x216, wird vom Browser auf Quer- und Hochformat skaliert.
+const { tierOfCount } = __require("engine/upgrades.js");
 const { CONTENT } = __require("content/index.js");
 const { aliveEnemies, intentOf } = __require("engine/combat.js");
 const { spr, sprSize, heroPx, npcPx, enemyPx, enemyFootprint, handOf, weaponPx, weaponGrip, cardIconId, elementIconId } = __require("ui/art/index.js");
@@ -6870,7 +7042,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
   const hero = `<g class="pos" transform="translate(${hx0} ${hy0})"><g class="mover${enter ? " enter-l" : ""}${victory ? ` victory vic-${run.classId}` : ""}${anim("hero", "strike", ` strike-${play?.style ?? "slash"}`)}" ${del("hero", "strike")}>
       <ellipse cx="${(sz.w * hs) / 2}" cy="${sz.h * hs - 1}" rx="${sz.w * hs * 0.4}" ry="5" fill="#000" opacity=".42"/><g class="flash${anim("hero", "hurt", " hurtflash")}" ${del("hero", "hurt")}><g class="shake${anim("hero", "hurt", " hurtshake")}" ${del("hero", "hurt")}><g class="bob ${cls === "magier" ? "mv-hover" : "mv-none"}">
       ${spr("hero", cls, { shiny: run.shinyHero, pal: skinPal(run.skin), attrs: `width="${sz.w * hs}" height="${sz.h * hs}"` })}
-      <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${wkind(run.weapon)} wt${run.weaponTier ?? 1}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
+      <g transform="translate(${hx * hs} ${hy * hs})"><g class="wpn ${wkind(run.weapon)} wt${tierOfCount((run.weaponUpgrades ?? []).length)}${anim("hero", "strike", " wpn-swing")}" ${del("hero", "strike")}>
         <g transform="translate(${-wgx * wp} ${-wgy * wp})">${spr("weapon", wid, { shiny: wpn.shiny, attrs: `width="${wsz.w * wp}" height="${wsz.h * wp}"` })}</g></g></g>
       </g></g></g></g></g>`;
   // Heldenwerte unter den Füßen
@@ -6990,21 +7162,24 @@ const { aliveEnemies, activeItems } = __require("engine/combat.js");
 const { availableNodes, buildOf, currentLayer, restHealAmount, restPct } = __require("engine/run.js");
 const { lane: mapLane } = __require("engine/map.js");
 const { findNode } = __require("engine/map.js");
-const { tagCount, tierWeapon } = __require("engine/modifiers.js");
+const { tagCount } = __require("engine/modifiers.js");
+const { upgradeDeltas } = __require("engine/upgrades.js");
 const { abilityAt } = __require("engine/abilities.js");
 const { abilityForm } = __require("engine/combat.js");
 const { abilityProgress } = __require("engine/meta.js");
 const { maxDifficulty, describeUnlock, isUnlocked } = __require("engine/meta.js");
 const { dexProgress } = __require("engine/dex.js");
 const { storyLines, storySpeaker } = __require("engine/story.js");
-const { CORE_STATS, STAT_LABELS, STAT_DESC, STAT_ICON, fmtVal, fmtStat, TIER_NAME, TIER_COLOR, NODE_INFO } = __require("ui/theme.js");
+const { TAG_NAME, CORE_STATS, STAT_LABELS, STAT_DESC, STAT_ICON, fmtVal, fmtStat, TIER_NAME, TIER_COLOR, NODE_INFO } = __require("ui/theme.js");
 const { xpNeed } = __require("engine/run.js");
+const { recommendIndex } = __require("engine/draft.js");
+const { itemFit } = __require("engine/modifiers.js");
 const { reactionText } = __require("ui/util.js");
 const { esc, needsTarget, describeWeapon, describeItem, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
 const { achInfoView, achievementsView, cosmeticsView } = __require("ui/achview.js");
 const { spr, elementIconId } = __require("ui/art/index.js");
 const { NODE_ICON, NODE_NAME, STATUS, RARITY, elementName } = __require("ui/theme.js");
-const { at, ico, btn, ibtn, bar, pctOf, cardHtml, itemHtml, itemIcon, statusChips, logo } = __require("ui/widgets.js");
+const { at, ico, btn, ibtn, bar, pctOf, cardHtml, itemHtml, itemIcon, statusChips, logo, itemNameCls } = __require("ui/widgets.js");
 const { combatScene, introScene, menuBackdrop, heroPortrait } = __require("ui/scene.js");
 
 // ---------------------------------------------------------------- Kopfzeile im Run
@@ -7042,8 +7217,8 @@ function setupView(ui) {
     const slots = Array.from({ length: total }, (_, i) => st.picks[i] ? `<div class="dslot on">${esc(CONTENT.get("cards", st.picks[i]).name)}</div>` : `<div class="dslot">${i + 1}</div>`).join("");
     const body = done
       ? `<div class="muted small">Dein Startdeck steht. Mit Aufbrechen beginnt der Run.</div>${btn("Aufbrechen", "start-run", undefined, { cls: "primary big" })}${btn("Neu wählen", "draft-reset", undefined, { cls: "small" })}`
-      : `<div class="cards3 dcards">${st.offer.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg" })}${btn("Nehmen", "draft-pick", String(i), { cls: "small good" })}</div>`).join("")}</div>`;
-    return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Dein Startdeck: Karte ${Math.min(n + 1, total)} von ${total}</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${done ? "" : btn("Empfohlenes Deck", "draft-recommended", undefined, { cls: "small" })}</div></div>
+      : `<div class="cards3 dcards">${(() => { const rec = recommendIndex(st.classId, st.offer, st.picks); return st.offer.map((id, i) => `<div class="slot ${i === rec ? "rec" : ""}">${i === rec ? '<span class="rectag">Empfohlen</span>' : ""}${cardHtml(CONTENT.get("cards", id), { size: "lg" })}${btn("Nehmen", "draft-pick", String(i), { cls: "small good" })}</div>`).join(""); })()}</div>`;
+    return `<div class="screen setup">${bg}<div class="setup-body"><div class="setup-head"><h2>Dein Startdeck: Karte ${Math.min(n + 1, total)} von ${total}</h2><div class="row">${btn("Zurück", "setup-back", undefined, { cls: "small" })}${done ? "" : btn("Automatisch wählen", "draft-recommended", undefined, { cls: "small" })}</div></div>
       <div class="dslots">${slots}</div><div class="stack center dbody">${body}</div></div></div>`;
   }
   if (st.step === 0) {
@@ -7158,35 +7333,26 @@ function rewardView(ui) {
   if (r.shinyWeapons?.length) cats.push({ key: "shinyWeapons", label: "Chrom-Waffe", kind: "weapons", ids: r.shinyWeapons, title: `Chrom-Fund: Waffe (aktuell: ${cur.name}, Stärke ${cur.power})`, cls: "chrome" });
   cats.push({ key: "cards", label: "Karte", kind: "cards", ids: r.cards, title: "Karte wählen (oder überspringen)" });
   if (r.items.length) cats.push({ key: "items", label: "Item", kind: "items", ids: r.items, title: "Item wählen" });
-  if (r.weapons.length) { const up = r.weapons.includes(run.weapon); cats.push({ key: "weapons", label: up ? "Waffe ▲" : "Waffe", kind: "weapons", ids: r.weapons, cls: up ? "good" : "", title: `${up ? "Waffe aufwerten oder tauschen" : "Waffe tauschen"}? (aktuell: ${build.weapon.name}${(build.weapon.tier ?? 1) > 1 ? ` Stufe ${CONFIG.weaponTiers.names[build.weapon.tier - 1]}` : ""}, Stärke ${build.weapon.power})` }); }
+  if (r.upgrades?.length) cats.push({ key: "upgrades", label: "Veredelung ▲", kind: "upgrades", ids: r.upgrades, cls: "good", title: `Veredle deine Waffe (${build.weapon.name}, Veredelung ${(run.weaponUpgrades ?? []).length + 1} von ${CONFIG.weaponUpgrades.max})` });
   const sel = cats.find((c) => c.key === ui.tab.reward) ?? cats.find((c) => !t[c.key]) ?? cats[0];
-  const slots = sel.kind === "level"
+  const upSlots = () => sel.ids.map((id, i) => { const u = CONTENT.get("upgrades", id), dl = upgradeDeltas(CONTENT.get("weapons", run.weapon), run.weaponUpgrades ?? [], id);
+    return `<div class="slot"><div class="itemcard upg"><div class="i-body"><b class="${itemNameCls(u.name).trim()}">${esc(u.name)}</b><span class="rar">${u.families ? esc(u.families.map((f) => TAG_NAME[f] ?? f).join(", ")) : "Für jede Waffe"}</span><span class="d">${esc(u.text)}</span>${dl.map((d) => `<span class="delta">${esc(d.stat === "power" ? "Stärke" : STAT_LABELS[d.stat] ?? d.stat)}: ${d.from} → ${d.to}</span>`).join("")}</div></div>${btn("Nehmen", "take", sel.key, { arg2: String(i), cls: "small good" })}</div>`; }).join("");
+  const slots = sel.kind === "upgrades" ? `<div class="items3">${upSlots()}</div>` : sel.kind === "level"
     ? `<div class="items3 lv4">${r.levelChoices.map((c, i) => `<div class="slot"><div class="itemcard upg" style="--rar:${TIER_COLOR[c.tier]}"><div class="i-body"><b>${ico(STAT_ICON[c.stat], 18)} ${fmtStat(c.stat, c.value)}</b><span class="rar" style="color:${TIER_COLOR[c.tier]}">Stufe ${TIER_NAME[c.tier]}</span><span class="d">${esc(STAT_DESC[c.stat])}</span></div></div>${btn("Nehmen", "take-level", String(i), { cls: "small good" })}</div>`).join("")}</div>`
     : sel.kind === "cards"
     ? `<div class="cards3">${sel.ids.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}</div>`).join("")}</div>`
-    : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind, sel.kind === "weapons" && id === run.weapon ? { tier: Math.min(CONFIG.weaponTiers.power.length, (build.weapon.tier ?? 1) + 1) } : {})}${sel.kind === "weapons" ? weaponCompare(build.weapon, CONTENT.get("weapons", id)) : ""}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
+    : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind, sel.kind === "items" ? { fit: itemFit(CONTENT.get("items", id), build.cards) } : sel.kind === "weapons" && id === run.weapon ? { tier: Math.min(CONFIG.weaponTiers.power.length, (build.weapon.tier ?? 1) + 1) } : {})}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}</div>`).join("")}</div>`;
   const tabs = cats.length > 1 ? `<div class="tabs">${cats.map((c) => `<span class="tab ${c.key === sel.key ? "on" : ""}"${at("set-tab", "reward", c.key)}>${t[c.key] ? "✓ " : ""}${c.label}</span>`).join("")}</div>` : "";
-  return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}${r.overkillGold ? `<span class="muted small">&nbsp;Überschuss +${r.overkillGold}</span>` : ""}${r.midas ? `<span class="chrome small">&nbsp;(Midas x2)</span>` : ""}${r.harvest ? `<span class="muted small">&nbsp;Ernte +${r.harvest}</span>` : ""}</div>${tabs}<span class="grow"></span>${btn("Weiter", "finish-reward", undefined, { cls: "primary" })}</div>
+  return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}${r.overkillGold ? `<span class="muted small">&nbsp;Überschuss +${r.overkillGold}</span>` : ""}${r.midas ? `<span class="chrome small">&nbsp;(Midas x2)</span>` : ""}${r.harvest ? `<span class="muted small">&nbsp;Ernte +${r.harvest}</span>` : ""}</div>${tabs}<span class="grow"></span>${(() => { const nextCat = cats.find((c) => c.key !== sel.key && !t[c.key]); return nextCat ? btn("Weiter", "set-tab", "reward", { arg2: nextCat.key, cls: "primary" }) : btn("Weiter", "finish-reward", undefined, { cls: "primary" }); })()}</div>
     <div class="rw-body"><h3 class="${sel.cls ?? ""}">${esc(sel.title)}</h3>${slots}</div></div>`;
 }
 
 // ---------------------------------------------------------------- Shop, Rast, Ereignis
-function weaponCompare(cur, def) {                                                 // Waffenvergleich: lohnt sich Aufwerten oder Tausch?
-  const W = CONFIG.weaponTiers, t = cur.tier ?? 1;
-  if (def.id === cur.id) {                                                          // dieselbe Waffe: Aufwertung auf die nächste Stufe
-    if (t >= W.power.length) return `<div class="wcmp same">Höchste Stufe</div>`;
-    const p1 = cur.power - W.power[t - 1] + W.power[t];
-    return `<div class="wcmp up upg">AUFWERTEN: Stufe ${W.names[t - 1]} → ${W.names[t]} · Stärke ${cur.power} → ${p1} (+${p1 - cur.power})</div>`;
-  }
-  const d = def.power - cur.power, extra = def.passives.length - cur.passives.length, cls = d > 0 ? "up" : d < 0 ? "down" : "same";
-  const txt = d === 0 ? `Gleich stark wie ${cur.name} (Stärke ${def.power})` : `Stärke ${def.power} (${d > 0 ? "+" : ""}${d} gegenüber ${cur.name})`;
-  return `<div class="wcmp ${cls}">${esc(txt)}${extra > 0 ? ` · mehr Zusatzwirkungen` : extra < 0 ? ` · weniger Zusatzwirkungen` : ""}${t > 1 ? ` · deine Stufe ${W.names[t - 1]} geht verloren` : ""}</div>`;
-}
 function shopView(ui) {
   const run = ui.run, shop = run.pending.shop, build = buildOf(run);
-  const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}">${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
+  const cards = shop.cards.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}">${s.isNew ? '<span class="newtag">NEU</span>' : ""}${cardHtml(CONTENT.get("cards", s.id), { size: "lg", build })}
     <div class="buyrow">${btn(s.sold ? "Verkauft" : s.core ? "Gratis" : `${ico("coin", 14)} ${s.price}`, "buy", "cards", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold || s.fixed || s.core ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { arg2: "cards", cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { arg2: "cards", cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Karte für die nächste Runde sperren" })}</div></div>`).join("");
-  const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}"><div class="itemwrap">${itemHtml(CONTENT.get("items", s.id))}<span class="c-info iinfo"${at("item-info", `items:${s.id}`)} role="button" aria-label="Details">i</span></div>
+  const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}"><div class="itemwrap">${s.isNew ? '<span class="newtag">NEU</span>' : ""}${itemHtml(CONTENT.get("items", s.id), "items", { fit: itemFit(CONTENT.get("items", s.id), build.cards) })}<span class="c-info iinfo"${at("item-info", `items:${s.id}`)} role="button" aria-label="Details">i</span></div>
     <div class="buyrow">${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Item für die nächste Runde sperren" })}</div></div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
   const npc = brumm
@@ -7288,8 +7454,8 @@ function overlayView(ui) {
     const stats = grid + `<div class="chips">${Object.entries(build.stats).filter(([k, v]) => v && !CORE_STATS.includes(k)).map(([k, v]) => `<span class="chip">${ico(STAT_ICON[k] ?? "star", 12)} ${fmtStat(k, v)}</span>`).join(" ")}</div>`;
     const tags = [...new Set([...CONFIG.typeTags, ...Object.keys(CONTENT.elements)])].map((t) => [t, tagCount(build, t)]).filter(([, n]) => n > 0)
       .map(([t, n]) => `<span class="chip">${CONTENT.elements[t] ? ico(elementIconId(t), 12) + " " : ""}${esc(t)} ${n}</span>`).join(" ");
-    return `<div class="overlay"><div class="sheet stack"><h2>Ausrüstung</h2><div class="grid2">${itemHtml(tierWeapon(weapon, run.weaponTier ?? 1), "weapons", { tier: run.weaponTier ?? 1 })}${run.items.map((id) => itemHtml(CONTENT.get("items", id))).join("")}</div>
-      ${run.items.length ? "" : "<div class='muted'>Noch keine Items.</div>"}<h3>Werte · Stufe ${run.level + 1} (${run.xp}/${xpNeed(run.level)} EP)</h3>${stats}${tags ? `<h3>Typen im Build (für Synergien)</h3><div class="chips">${tags}</div>` : ""}${close}</div></div>`;
+    return `<div class="overlay"><div class="sheet stack"><h2>Ausrüstung</h2><div class="grid2">${itemHtml(buildOf(run).weapon, "weapons", { tier: buildOf(run).weapon.tier })}${run.items.map((id) => itemHtml(CONTENT.get("items", id))).join("")}</div>
+      ${run.items.length ? "" : "<div class='muted'>Noch keine Items.</div>"}${(run.weaponUpgrades ?? []).length ? `<h3>Veredelungen (${run.weaponUpgrades.length}/${CONFIG.weaponUpgrades.max})</h3><div class="chips">${[...new Set(run.weaponUpgrades)].map((id) => `<span class="chip">${esc(CONTENT.get("upgrades", id).name)}${run.weaponUpgrades.filter((x) => x === id).length > 1 ? ` x${run.weaponUpgrades.filter((x) => x === id).length}` : ""}</span>`).join(" ")}</div>` : ""}<h3>Werte · Stufe ${run.level + 1} (${run.xp}/${xpNeed(run.level)} EP)</h3>${stats}${tags ? `<h3>Typen im Build (für Synergien)</h3><div class="chips">${tags}</div>` : ""}${close}</div></div>`;
   }
   if (o === "pick-remove") return `<div class="overlay"><div class="sheet"><h2>Welche Karte entfernen?</h2><div class="grid">${groupedDeck(run).map((g) =>
     `<div class="slot">${cardHtml(g.def, { size: "lg", build, count: g.idxs.length })}${btn("Entfernen", "pick-remove", String(g.idxs[0]), { cls: "small danger" })}</div>`).join("")}</div>${close}</div></div>`;
@@ -7330,6 +7496,7 @@ function cardDetailView(ui) {
   return `<div class="overlay"><div class="sheet cdetail"><div class="cd-card">${cardHtml(def, { size: "lg", build, info: false, ctx: ui.run.pending?.combat ? { hp: ui.run.pending.combat.player.hp, maxHp: ui.run.pending.combat.player.maxHp, gold: ui.run.pending.combat.gold } : { hp: ui.run.hp, maxHp: ui.run.maxHp, gold: ui.run.gold } })}</div>
     <div class="cd-body"><h2>${esc(def.name)}</h2><div class="muted small">Kosten ${def.cost} · ${esc(rar[0])}${def.element ? ` · ${esc(elementName(def.element))}` : ""}</div>
       <p>${esc(def.text ?? "")}</p>
+      ${def.element ? `<div class="cd-kw"><div><b>${esc(elementName(def.element))}</b> ist stark gegen ${CONTENT.elements[def.element].strong?.map((x) => esc(elementName(x))).join(", ") || "nichts"} und schwach gegen ${CONTENT.elements[def.element].weak?.map((x) => esc(elementName(x))).join(", ") || "nichts"}.</div></div>` : ""}
       ${def.element ? `<div class="cd-kw"><div><b>Reaktionen</b> Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion aus:</div>${Object.values(CONTENT.reactions).filter((r) => r.pair.includes(def.element)).map((r) => `<div>${esc(r.name)} (${r.pair.map((p) => esc(elementName(p))).join(" + ")}): ${esc(reactionText(r))}</div>`).join("")}</div>` : ""}
       ${kws.length ? `<div class="cd-kw">${kws.map((k) => `<div><b>${esc(k.name)}</b> ${esc(k.text)}</div>`).join("")}</div>` : ""}
       ${btn("Schließen", "close-cardinfo", undefined, { cls: "primary" })}</div></div></div>`;
@@ -7342,12 +7509,18 @@ function tipRefHtml(ref) {
   const hero = def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : "", uniq = kind === "items" && def.maxStack === 1 ? " · Einzigartig" : "";
   return `<div class="tiprow"><b>${esc(def.name)}</b><div class="muted small">${esc(rar[0])}${esc(hero)}${uniq}</div><div>${esc(text)}</div>${stats ? `<div class="chips">${stats}</div>` : ""}</div>`;
 }
+function fitLine(def, run) {                                                       // Kauf-Sinn: wirkt der Gegenstand auf mein Deck?
+  const f = itemFit(def, buildOf(run).cards), tags = f.tags.map((t) => TAG_NAME[t] ?? t).join(", ");
+  if (f.kind === "always") return `<div class="fitline always">Wirkt immer, unabhängig von deinem Deck.</div>`;
+  if (f.kind === "fit") return `<div class="fitline fit">Wirkt auf ${f.count} ${f.count === 1 ? "Karte" : "Karten"} in deinem Deck (${esc(tags)}).</div>`;
+  return `<div class="fitline none">Keine passende Karte in deinem Deck (${esc(tags)}). Erst sinnvoll, wenn du solche Karten sammelst.</div>`;
+}
 function itemInfoView(ui) {
   const [kind, id] = ui.itemInfo.split(":"), def = CONTENT.get(kind, id), rar = RARITY[def.rarity] ?? RARITY.gewoehnlich;
   const stats = Object.entries(def.stats ?? {}).filter(([, v]) => v).map(([k, v]) => `<span class="chip">${ico(STAT_ICON[k] ?? "star", 12)} ${fmtStat(k, v)}</span>`).join(" ");
   const hero = def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : "";
   const text = kind === "weapons" ? describeWeapon(def) : def.text ?? "";
-  return `<div class="overlay"><div class="sheet mid stack"><div class="row">${itemHtml(def, kind)}</div><h2>${esc(def.name)}</h2><div class="muted small">${esc(rar[0])}${hero}</div><p>${esc(text)}</p>${stats ? `<div class="chips">${stats}</div>` : ""}${btn("Schließen", "close-item-info", undefined, { cls: "primary" })}</div></div>`;
+  return `<div class="overlay"><div class="sheet mid stack"><div class="row">${itemHtml(def, kind)}</div><h2>${esc(def.name)}</h2><div class="muted small">${esc(rar[0])}${hero}</div><p>${esc(text)}</p>${stats ? `<div class="chips">${stats}</div>` : ""}${kind === "items" && ui.run ? fitLine(CONTENT.get("items", id.replace(/:s$/, "")), ui.run) : ""}${btn("Schließen", "close-item-info", undefined, { cls: "primary" })}</div></div>`;
 }
 function gainedBox(id) {                                                          // erhaltenes Item oder Karte mit voller Beschreibung
   const kind = CONTENT.get("items", id) ? "items" : CONTENT.get("cards", id) ? "cards" : CONTENT.get("weapons", id) ? "weapons" : null; if (!kind) return "";
@@ -7383,12 +7556,12 @@ __define("ui/controller.js", function (__exports, __require) {
 // Controller: verbindet Engine und Ansichten. Kein DOM, daher komplett in Node testbar.
 // dispatch(action, arg, arg2) verändert den Zustand und gibt false zurück, wenn kein Neuzeichnen nötig ist.
 const { CONTENT } = __require("content/index.js");
-const { draftOffer } = __require("engine/draft.js");
+const { draftOffer, recommendIndex } = __require("engine/draft.js");
 const { abilityAt } = __require("engine/abilities.js");
 const { applyContentLanguage } = __require("ui/i18n.js");
 const { fmtStat } = __require("ui/theme.js");
 const { CONFIG } = __require("data/config.js");
-const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeShinyItem, takeShinyWeapon, finishReward, restHeal, takeLevelUp, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
+const { createRun, startAdventure, enterNode, completeCombat, takeCard, takeItem, takeWeapon, takeUpgrade, takeShinyItem, takeShinyWeapon, finishReward, restHeal, takeLevelUp, shopBuy, shopReroll, shopService, shopFreeze, shopRemove, restRemove, leaveShop, eventChoose, serializeRun, loadRun, peekSave, rollShinyHero, takeNewAchievements } = __require("engine/run.js");
 const { toggleKeep, aliveEnemies, playCard, endPlayerTurn, useItem, useAbility, activeItems } = __require("engine/combat.js");
 const { nextAction, pickTarget, hasPlayable } = __require("engine/autoplay.js");
 const { createMeta, normalizeMeta, recordRun, maxDifficulty, isUnlocked, describeUnlock } = __require("engine/meta.js");
@@ -7509,7 +7682,10 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         st.picks = [...st.picks, id]; st.offer = st.picks.length < CONFIG.draft.rounds ? draftOffer(st.classId, st.draftSeed, st.picks) : []; break;
       }
       case "draft-reset": st.picks = []; st.offer = draftOffer(st.classId, st.draftSeed, st.picks); break;
-      case "draft-recommended": st.picks = [...CONTENT.classes[st.classId].deck]; st.offer = []; break;
+      case "draft-recommended": {                                                           // automatisch wählen: in jedem Zug die Empfehlung aus den echten Angeboten
+        while (st.picks.length < CONFIG.draft.rounds) { const o = draftOffer(st.classId, st.draftSeed, st.picks); st.picks = [...st.picks, o[recommendIndex(st.classId, o, st.picks)]]; }
+        st.offer = []; break;
+      }
       case "setup-back": if (st.step === 0) ui.screen = "title"; else if (st.step === 2) st.step = 1; else st.step = 0; break;
       case "pick-weapon": st.weaponId = arg; break;
       case "set-diff": st.difficulty = Number(arg); break;
@@ -7674,20 +7850,20 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         if (r.ok) {
           ui.tab.reward = null;
           const rw = run.pending.reward, t = rw.taken;
-          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length], ["level", rw.levelChoices?.length]].filter(([k, n]) => n && !t[k]);
+          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["upgrades", rw.upgrades?.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length], ["level", rw.levelChoices?.length]].filter(([k, n]) => n && !t[k]);
           if (!open.length) { const f = finishReward(run); if (!f.ok) toast(f.reason); }
         }
         break;
       }
       case "take": {
-        const fn = { cards: takeCard, items: takeItem, weapons: takeWeapon, shinyItems: takeShinyItem, shinyWeapons: takeShinyWeapon }[arg];
+        const fn = { cards: takeCard, items: takeItem, weapons: takeWeapon, upgrades: takeUpgrade, shinyItems: takeShinyItem, shinyWeapons: takeShinyWeapon }[arg];
         const r = fn ? fn(run, Number(arg2)) : { ok: false, reason: "Unbekannte Liste" };
-        toast(r.ok ? (run.upgradeNotice ? `Waffe aufgewertet: ${nameAny(r.id)} Stufe ${CONFIG.weaponTiers.names[run.upgradeNotice.tier - 1]}` : `Genommen: ${nameAny(r.id)}`) : r.reason); run.upgradeNotice = null;
+        toast(r.ok ? (run.upgradeNotice ? `Waffe veredelt: ${CONTENT.get("upgrades", run.upgradeNotice.id).name}` : `Genommen: ${nameAny(r.id)}`) : r.reason); run.upgradeNotice = null;
         if (r.ok) {
           ui.tab.reward = null;                                                // nach einer Wahl zum nächsten offenen Reiter
           // Sind alle Auswahlen getroffen, geht es von selbst weiter (kein extra "Weiter" mehr nötig). Wer etwas auslassen will, tippt oben auf "Weiter".
           const rw = run.pending.reward, t = rw.taken;
-          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length], ["level", rw.levelChoices?.length]].filter(([k, n]) => n && !t[k]);
+          const open = [["cards", true], ["items", rw.items.length], ["weapons", rw.weapons.length], ["upgrades", rw.upgrades?.length], ["shinyItems", rw.shinyItems.length], ["shinyWeapons", rw.shinyWeapons?.length], ["level", rw.levelChoices?.length]].filter(([k, n]) => n && !t[k]);
           if (!open.length) { const f = finishReward(run); if (!f.ok) toast(f.reason); }
         }
         break;

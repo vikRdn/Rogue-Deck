@@ -675,3 +675,15 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .ab-fluchblitz,.ab-schattentausch,.ab-domain{filter:hue-rotate(250deg) saturate(1.5) drop-shadow(0 0 4px #b07cff)}.ab-seelenpfeil{filter:hue-rotate(160deg) saturate(1.6) drop-shadow(0 0 4px #7ff6ff)}
 .ab-hoellenflamme,.ab-feuerfaust{filter:drop-shadow(0 0 4px #ff8a3c)}.ab-absoluter_befehl{filter:hue-rotate(-30deg) drop-shadow(0 0 4px #a00)}.ab-heilende_ranken{filter:drop-shadow(0 0 4px #6bf29a)}
 @media (prefers-reduced-motion:reduce){.abfx{animation:none;opacity:0}}
+.actives{z-index:9}.actives .abilitybtn,.actives .activebtn{pointer-events:auto}
+
+/* ---- Neu-Hinweis im Shop, Empfehlung im Draft */
+.slot{position:relative}.newtag{position:absolute;left:-3px;top:-6px;z-index:5;background:var(--accent);color:#fff;font:900 9px/1 inherit;padding:2px 5px;border:2px solid #fff;transform:rotate(-8deg);box-shadow:0 0 6px var(--accent);pointer-events:none;animation:newpulse 1.4s ease-in-out infinite}@keyframes newpulse{50%{transform:rotate(-8deg) scale(1.12)}}
+.dcards .slot.rec .card{box-shadow:0 0 10px var(--accent),0 0 0 2px var(--accent)}.rectag{display:block;text-align:center;font:900 10px/1 inherit;color:var(--accent);margin-bottom:3px}
+
+/* ---- Kauf-Sinn: passt das Item zum Deck? */
+.itemcard{position:relative}.fitchip{position:absolute;right:3px;bottom:2px;z-index:2;font:800 8px/1 inherit;padding:1px 4px;border:1px solid;pointer-events:none}.fitchip.fit{color:#6bf29a;border-color:#2f8a5d;background:rgba(10,40,25,.85)}.fitchip.none{color:#ff9a9a;border-color:#a33;background:rgba(50,10,10,.85)}
+.fitline{margin-top:6px;padding:4px 8px;border:2px solid var(--line);font-size:11px}.fitline.fit{color:#6bf29a;border-color:#2f8a5d}.fitline.none{color:#ff9a9a;border-color:#a33}.fitline.always{color:#9fb0d0}
+
+/* ---- Waffen-Veredelungen */
+.itemcard.upg{min-height:74px}.itemcard.upg .delta{display:block;font-size:10px;font-weight:800;color:#6bf29a;margin-top:2px}
