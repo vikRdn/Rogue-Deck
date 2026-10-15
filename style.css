@@ -687,3 +687,18 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 
 /* ---- Waffen-Veredelungen */
 .itemcard.upg{min-height:74px}.itemcard.upg .delta{display:block;font-size:10px;font-weight:800;color:#6bf29a;margin-top:2px}
+
+/* ---- Treffer-Gefühl: gestaffelte Zahlen, Schütteln und Aufprall-Blitz nach Schaden, Krit-Zahl */
+.float.fs1{font-size:13px}.float.fs2{font-size:15.5px}.float.fs3{font-size:19px}
+.float.kcrit{fill:#ffe14d;font-size:18px;stroke:#7a3a00;stroke-width:.6px;paint-order:stroke}.float.kcrit.fs3{font-size:22px}
+.scene-svg{transform-origin:50% 100%}
+.sh-t1{animation:scsh1 .22s var(--shd,0s) both}.sh-t2{animation:scsh2 .3s var(--shd,0s) both}.sh-t3{animation:scsh3 .4s var(--shd,0s) both}
+@keyframes scsh1{0%,100%{transform:none}30%{transform:translate(-1px,1px)}60%{transform:translate(1px,-1px)}}
+@keyframes scsh2{0%{transform:scale(1)}12%{transform:scale(1.012) translate(-2px,1px)}30%{transform:translate(2px,-1px)}55%{transform:translate(-1px,1px)}100%{transform:none}}
+@keyframes scsh3{0%{transform:scale(1)}10%{transform:scale(1.025) translate(-3px,2px)}25%{transform:translate(3px,-2px)}45%{transform:translate(-2px,1px)}70%{transform:translate(1px,-1px)}100%{transform:none}}
+.impactflash{fill:#fff;opacity:0;pointer-events:none;animation:impf .14s var(--d,0s) both}@keyframes impf{0%{opacity:0}25%{opacity:.34}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.sh-t1,.sh-t2,.sh-t3{animation:none}.impactflash{animation:none;opacity:0}}
+
+/* ---- Einfluss auf den Zufall: Verbannen, Level-up neu würfeln */
+.btn.ban{opacity:.85;font-size:10px}.lvreroll{text-align:center;margin-top:6px}
+.btn.banico{min-width:0;padding-left:7px;padding-right:7px}
