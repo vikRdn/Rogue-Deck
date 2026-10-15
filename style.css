@@ -702,3 +702,14 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 /* ---- Einfluss auf den Zufall: Verbannen, Level-up neu würfeln */
 .btn.ban{opacity:.85;font-size:10px}.lvreroll{text-align:center;margin-top:6px}
 .btn.banico{min-width:0;padding-left:7px;padding-right:7px}
+
+/* ---- Hook nach dem Run: Rang, Todes-Rückblick */
+.rankbox .rankbar{height:10px;border:2px solid var(--line);background:#0b1020;margin:5px 0}.rankbar i{display:block;height:100%;background:linear-gradient(90deg,#3ddc97,#7ff6ff);width:var(--to);animation:rankfill 1.3s ease-out both}
+@keyframes rankfill{from{width:var(--from)}to{width:var(--to)}}.rankup{margin-top:4px;color:#ffe14d;font-weight:800;animation:newpulse 1.4s ease-in-out 3}
+.recap .recaphits{margin:4px 0;font-size:11px}.recap .tip2{margin-top:3px;font-size:11px;color:#9fb0d0}.rankchip{font-size:11px;color:#9fb0d0;margin-bottom:6px;text-align:center}
+@media (prefers-reduced-motion:reduce){.rankbar i,.rankup{animation:none}}
+
+/* Run-Ende: rechte Spalte scrollbar statt oben abgeschnitten; Rangaufstieg pulsiert ohne Drehung */
+.screen.end{align-items:stretch}.end-r{max-height:100%;overflow-y:auto;justify-content:flex-start!important;padding:4px 6px 8px 0}
+.rankup{animation:rankpulse 1.4s ease-in-out 3}@keyframes rankpulse{50%{transform:scale(1.04);transform-origin:left center}}
+.fitline.role{color:#ffd166;border-color:#8a6d2f}

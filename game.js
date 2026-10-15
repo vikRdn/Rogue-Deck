@@ -99,7 +99,7 @@ __exports.audioState = audioState;
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "7.4",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "7.7",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
@@ -108,7 +108,7 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.86,
+    enemyDmgScale: 0.83,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
@@ -149,7 +149,7 @@ const CONFIG = {
     priceVariance: 0.15,   // +-15 % Zufallsschwankung
     startDiscount: 0.45,
     inflationPerFight: 0.015,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
-    afterFight: true, quick: { cards: 3, items: 3 },          // nach JEDEM Kampf ein Schnellladen (kleineres Angebot); Händler-Orte auf der Karte bleiben der große Laden
+    afterFight: true, quickEvery: 2, quick: { cards: 3, items: 3 },          // nach JEDEM Kampf ein Schnellladen (kleineres Angebot); Händler-Orte auf der Karte bleiben der große Laden
     services: { heal: { price: 35, pct: 0.3, step: 10 }, vitality: { price: 75, maxHp: 6 } },   // Dienste beim Händler: Verband (heilt, wird teurer) und Stärkungstrank (+Max-HP, einmal je Besuch)
     removeBase: 50, removeIncrement: 25,
     rerollBase: 4, rerollMult: 1.3,                                // Reroll: 4, 5, 7, 9 ... Gold (Brotato-Stil: im ersten Laden etwa 4 Rerolls)
@@ -170,16 +170,17 @@ const CONFIG = {
   // ---- Run-Aufbau
   run: { startGold: 60, restHealPct: 0.3, minDeck: 4, normalItemChance: 0.12 },
   map: {
-    layers: 10,                 // Ebenen vor dem Boss
+    layers: 8,                  // Ebenen vor dem Boss (v7.7: 8 statt 10, Ziel Lauflänge 25 bis 35 Minuten)
     width: [3, 4],              // Knoten pro Ebene (min, max)
     skipEdgeChance: 0.2,        // Chance auf Abkürzung (überspringt eine Ebene) -> Run-Länge hängt vom Weg ab
-    minibossLayer: 5, restBeforeMiniboss: true, merchantLayers: [2, 7], merchantShare: 0.5,   // auf diesen Ebenen ist mindestens die Hälfte der Orte ein Händler           // Pflicht-Ebene mit Mini-Bossen (nicht überspringbar)
+    minibossLayer: 5, restBeforeMiniboss: true, merchantLayers: [2, 6], merchantShare: 0.5,   // auf diesen Ebenen ist mindestens die Hälfte der Orte ein Händler           // Pflicht-Ebene mit Mini-Bossen (nicht überspringbar)
     firstEncounter: "kellerratten",   // Ebene 0 hat genau EINEN Ort mit diesem festen Kampf, danach beginnt die Wegwahl
-    nodeWeights: { kampf: 48, ereignis: 18, haendler: 9, rast: 12, elite: 13 },
+    nodeWeights: { kampf: 40, ereignis: 22, haendler: 9, rast: 13, elite: 13 },
     minLayer: { elite: 3, rast: 2, haendler: 2 },
     tierSplit: 4,               // ab dieser Ebene kommen Begegnungen der Stufe 2
   },
   // Erfahrung und Wert-Aufstiege (Brotato-Richtung): Gegner geben Erfahrung nach ihren Lebenspunkten, volle Leiste = ein Aufstieg mit 4 Wert-Angeboten
+  rank: { minXp: 20, perStage: 18, perFight: 2, win: 150, base: 100, step: 30 },      // Konto-Rang: Erfahrung je Run (auch bei Niederlage), Bedarf für den nächsten Rang = base + step je Rang
   agency: { banishTokens: 3, levelRerollBase: 8, levelRerollStep: 4, skipGold: 6 },     // Einfluss auf den Zufall: Verbannen (Marken je Run), Level-up neu würfeln (Gold), Überspringen einer Karten- oder Item-Beute bringt Gold (wächst mit der Stage)
   weaponUpgrades: { max: 8, offer: 3, tierAt: [0, 1, 3, 6] },                      // Veredelungen: höchstens 8 je Run, 3 zur Wahl nach Mini-Bossen; Stufe I bis IV (nur Optik) nach Anzahl
   weaponTiers: { power: [0, 1, 2, 3], names: ["I", "II", "III", "IV"] },     // Waffen-Stufen: Zusatzstärke je Stufe; dieselbe Waffe nochmal gewählt = nächste Stufe
@@ -188,7 +189,7 @@ const CONFIG = {
   // Run-Struktur: 10 Stages mit je einer Karte (Kämpfe, Elite, Mini-Boss, Rast, Händler, Ereignisse). Stage 1 bis 9 enden mit einem Wächter, Stage 10 mit dem Endboss. Gegner, Gold und Preise wachsen von Stage zu Stage.
   stages: { count: 10, heal: 0.3, guards: ["steinwaechter", "banditenbande", "eliterudel", "knochenhauptmann", "sumpfwacht", "steinwaechter", "eliterudel", "banditenbande", "knochenhauptmann"] },
   stageScale: { hp: [0.2, 0.025], dmg: [0.08, 0.012],       // Faktor = 1 + a*(Stage-1) + b*(Stage-1)^2: sanft am Anfang, hart am Ende
-     gold: 0.16, price: 0.2, xp: 0.1, finalHp: 1.6, finalDmg: 1.15 },   // finalHp/finalDmg: zusätzlich auf den Endboss der letzten Stage
+     gold: 0.16, price: 0.2, xp: 0.1, bigHp: 0.75, bigDmg: 1.1, finalHp: 1.6, finalDmg: 1.15 },   // finalHp/finalDmg: zusätzlich auf den Endboss der letzten Stage
   rarityMinStage: { gewoehnlich: 1, ungewoehnlich: 1, selten: 2, legendaer: 5 },    // starke Items erscheinen erst in späteren Stages
   upgrades: {
     stats: ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"],
@@ -1690,7 +1691,31 @@ __exports.default = {
     stroemung: { name: "Strömung", cost: 1, element: "wasser", tags: ["angriff", "wasser"], pools: ["alle"], text: "Wasserschaden: 4 + 0,5x Waffe. Ziehe 1 Karte.", play: [{ action: "damage", base: 4, weaponScale: 0.5 }, { action: "draw", value: 1 }] },
     sturzbach: { name: "Sturzbach", cost: 2, element: "wasser", tags: ["flaeche", "wasser", "block"], pools: ["alle"], text: "Wasserschaden an ALLEN: 3 + 0,5x Waffe. 4 Block.", play: [{ action: "damage", base: 3, weaponScale: 0.5, target: "all" }, { action: "block", value: 4 }] },
     nebelschleier: { name: "Nebelschleier", cost: 1, element: "wasser", tags: ["ausweichen", "wasser"], pools: ["alle"], text: "Weiche 1 Treffer aus. 3 Block.", play: [{ action: "playerStatus", status: "ausweichen", stacks: 1 }, { action: "block", value: 3 }] },
-    gezeitenwechsel: { name: "Gezeitenwechsel", cost: 0, rarity: "ungewoehnlich", element: "wasser", tags: ["utility", "wasser"], pools: ["alle"], text: "3 Block. Ziehe 1 Karte.", play: [{ action: "block", value: 3 }, { action: "draw", value: 1 }] },
+    gezeitenwechsel: { name: "Gezeitenwechsel", cost: 0, rarity: "ungewoehnlich", element: "wasser", tags: ["utility", "wasser"], pools: ["alle"], exhaust: true, text: "3 Block. Ziehe 1 Karte. Verbrauchen.", play: [{ action: "block", value: 3 }, { action: "draw", value: 1 }] },
+  },
+};
+
+
+
+});
+__define("content/packs/archetypen.js", function (__exports, __require) {
+// ARCHETYPEN-LÜCKEN (v7.6): Die Matrix (Karten, Items, Endstücke je Archetyp) zeigte: Wasser ohne Verstärker, Krit und Blut ohne Endstück, Gift mit nur 4 Karten.
+// Hier stehen die Ergänzungen. Die Endstücke (legendär) haben bewusst keine Obergrenze pro Zug: Builds dürfen "kaputt" gehen.
+__exports.default = {
+  id: "archetypen",
+  name: "Archetypen",
+  items: {
+    flutmantel: { name: "Flut-Mantel", rarity: "ungewoehnlich", tags: ["wasser", "item", "block"], pools: ["alle"], maxStack: 2, text: "Wasserkarte gespielt: 2 Block und 1 Schaden an ALLE (max. 3/Zug).", passives: [{ trigger: "on_card_played", cardTag: "wasser", action: "block", value: 2, maxPerTurn: 3 }, { trigger: "on_card_played", cardTag: "wasser", action: "damage_all", value: 1, maxPerTurn: 3 }] },
+    mondsee_spiegel: { name: "Mondsee-Spiegel", rarity: "selten", tags: ["wasser", "item"], pools: ["alle"], maxStack: 2, text: "Wasserkarten: +1 Schaden. Wasserkarte gespielt: 20% Chance, 1 Karte zu ziehen (max. 2/Zug).", passives: [{ trigger: "damage_calc", cardTag: "wasser", op: "add", value: 1 }, { trigger: "on_card_played", cardTag: "wasser", chance: 0.2, action: "draw", value: 1, maxPerTurn: 2 }] },
+    tsunami_herz: { name: "Tsunami-Herz", rarity: "legendaer", tags: ["wasser", "item", "block"], pools: ["alle"], maxStack: 1, text: "Wasserkarten: +60% Schaden und beim Spielen 4 Block (keine Obergrenze).", passives: [{ trigger: "damage_calc", cardTag: "wasser", op: "pct", value: 60 }, { trigger: "on_card_played", cardTag: "wasser", action: "block", value: 4 }] },
+    henkers_kette: { name: "Henkers-Kette", rarity: "selten", tags: ["item"], pools: ["alle"], maxStack: 2, stats: { crit: 10, critDmg: 25 }, text: "+10% Krit-Chance, +25% Krit-Schaden.", passives: [] },
+    koenigs_henker: { name: "König der Hinrichtung", rarity: "legendaer", tags: ["item"], pools: ["alle"], maxStack: 1, stats: { crit: 8, critDmg: 60 }, text: "+8% Krit-Chance, +60% Krit-Schaden (keine Obergrenze).", passives: [] },
+    blutmond_kelch: { name: "Blutmond-Kelch", rarity: "legendaer", tags: ["item", "blut"], pools: ["alle"], maxStack: 1, stats: { lifesteal: 12, bleedPower: 3 }, text: "+12% Lebensraub, +3 Blutungs-Stärke (keine Obergrenze).", passives: [] },
+  },
+  cards: {
+    giftnadel: { name: "Giftnadel", cost: 1, tags: ["angriff", "gift"], pools: ["alle"], text: "Schaden: 2 + 0,5x Waffe. 4 Gift.", play: [{ action: "damage", base: 2, weaponScale: 0.5 }, { action: "status", status: "gift", stacks: 4 }] },
+    aetzgas: { name: "Ätzgas", cost: 1, tags: ["gift", "flaeche"], pools: ["alle"], text: "2 Gift auf ALLE.", play: [{ action: "status", status: "gift", stacks: 2, target: "all" }] },
+    seuchenblick: { name: "Seuchenblick", cost: 0, rarity: "ungewoehnlich", tags: ["gift", "utility"], pools: ["alle"], exhaust: true, text: "3 Gift. Ziehe 1 Karte. Verbrauchen.", play: [{ action: "status", status: "gift", stacks: 3 }, { action: "draw", value: 1 }] },
   },
 };
 
@@ -1833,11 +1858,12 @@ const heldenItems = __require("content/packs/helden_items.js").default;
 const abilityPack = __require("content/packs/abilities.js").default;
 const upgradePack = __require("content/packs/waffen_upgrades.js").default;
 const wasserPack = __require("content/packs/wasser.js").default;
+const archetypenPack = __require("content/packs/archetypen.js").default;
 const statItems = __require("content/packs/stat_items.js").default;
 const thema = __require("content/packs/thema_anime.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems, abilityPack, upgradePack, wasserPack].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems, abilityPack, upgradePack, wasserPack, archetypenPack].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; if (patch.text) d.text = patch.text; if (patch.maxStack) d.maxStack = patch.maxStack; } }     // bestehende Items auf die Werte umbauen
@@ -1977,7 +2003,7 @@ const get = (kind, id) => {
 };
 
 // Alle Werte, die Items über "stats" verändern können (werden über alle Items summiert, auch gestapelt).
-const STAT_KEYS = ["luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal", "priceMod", "rerollMod", "freeRerolls", "bossDmg", "poisonPower", "burnPower", "bleedPower", "healPct", "doubleChance", "curse"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
+const STAT_KEYS = ["critDmg", "luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal", "priceMod", "rerollMod", "freeRerolls", "bossDmg", "poisonPower", "burnPower", "bleedPower", "healPct", "doubleChance", "curse"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
 function resolveBuild(spec) {
@@ -2105,6 +2131,23 @@ function itemFit(def, cards) {                                                  
   return { kind: count ? "fit" : "none", count, tags };
 }
 
+// Rolle eines Items in einem Wort: wofür kauft man es? (Synergie-Tag aus den Passiven, sonst aus den Werten)
+const ROLE_STATS = { "Überleben": ["maxHp", "regen", "lifesteal", "armor", "dodge", "blockStart", "healPct", "healLoss"], "Schaden": ["damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "critDmg", "bossDmg", "reaction"], "Wirtschaft": ["goldPct", "ernte", "luck", "priceMod", "rerollMod", "freeRerolls", "goldDouble", "doubleChance"], "Karten-Fluss": ["handSize", "energy"], "Statuseffekte": ["poisonPower", "burnPower", "bleedPower", "freezeEase"], "Risiko": ["curse"] };
+function itemRoles(def) {
+  const out = [], push = (r) => { if (!out.includes(r)) out.push(r); };
+  for (const [role, keys] of Object.entries(ROLE_STATS)) if (keys.some((k) => (def.stats?.[k] ?? 0) !== 0)) push(role);
+  for (const p of def.passives ?? []) {
+    const j = JSON.stringify(p);
+    if (/"action":"(block|heal)"|dornen|"trigger":"on_player_hit"|"ausweichen"/.test(j)) push("Überleben");
+    if (/"trigger":"damage_calc"|damage_all|"action":"damage"/.test(j)) push("Schaden");
+    if (/"action":"(draw|energy)"/.test(j)) push("Karten-Fluss");
+    if (/gold|"action":"coins"/.test(j)) push("Wirtschaft");
+    if (/"action":"status"|"trigger":"on_status_applied"/.test(j)) push("Statuseffekte");
+  }
+  if (def.active) push("Einmal je Kampf");
+  return out.slice(0, 2);
+}
+
 __exports.STAT_KEYS = STAT_KEYS;
 __exports.resolveBuild = resolveBuild;
 __exports.tagCount = tagCount;
@@ -2116,6 +2159,7 @@ __exports.elementMultiplier = elementMultiplier;
 __exports.computeDamage = computeDamage;
 __exports.itemTagNeeds = itemTagNeeds;
 __exports.itemFit = itemFit;
+__exports.itemRoles = itemRoles;
 
 });
 __define("engine/combat.js", function (__exports, __require) {
@@ -2150,7 +2194,7 @@ function createCombat({ spec, encounterId, seed = 1, playerHp, verbose = false, 
     shinyRng: createRng((seed ^ 0x9e3779b9) >>> 0),
     shinyChance: shinyChance ?? CONFIG.shiny.enemyChance * (1 + build.stats.shiny),
     shinyKills: [], addCount: 0,
-    diff: CONFIG.difficulty[difficulty] ?? CONFIG.difficulty[0], stage: spec.stage ?? 1, bigFight: ["boss", "elite", "miniboss"].includes(CONTENT.encounters[encounterId]?.kind), finalBoss: (spec.stage ?? 1) >= CONFIG.stages.count && CONTENT.encounters[encounterId]?.kind === "boss",
+    diff: CONFIG.difficulty[difficulty] ?? CONFIG.difficulty[0], stage: spec.stage ?? 1, kind: CONTENT.encounters[encounterId]?.kind, bigFight: ["boss", "elite", "miniboss"].includes(CONTENT.encounters[encounterId]?.kind), finalBoss: (spec.stage ?? 1) >= CONFIG.stages.count && CONTENT.encounters[encounterId]?.kind === "boss",
     encounter: CONTENT.encounters[encounterId], waveIndex: -1, turn: 0,
     player: { hp: Math.min(playerHp ?? maxHp, maxHp), maxHp, block: 0, energy: 0, statuses: {} },
     lastElement: null, fx: [], killLog: [], usedItems: [], classPassive: CONTENT.classes[spec.classId]?.passive?.id ?? null, once: {}, overkill: 0, hpLostThisTurn: false, healTriedThisTurn: false,
@@ -2180,7 +2224,7 @@ function spawnNextWave(s) {
 // Gegner mit Schwierigkeits-Skalierung und Mechaniken (Element-Wechsel, Panzerplatten, Phasen)
 function makeEnemy(s, id, uid, shiny) {
   const def = CONTENT.enemies[id];
-  const hp = Math.round(def.hp * s.diff.hpMult * stageMul(CONFIG.stageScale.hp, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalHp : 1) * (shiny ? CONFIG.shiny.enemyHpMult : 1) * (1 + 0.02 * (s.build.stats.curse ?? 0)));
+  const hp = Math.round(def.hp * s.diff.hpMult * stageMul(CONFIG.stageScale.hp, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalHp : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigHp : 1) * (shiny ? CONFIG.shiny.enemyHpMult : 1) * (1 + 0.02 * (s.build.stats.curse ?? 0)));
   const m = def.mechanics ?? {};
   const e = { uid, id, shiny, name: `${shiny ? "✦ " : ""}${def.name}`, hp, maxHp: hp, block: 0, statuses: {},
               patternIdx: 0, elements: [...def.elements], phasesDone: [] };
@@ -2197,7 +2241,7 @@ function intentOf(s, e) {
   if ((e.statuses.eingefroren ?? 0) > 0) return { type: "skip", value: 0, frozen: true };   // eingefroren: überspringt die nächste Aktion
   if ((e.statuses.aussetzen ?? 0) > 0) return { type: "skip", value: 0 };       // bestochen: setzt diese Runde aus
   const i = getIntent(e);
-  return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult * stageMul(CONFIG.stageScale.dmg, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalDmg : 1) * (1 + 0.012 * (s.build.stats.curse ?? 0)))) } : i;
+  return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult * stageMul(CONFIG.stageScale.dmg, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalDmg : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigDmg : 1) * (1 + 0.012 * (s.build.stats.curse ?? 0)))) } : i;
 }
 
 function checkPhases(s, e) {
@@ -2293,7 +2337,7 @@ function loseHp(s, v) {
   const before = s.player.hp;
   s.player.hp = Math.max(1, before - v);
   const lost = before - s.player.hp;
-  if (lost > 0) { s.hpLostThisTurn = true; log(s, `  Du verlierst ${lost} HP`); fx(s, { t: "phit", amount: lost, blocked: 0 }); emit(s, "on_hp_lost", {}, 0); }
+  if (lost > 0) { s.hpLostThisTurn = true; (s.hitLog ??= []).push({ turn: s.turn, name: "Selbstschaden", amount: lost, blocked: 0, src: "self" }); log(s, `  Du verlierst ${lost} HP`); fx(s, { t: "phit", amount: lost, blocked: 0 }); emit(s, "on_hp_lost", {}, 0); }
   return lost;
 }
 
@@ -2351,6 +2395,7 @@ function damagePlayer(s, amount, source, attacker) {
   s.metrics.damageTaken += lost;
   if (lost > 0) s.hpLostThisTurn = true;
   log(s, `  ${source} trifft dich für ${lost} (Block ${absorbed})`);
+  (s.hitLog ??= []).push({ turn: s.turn, name: attacker?.name ?? source, amount: lost, blocked: absorbed, src: attacker ? "enemy" : "other" }); if (s.hitLog.length > 14) s.hitLog.shift();
   fx(s, { t: "phit", uid: attacker?.uid, amount: lost, blocked: absorbed });
   const thorns = s.player.statuses.dornen ?? 0;
   if (thorns > 0 && attacker && attacker.hp > 0) { log(s, `  Dornen treffen ${attacker.name} für ${thorns}`); dealDamage(s, attacker, thorns, "Dornen", { pierce: true }); }
@@ -2478,7 +2523,7 @@ function runActions(s, def, chosen) {
         for (let h = 0; h < (action.hits ?? 1); h++) {
           let { amount, detail } = computeDamage({ build: s.build, card: def, action, target: t, playsBefore: s.playsThisTurn - 1, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
           let crit = false;
-          if ((s.build.stats.crit ?? 0) > 0 && s.rng.next() * 100 < s.build.stats.crit) { amount = Math.floor(amount * CONFIG.balance.critMult); crit = true; s.metrics.crits = (s.metrics.crits ?? 0) + 1; }   // kritischer Treffer
+          if ((s.build.stats.crit ?? 0) > 0 && s.rng.next() * 100 < s.build.stats.crit) { amount = Math.floor(amount * (CONFIG.balance.critMult + (s.build.stats.critDmg ?? 0) / 100)); crit = true; s.metrics.crits = (s.metrics.crits ?? 0) + 1; }   // kritischer Treffer
           if (s.bigFight && (s.build.stats.bossDmg ?? 0) !== 0) amount = Math.max(0, Math.floor(amount * (1 + s.build.stats.bossDmg / 100)));      // Schaden gegen Bosse, Wächter und Elite
           s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
           const note = (detail.elem > 1 ? " [sehr effektiv]" : detail.elem < 1 ? " [resistent]" : "") + (crit ? " [KRITISCH]" : "");
@@ -3168,7 +3213,8 @@ Object.assign(ITEM_ART, {
   echostein: ["earrings", "feuer", null], glueckskeks: ["omikuji", "pergament", null], gluecksmuenze: ["coin5", "gold", null], wuerfelbecher: ["capsule", "prisma", null],
   fluchsiegel: ["ofuda", "schatten", null], seuchenbeutel: ["ofuda", "gift", null], federstiefel: ["sneaker", "wasser", null], gewichtsweste: ["weights", "eisen", null],
   kampfhorn: ["siren", "blut", null], feldflasche: ["teacup", "stein", null], kraeutertee: ["teacup", "pflanze", "leaf"], kartenhaus: ["cards", "schatten", null],
-  glueckspilz: ["mushroom", "blut", null], jagdzeichen: ["license", "gold", null], funkenfeuerzeug: ["lighter", "eisen", "flame"], bankier: ["creditcard", "schatten", null], gluecksrad: ["wheel", "blut", null],
+  glueckspilz: ["mushroom", "blut", null],
+  flutmantel: ["cloak", "wasser", null], mondsee_spiegel: ["moon", "wasser", "star"], tsunami_herz: ["heart", "wasser", "drop"], henkers_kette: ["razor", "blut", null], koenigs_henker: ["crown", "blut", "skull"], blutmond_kelch: ["bowl", "blut", "moon"], jagdzeichen: ["license", "gold", null], funkenfeuerzeug: ["lighter", "eisen", "flame"], bankier: ["creditcard", "schatten", null], gluecksrad: ["wheel", "blut", null],
 });
 
 __exports.SHAPES = SHAPES;
@@ -3332,6 +3378,9 @@ const CARDS2 = {
   sturzbach: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","..........................w.....",".....w...........wwww...........","..............wwwwwwwww.........",".............VVwwwwwwwww........","............VVUUwwwwwwwww.......","...........VVUUUwwwwwww.........",".........VVVUUUUUwwwUuu.........","........VVUUUUUUUUUUUUuu........",".......VVUUUUUUUUUUUUUUuu.......","......VVUUUUUUUUUUUUUUUuu.......","......VUUUUUUUUUUUUUUUUUuu......",".....VVUUUUUUUUUUUUUUUUUUuu.....",".....VUUUUUUUUUUUUUUUUUUUuu.....",".....VUUwUUUUUUUUUUUUUUUUUuu....","....VVUUUUUUUUUUUUUUUUUUUUuu....","....VUUUUUUUUUUUUUwUUUUUUUuu....","....VUUUUUUwUUUUUUUUUUUUUUuu....","....VUUUUUUUUUUUUUUUUUUUUuuu....","...VVUUUUUUUUUUUUUUUUUwUUuu.....","...VUUUUUUUUUUUUUUUUUUUUUuu.....","...uuuuuuuuuuuuuuuuuuuuuuuu.....","..uuuuuuuuuuuuuuuuuuuuuuuuu.....","................................","................................","................................","................................","................................"]) },
   nebelschleier: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","....VVVVVVVVVVVVVVVVVVVVVVV.....","................................",".................wwwwwwh........","...............wwwiiiiiiwh......",".........wwwwhwwiiiiiiiiiih.....",".......wwwiiiwwiiiiiiiiiiiih....","......wwiiiiiwiiiiiiwiiiiiih....",".....wwiiiiiwwiiiiiiiiiiiiiih...","....wwiiiiwiwiiiiiiiiiiiiiiih...","....wiiiiiiiwiiiiiiiiiiiiiiih...","....wiiiiiiiwwwwwwwwhiiiiiiih...","....wiiiiwwwwiiiiiiiiwwhiiihh...","....hiiwwwiiiiiiiiiiiiiiwhih....",".....hwwiiiiiiiiiiiiiiiiiihh....",".....wwiiiiiiiiiiiiiiiiiiiih....",".....wiiiiiiiiiiiiiiiiiiiiih....",".....hiiiiiiiiiiiiiiiiiiiihh....","......hiiiiiiiiiiiiiiiiiihh.....",".......hhiiiiiiiiiiiiiihhh......",".........hhhiiiiiiiihhhh........","....VVVVVVVVVVVVVVVVVVVVVVV.....","................................","................................","................................","................................","................................"]) },
   gezeitenwechsel: { w: 32, h: 32, cells: R(["................................","................................","................................","................................",".............JJJJJJJ............","...........JJJJJJJJJJJ..........",".........JJJJJJJJJJJJJJJ........","........JJJJJ.......JJJJJ.......",".......JJJJ...........JJJJ......","......JJJJ.............JJJJ.....","......JJJ...............JJJ.....",".....JJJ.................JJJ....",".....JJJ.................JJJ....","..wwwwwwww.....Vu.........JJJ...","...wwwwww......Vu.........JJJ...","....wwww......VVUu.......wwJJ...","....wwww......VUUu......wwwwJ...","....Jww......uVwUuu.....wwwwJ...","....JJJ.......VUUu.....wwwwww...","....JJJ.......uuuu........JJJ...",".....JJJ.................JJJ....",".....JJJ.................JJJ....","......JJJ...............JJJ.....","......JJJJ.............JJJJ.....",".......JJJJ...........JJJJ......","........JJJJJ.......JJJJJ.......",".........JJJJJJJJJJJJJJJ........","...........JJJJJJJJJJJ..........",".............JJJJJJJ............","................................","................................","................................"]) },
+  giftnadel: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","..........................hh....",".........................wh.....","........................whh.....",".......................whh......","......................hwh.......",".....................hiwhiwhh.......","....................hiwhiwhiw.........","...................hiwhiwhiw..........","..................hiwhiwhiw...........",".................hiwhiwhiw............","................hiwhiwhiw.............","...............hiwhiwhiw..............","..............hiwhiwhiw...............",".............hiwhiwhiw................","............hiwhiwhiw.................","...........hiwhiwhiw..........Gw......","..........hiwhiwhiw...........wf......",".........hiwhiwhiw...........GGFf.....","....GGGGGfhiw............GFFf.....","....GFFFFf............fGwFff....","....GFFFFf.............GFFf.....","....GFFFFf.............ffff.....","....ffffff......................","................................","................................","................................"]) },
+  aetzgas: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","................................","...................GGGGf........",".................GGGFFFFGfF.....","......F........GGGFFFFFFFFGf....","........GGGGGGfGFFFFFFFFFFFf....","......GGGFFFFFGGFFFFFFFFFFFFf...",".....GGFFFFFFFGFFFFFFFGFFFFFf...","....GGFFFFFFFGGFFFFFFFFFFFFFFf..","....GFFFFFFFFGFFFFFFFFFFFFFFFf..","...GGFFFGFFFFGFFFFFFFFFFFFFFFf..","...GFFFFFFFFGGGGGGGGfFFFFFFFFf..","...GFFFFFGGGGFFFFFFFFGGfFFFFff..","...GFFFGGGFFFFFFFFFFFFFFGfFFf...","...fFFGGFFFFFFFFFFFFFFFFFFfff...","....GFGFFFFFFFFFFFGFFFFFFFff....","....fGGFFFFFFFFFFFFFFFFFFFFf....",".....GFFFFFFFFFFFFFFFFFFFFFf....",".....fFFFFFFGFFFFFFFFFFFFFff....","......GFFFFFFFFFFFFFFFFFFFf.....","....F.fFFFFFFFFFFFFFFFFFFff.....",".......ffFFFFFFFFFFFFFFfff......",".........fffFFFFFFFFffff...F....","............fffffffff...........","................................","................................","................................","................................"]) },
+  seuchenblick: { w: 32, h: 32, cells: R(["................................","................................","................................","................................","................................","..........................G.....","......G.........................","................................","..........GGGGGGGGGGff..........",".........GGFFFFFFFFFFff.........","........GGFFFFwwwwmFFFff........",".......GGFFFwwwkkkBwmFFff.......","......GGFFFwwBkkkkkBBmFFff......",".....GGFFFFwBBkGkkkBBmFFFff.....","....GGFFFFwwBkGkkkkkBBmFFFff....","...GGFFFFFwBBkkkkkkkBBmFFFFff...","..fGFFFFFFwBBkkkkkkkBBmFFFFfff..","...fFFFFFFwBBkkkkkkkBBmFFFfff...","....fFFFFFmBBkkkkkkkBmmFFfff....",".....fFFFFFwBBkkkkkBBmFFfff.....","......fFFFFmBBkkkkkBmmFfff......",".......fFFFFmmBkkkmmmFfff.......","........ffffffmmmmmfffff........",".........ffffffffffffff.........","................................","................................",".........................G......","........G.......................","................................","................................","................................","................................"]) },
 };
 
 __exports.CARDS2 = CARDS2;
@@ -4623,8 +4672,9 @@ __exports.elementIconId = elementIconId;
 __define("ui/en_cards_items.js", function (__exports, __require) {
 // Englische Texte: Karten und Items. Format: id: [Name, Text].
 const EN_CARDS = {
+  giftnadel: ["Poison Needle", "Damage: 2 + 0.5x weapon. 4 Poison."], aetzgas: ["Caustic Gas", "2 Poison to ALL."], seuchenblick: ["Plague Gaze", "3 Poison. Draw 1 card. Exhaust."],
   gischtschild: ["Spray Shield", "6 Block."], heilquelle: ["Healing Spring", "Heal 6 HP. Exhaust."], stroemung: ["Current", "Water damage: 4 + 0.5x weapon. Draw 1 card."],
-  sturzbach: ["Torrent", "Water damage to ALL: 3 + 0.5x weapon. 4 Block."], nebelschleier: ["Mist Veil", "Dodge 1 hit. 3 Block."], gezeitenwechsel: ["Tide Turn", "3 Block. Draw 1 card."],
+  sturzbach: ["Torrent", "Water damage to ALL: 3 + 0.5x weapon. 4 Block."], nebelschleier: ["Mist Veil", "Dodge 1 hit. 3 Block."], gezeitenwechsel: ["Tide Turn", "3 Block. Draw 1 card. Exhaust."],
   hieb: ["Direct Hit", "Damage: 4 + weapon."], wuchtschlag: ["Serious Punch", "Damage: 11 + 3x weapon."], wirbel: ["Storm Whirl", "Damage to ALL: 3 + weapon."],
   deckung: ["Guard Stance", "6 Block."], schildwall: ["Unbreakable Wall", "13 Block."], adrenalin: ["Second Gear", "Draw 2 cards."], schwachstelle: ["Line of Death", "2 Vulnerable (+50% damage)."],
   wasserstrahl: ["Hydro Lance", "Water damage: 10 + 2x weapon."], flutwelle: ["Tsunami Strike", "Water damage to ALL: 4 + 0.5x weapon."], dornenpeitsche: ["Rose Whip", "Plant damage: 3 + 0.5x weapon. 3 Bleed."],
@@ -4655,6 +4705,8 @@ const EN_CARDS = {
   dekadenz: ["Golden Excess", "12 damage to ALL enemies. You pay 10% of your Gold."], rankendornen: ["Entwined Thorns", "4 Block. Thorns 3 (attackers take 3 damage until your next turn)."], wurzelgeflecht: ["Life Roots", "8 Block. Heal 4 HP."],
 };
 const EN_ITEMS = {
+  flutmantel: ["Flood Mantle", "Water card played: 2 Block and 1 damage to ALL (max. 3/turn)."], mondsee_spiegel: ["Moonlake Mirror", "Water cards: +1 damage. Water card played: 20% chance to draw 1 card (max. 2/turn)."], tsunami_herz: ["Tsunami Heart", "Water cards: +60% damage and 4 Block when played (no cap)."],
+  henkers_kette: ["Executioner's Chain", "+10% Crit Chance, +25% Crit Damage."], koenigs_henker: ["King of Execution", "+8% Crit Chance, +60% Crit Damage (no cap)."], blutmond_kelch: ["Bloodmoon Chalice", "+12% Lifesteal, +3 Bleed Power (no cap)."],
   quellstein: ["Ocean Shard", "Water cards: +2 damage."], gezeitenperle: ["Moontide Pearl", "Water card played: 3 Block (max. 4/turn)."], treibholz: ["Shipwreck Splinter", "First turn of every combat: 2 Block per Water tag (max. 8)."],
   dornenring: ["Rose Ring", "Plant cards: +2 damage."], sporenbeutel: ["Mycelium Pouch", "Plant card played: 1 Poison on an enemy (max. 3/turn)."], wurzelherz: ["Seed of Life", "Start of turn: heal 1 HP per Plant tag (max. 2)."],
   eisenpanzer: ["Blacksteel Vest", "First turn of every combat: 4 Block."], vielfaltsmedaille: ["S-Rank Badge", "All cards: +1 damage per different type in your build (max. +3)."],
@@ -4916,6 +4968,11 @@ const EN_UI = {
   "Bildschirm anlassen": "Keep screen on", "An": "On", "Aus": "Off", "Verhindert, dass sich der Bildschirm im Spiel von selbst abschaltet.": "Prevents the screen from turning off by itself while you play.", "Dein Browser kann das nicht (oder die Seite läuft nicht über HTTPS).": "Your browser can't do this (or the page isn't served over HTTPS).",
   "Ton": "Sound", "Leise": "Quiet", "Mittel": "Medium", "Laut": "Loud", "Kleine Klänge für Treffer, Block, Krit, Sieg. Ohne Musik.": "Small sounds for hits, block, crits and victory. No music.",
   "Verbannen: kommt in diesem Run nicht mehr vor": "Banish: will not appear again this run", "Überspringen bringt Gold": "Skipping earns Gold", "Keine Verbannen-Marke mehr": "No banish token left",
+  "Wie du gefallen bist": "How you fell", "Keine Treffer aufgezeichnet.": "No hits recorded.", "Teilnahme": "Participation", "Sieg": "Victory", "Neuer Titel": "New title",
+  "+1 Verbannen-Marke je Run": "+1 banish token per run", "+10 Startgold": "+10 starting gold", "+1 Gratis-Reroll in jedem Shop": "+1 free reroll in every shop", "+5 Max-HP zum Start": "+5 max HP at the start", "+2 Gold beim Überspringen einer Auswahl": "+2 gold when skipping a choice", "Startdeck-Draft: 4 statt 3 Karten zur Wahl": "Starting deck draft: 4 instead of 3 cards to choose from",
+  "E-Rang": "E-Rank", "D-Rang": "D-Rank", "C-Rang": "C-Rank", "B-Rang": "B-Rank", "A-Rang": "A-Rank", "S-Rang": "S-Rank", "National-Rang": "National-Rank", "Selbstschaden": "Self-damage",
+  "Selbstschaden gehörte zum letzten Zug dazu: prüfe, wie viel HP deine Karten und Items dich kosten.": "Self-damage was part of the last turn: check how much HP your cards and items cost you.", "Im letzten Gegnerzug hattest du keinen Block aktiv.": "You had no Block active during the last enemy turn.", "Ein einziger Gegnerzug nahm dir über die Hälfte deiner HP. Die Absicht der Gegner ist vorher sichtbar: halte dann Block oder Ausweichen bereit.": "A single enemy turn took more than half your HP. Enemy intent is shown beforehand: keep Block or Dodge ready then.", "Mehr Max-HP, Rüstung oder Heilung hätten diesen Kampf überbrückt.": "More max HP, armor or healing would have bridged this fight.",
+  "Krit-Schaden": "Crit Damage", "Kritische Treffer machen mehr Schaden (Grundwert 150%).": "Critical hits deal more damage (base 150%).", "Überleben": "Survival", "Schaden": "Damage", "Wirtschaft": "Economy", "Karten-Fluss": "Card flow", "Statuseffekte": "Status effects", "Risiko": "Risk", "Einmal je Kampf": "Once per combat",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -4937,6 +4994,11 @@ const EN_UI = {
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
 const EN_PATTERNS = [
+  [/^Rolle: (.+)$/, (t, x) => `Role: ${x.split(" · ").map((y) => t(y)).join(" · ")}`],
+  [/^Nochmal: (.+)$/, (t, n) => `Again: ${t(n)}`], [/^Rang (\d+) · (.+?)( · (\d+)\/(\d+) EP)?$/, (t, l, ti, x, a, b) => `Rank ${l} · ${t(ti)}${x ? ` · ${a}/${b} XP` : ""}`], [/^\+(\d+) EP$/, (t, n) => `+${n} XP`],
+  [/^Rang (\d+) erreicht: (.+)$/, (t, l, x) => `Rank ${l} reached: ${t(x)}`], [/^Nächste Belohnung bei Rang (\d+): (.+) \(noch (\d+) EP bis Rang (\d+)\)$/, (t, l, x, n, r) => `Next reward at rank ${l}: ${t(x)} (${n} XP to rank ${r})`], [/^Noch (\d+) EP bis Rang (\d+)$/, (t, n, r) => `${n} XP to rank ${r}`],
+  [/^Zug (\d+): (.+) -(\d+)( \((\d+) geblockt\))?$/, (t, n, who, a, x, b) => `Turn ${n}: ${t(who)} -${a}${b ? ` (${b} blocked)` : ""}`],
+  [/^Stage (\d+), Ebene (\d+) · Gegner: (.+) · Zug (\d+)$/, (t, s, l, e, z) => `Stage ${s}, floor ${l} · Enemies: ${e} · Turn ${z}`], [/^Letzter Gegnerzug: (\d+) Schaden bei (\d+) Max-HP, (\d+) geblockt\.$/, (t, a, m, b) => `Last enemy turn: ${a} damage at ${m} max HP, ${b} blocked.`], [/^Tipp: (.+)$/, (t, x) => `Tip: ${t(x)}`],
   [/^Verbannen \((\d+)\)$/, (t, n) => `Banish (${n})`], [/^Neu würfeln \((\d+) Gold\)$/, (t, n) => `Reroll (${n} Gold)`], [/^Weiter \(\+(\d+) Gold\)$/, (t, n) => `Continue (+${n} Gold)`],
   [/^Verbannt: (.+) \((\d+) Marken übrig\)$/, (t, n, m) => `Banished: ${n} (${m} tokens left)`], [/^Neu gewürfelt \(-(\d+) Gold\)$/, (t, n) => `Rerolled (-${n} Gold)`],
   [/^Veredle deine Waffe \((.+), Veredelung (\d+) von (\d+)\)$/, (t, n, a, b) => `Refine your weapon (${n}, refinement ${a} of ${b})`], [/^Waffe veredelt: (.+)$/, (t, n) => `Weapon refined: ${n}`],
@@ -5331,14 +5393,14 @@ const CLASS_ART = { nahkaempfer: "nahkaempfer", fernkaempfer: "fernkaempfer", ma
 // Werte (Brotato-Richtung): Kernwerte in fester Reihenfolge, dazu Spezialwerte der Items
 const CORE_STATS = ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"];
 const STAT_LABELS = { maxHp: "Max-HP", regen: "Regeneration", lifesteal: "Lebensraub", damagePct: "Schaden", meleeDmg: "Nahkampfschaden", rangedDmg: "Fernkampfschaden", elementDmg: "Elementarschaden", crit: "Krit-Chance", armor: "Rüstung", dodge: "Ausweichen", luck: "Glück", ernte: "Ernte",
-  energy: "Energie", handSize: "Handkarten", goldPct: "Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "Reaktionen", freezeEase: "Einfrier-Hilfe", priceMod: "Preise", rerollMod: "Reroll-Preis", freeRerolls: "Freie Rerolls", bossDmg: "Schaden gegen Bosse", poisonPower: "Gift-Stärke", burnPower: "Brenn-Stärke", bleedPower: "Blutungs-Stärke", healPct: "Heilung", doubleChance: "Doppel-Gold", curse: "Fluch" };
-const PCT_STATS = new Set(["lifesteal", "damagePct", "crit", "dodge", "goldPct", "shiny", "reaction", "priceMod", "rerollMod", "bossDmg", "healPct", "doubleChance"]);
+  energy: "Energie", handSize: "Handkarten", goldPct: "Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "Reaktionen", freezeEase: "Einfrier-Hilfe", priceMod: "Preise", rerollMod: "Reroll-Preis", freeRerolls: "Freie Rerolls", bossDmg: "Schaden gegen Bosse", poisonPower: "Gift-Stärke", burnPower: "Brenn-Stärke", bleedPower: "Blutungs-Stärke", critDmg: "Krit-Schaden", healPct: "Heilung", doubleChance: "Doppel-Gold", curse: "Fluch" };
+const PCT_STATS = new Set(["lifesteal", "damagePct", "crit", "critDmg", "dodge", "goldPct", "shiny", "reaction", "priceMod", "rerollMod", "bossDmg", "healPct", "doubleChance"]);
 const fmtVal = (k, v) => `${v > 0 ? "+" : ""}${v}${PCT_STATS.has(k) ? "%" : ""}`;                       // +3% bzw. -2 (Prozent direkt am Wert)
 const fmtStat = (k, v) => `${fmtVal(k, v)} ${STAT_LABELS[k] ?? k}`;                                       // +3% Lebensraub
 const STAT_ICON = { maxHp: "heart", regen: "s_regen", lifesteal: "s_drop", damagePct: "s_up", meleeDmg: "s_fist", rangedDmg: "s_arrow", elementDmg: "s_orb", crit: "s_crit", armor: "shield", dodge: "wind", luck: "s_clover", ernte: "s_wheat",
-  energy: "bolt", handSize: "pile", goldPct: "coin", blockStart: "shield", shiny: "star", reaction: "s_orb", freezeEase: "snow", priceMod: "coin", rerollMod: "s_dice", freeRerolls: "s_dice", bossDmg: "skull", poisonPower: "poison", burnPower: "flame", bleedPower: "blood", healPct: "plus", doubleChance: "s_coins", curse: "s_curse" };
+  energy: "bolt", handSize: "pile", goldPct: "coin", blockStart: "shield", shiny: "star", reaction: "s_orb", freezeEase: "snow", priceMod: "coin", rerollMod: "s_dice", freeRerolls: "s_dice", bossDmg: "skull", poisonPower: "poison", burnPower: "flame", bleedPower: "blood", critDmg: "c_burst", healPct: "plus", doubleChance: "s_coins", curse: "s_curse" };
 
-const STAT_DESC = { maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
+const STAT_DESC = { critDmg: "Kritische Treffer machen mehr Schaden (Grundwert 150%).", maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
 const TIER_NAME = ["I", "II", "III", "IV"];
 const TIER_COLOR = ["#9aa0a6", "#4a8fd8", "#a45bd6", "#e8a33d"];
 
@@ -5776,8 +5838,8 @@ function starterPool(classId) {
   return Object.values(CONTENT.cards).filter((c) => (c.rarity ?? "gewoehnlich") === "gewoehnlich" && (c.pools.includes("alle") || c.pools.some((p) => pools.includes(p))));
 }
 
-function draftOffer(classId, seed, picks = []) {
-  const D = CONFIG.draft, pool = starterPool(classId), round = picks.length, rng = createRng(((seed >>> 0) ^ Math.imul(round + 1, 0x9e3779b1)) >>> 0);
+function draftOffer(classId, seed, picks = [], options = CONFIG.draft.options) {
+  const D = { ...CONFIG.draft, options }, pool = starterPool(classId), round = picks.length, rng = createRng(((seed >>> 0) ^ Math.imul(round + 1, 0x9e3779b1)) >>> 0);
   const hasAtk = picks.some((id) => isAttackCard(CONTENT.cards[id])), lastForced = round === D.rounds - 1 && !hasAtk;       // letzter Zug ohne Angriffskarte im Deck: nur Angriffskarten zur Wahl
   const own = (c) => !c.pools.includes("alle"), left = lastForced ? pool.filter(isAttackCard) : [...pool], offer = [];
   while (offer.length < D.options && left.length) {                                         // gewichtet ohne Wiederholung innerhalb eines Zuges
@@ -5811,6 +5873,75 @@ __exports.draftOffer = draftOffer;
 __exports.validStartDeck = validStartDeck;
 __exports.isDefenseCard = isDefenseCard;
 __exports.recommendIndex = recommendIndex;
+
+});
+__define("engine/rank.js", function (__exports, __require) {
+// KONTO-RANG: Jeder Run (auch eine Niederlage) bringt Erfahrung für den Hunter-Rang. Alle ein bis zwei Ränge gibt es eine dauerhafte, kleine Belohnung.
+// Garantierter Mikro-Gewinn: Es gibt immer mindestens CONFIG.rank.minXp, und das Run-Ende zeigt, wie weit die nächste Belohnung noch ist.
+const { CONFIG } = __require("data/config.js");
+
+const RANK_REWARDS = {
+  2: { banish: 1, text: "+1 Verbannen-Marke je Run" },
+  3: { startGold: 10, text: "+10 Startgold" },
+  4: { freeReroll: 1, text: "+1 Gratis-Reroll in jedem Shop" },
+  5: { banish: 1, text: "+1 Verbannen-Marke je Run" },
+  6: { startHp: 5, text: "+5 Max-HP zum Start" },
+  7: { startGold: 10, text: "+10 Startgold" },
+  8: { skipGold: 2, text: "+2 Gold beim Überspringen einer Auswahl" },
+  9: { banish: 1, text: "+1 Verbannen-Marke je Run" },
+  10: { draftOptions: 1, text: "Startdeck-Draft: 4 statt 3 Karten zur Wahl" },
+};
+const TITLES = ["E-Rang", "D-Rang", "C-Rang", "B-Rang", "A-Rang", "S-Rang", "National-Rang"];
+const rankTitle = (level) => TITLES[Math.min(level - 1, TITLES.length - 1)];
+const rankNeed = (level) => CONFIG.rank.base + CONFIG.rank.step * (level - 1);
+const rankOf = (meta) => { meta.rank ??= { xp: 0, level: 1 }; return meta.rank; };
+
+function rankBonuses(level = 1) {                                                // alle Belohnungen bis zu diesem Rang zusammengezählt
+  const b = { banish: 0, startGold: 0, freeReroll: 0, startHp: 0, skipGold: 0, draftOptions: 0 };
+  for (const [l, r] of Object.entries(RANK_REWARDS)) if (Number(l) <= level) for (const k of Object.keys(b)) b[k] += r[k] ?? 0;
+  return b;
+}
+function nextReward(level) {                                                     // die nächste Belohnung oberhalb des aktuellen Rangs
+  const l = Object.keys(RANK_REWARDS).map(Number).sort((a, b) => a - b).find((x) => x > level);
+  return l ? { level: l, text: RANK_REWARDS[l].text } : null;
+}
+function rankXpParts(run, won) {                                                 // woraus die Erfahrung besteht (wird auf dem Run-Ende gezeigt)
+  const R = CONFIG.rank, stage = run.stage ?? 1, fights = run.stats?.fights ?? 0;
+  const parts = [["Teilnahme", R.minXp], [`Stage ${stage}`, stage * R.perStage], [`${fights} Kämpfe`, fights * R.perFight]];
+  if (won) parts.push(["Sieg", R.win]);
+  return parts;
+}
+function awardRank(meta, run, won) {
+  const r = rankOf(meta), before = { level: r.level, xp: r.xp, need: rankNeed(r.level) }, parts = rankXpParts(run, won), gained = parts.reduce((a, [, v]) => a + v, 0), levelUps = [];
+  r.xp += gained;
+  while (r.xp >= rankNeed(r.level)) { r.xp -= rankNeed(r.level); r.level++; levelUps.push({ level: r.level, text: RANK_REWARDS[r.level]?.text ?? "Neuer Titel" }); }
+  return { gained, parts, before, after: { level: r.level, xp: r.xp, need: rankNeed(r.level) }, levelUps, next: nextReward(r.level), title: rankTitle(r.level) };
+}
+
+__exports.RANK_REWARDS = RANK_REWARDS;
+__exports.rankTitle = rankTitle;
+__exports.rankNeed = rankNeed;
+__exports.rankOf = rankOf;
+__exports.rankBonuses = rankBonuses;
+__exports.nextReward = nextReward;
+__exports.rankXpParts = rankXpParts;
+__exports.awardRank = awardRank;
+
+});
+__define("engine/recap.js", function (__exports, __require) {
+// TODES-RÜCKBLICK: Aus dem Treffer-Verlauf des letzten Kampfes wird erklärt, WAS den Helden getötet hat. Damit der Tod als eigener, lernbarer Fehler lesbar ist.
+function buildRecap(run, s, layer) {
+  const hits = (s.hitLog ?? []).slice(-6), last = hits.at(-1), turnHits = hits.filter((h) => h.turn === last?.turn);
+  const lastTurnDmg = turnHits.reduce((a, h) => a + h.amount, 0), blocked = turnHits.reduce((a, h) => a + h.blocked, 0), maxHp = s.player.maxHp, tips = [];
+  if (turnHits.some((h) => h.src === "self")) tips.push("Selbstschaden gehörte zum letzten Zug dazu: prüfe, wie viel HP deine Karten und Items dich kosten.");
+  if (lastTurnDmg > 0 && blocked === 0) tips.push("Im letzten Gegnerzug hattest du keinen Block aktiv.");
+  if (lastTurnDmg >= maxHp * 0.5) tips.push("Ein einziger Gegnerzug nahm dir über die Hälfte deiner HP. Die Absicht der Gegner ist vorher sichtbar: halte dann Block oder Ausweichen bereit.");
+  if (s.turn >= 9) tips.push(`Der Kampf dauerte ${s.turn} Züge: mehr Schaden pro Zug oder Heilung hätte geholfen.`);
+  if (!tips.length) tips.push("Mehr Max-HP, Rüstung oder Heilung hätten diesen Kampf überbrückt.");
+  return { stage: run.stage ?? 1, layer, turn: s.turn, enemies: s.enemies.filter((e) => e.hp > 0).map((e) => e.name), killer: last?.name ?? "unbekannt", hits, lastTurnDmg, blocked, maxHp, tips: tips.slice(0, 2) };
+}
+
+__exports.buildRecap = buildRecap;
 
 });
 __define("engine/map.js", function (__exports, __require) {
@@ -5952,7 +6083,7 @@ const { CONTENT } = __require("content/index.js");
 const { createDex } = __require("engine/dex.js");
 
 const createMeta = () => ({
-  runs: 0, wins: 0, highestWon: -1, bossKills: 0, unlocked: {}, freshUnlocks: {}, dex: createDex(),
+  runs: 0, wins: 0, highestWon: -1, bossKills: 0, unlocked: {}, freshUnlocks: {}, rank: { xp: 0, level: 1 }, dex: createDex(),
   // Zähler für Erfolge
   stats: { kills: 0, fightsWon: 0, elites: 0, minibosses: 0, shinyEnemies: 0, winsByClass: {}, winsByWeapon: {}, bestStage: 0, goldTotal: 0, fightsTotal: 0, byClass: {}, maxDiffByClass: {} },
   abilities: {},                                       // je Fähigkeit: Stufe und Zähler (Einsätze, Schaden in der Sphäre), nur hier steigen Stufen auf
@@ -5972,6 +6103,7 @@ function normalizeMeta(meta) {
     else if (base[k] && typeof base[k] === "object" && !Array.isArray(base[k])) meta[k] = { ...base[k], ...meta[k] };
   }
   meta.freshUnlocks ??= {};
+  meta.rank ??= { xp: 0, level: 1 };
   meta.abilities ??= {};
   for (const id of Object.keys(CONTENT.abilities ?? {})) meta.abilities[id] = { level: 1, uses: 0, damage: 0, fieldDamage: 0, ...(meta.abilities[id] ?? {}) };
   if (!Object.keys(meta.stats.maxDiffByClass ?? {}).length && meta.highestWon >= 0) {        // ältere Spielstände: Schwierigkeit gilt nur für Helden, mit denen schon gewonnen wurde
@@ -6388,7 +6520,7 @@ function generateShop(ctx, quick = false) {
 function rerollShop(shop, ctx, run) {
   const free = (shop.freeRerolls ?? 0) > 0;                                       // freie Rerolls (Wert) zuerst, ohne dass die Kosten steigen
   if (!free && run.gold < shop.rerollCost) return { ok: false, reason: "Zu wenig Gold" };
-  if (free) shop.freeRerolls--; else { run.gold -= shop.rerollCost; shop.rerollCost = Math.round(shop.rerollCost * CONFIG.shop.rerollMult); }
+  if (free) shop.freeRerolls--; else { run.gold -= shop.rerollCost; run.stats.goldSpent = (run.stats.goldSpent ?? 0) + shop.rerollCost; run.stats.rerolls = (run.stats.rerolls ?? 0) + 1; shop.rerollCost = Math.round(shop.rerollCost * CONFIG.shop.rerollMult); }
   shop.rerolls++;
   const infl = ctx.inflation ?? 1;
   const shown = new Set([...shop.cards, ...shop.items].map((s) => baseOf(s.id)));
@@ -6417,7 +6549,7 @@ function buy(shop, kind, index, run) {
   const s = shop[kind][index];
   if (!s || s.sold) return { ok: false, reason: "Nicht verfügbar" };
   if (run.gold < s.price) return { ok: false, reason: "Zu wenig Gold" };
-  run.gold -= s.price;
+  run.gold -= s.price; run.stats.goldSpent = (run.stats.goldSpent ?? 0) + s.price;
   s.sold = true;
   return { ok: true, id: s.id, kind };
 }
@@ -6426,7 +6558,7 @@ function buy(shop, kind, index, run) {
 function payRemoval(shop, run) {
   const cost = removalCost(run.removedCards ?? 0);
   if (run.gold < cost) return { ok: false, reason: "Zu wenig Gold" };
-  run.gold -= cost;
+  run.gold -= cost; run.stats.goldSpent = (run.stats.goldSpent ?? 0) + cost;
   run.removedCards = (run.removedCards ?? 0) + 1;                 // der Preis hängt an der Anzahl entfernter Karten im ganzen Run
   shop.removeCost = removalCost(run.removedCards);
   shop.removals++;
@@ -6471,6 +6603,8 @@ const { CONFIG } = __require("data/config.js");
 const { CONTENT } = __require("content/index.js");
 const { validStartDeck } = __require("engine/draft.js");
 const { upgradeChoices } = __require("engine/upgrades.js");
+const { awardRank, rankBonuses } = __require("engine/rank.js");
+const { buildRecap } = __require("engine/recap.js");
 const { createRng } = __require("engine/rng.js");
 const { generateMap, findNode } = __require("engine/map.js");
 const { resolveBuild } = __require("engine/modifiers.js");
@@ -6492,15 +6626,15 @@ const rollShinyHero = (rand = Math.random) => rand() < CONFIG.shiny.heroChance;
 function createRun({ startDeck, ability, classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
   const cls = CONTENT.classes[classId];
   const startWeapon = cls.starterWeapons.includes(weapon) ? weapon : cls.weapon;      // jede Klasse darf jede Startwaffe wählen
-  const rng = createRng(seed);
+  const rng = createRng(seed), rb = rankBonuses(meta?.rank?.level ?? 1);                                  // Konto-Rang: dauerhafte kleine Boni
   const run = {
     seed, classId, difficulty, meta, rng, shinyHero: Boolean(shinyHero),
     phase: "intro", map: generateMap(rng), nodeId: null,
-    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold + (cls.startGold ?? 0), removedCards: 0, frozenItems: [], frozenCards: [], flags: {},
+    hp: 0, maxHp: 0, bonusMaxHp: 0, gold: CONFIG.run.startGold + (cls.startGold ?? 0) + rb.startGold, removedCards: 0, frozenItems: [], frozenCards: [], flags: {},
     deck: validStartDeck(startDeck, classId) ? [...startDeck] : [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
-    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, weaponUpgrades: [], banishLeft: CONFIG.agency.banishTokens, banned: { cards: [], items: [] }, xp: 0, level: 0, upStats: {}, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
+    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, weaponUpgrades: [], banishLeft: CONFIG.agency.banishTokens + rb.banish, banned: { cards: [], items: [] }, xp: 0, level: 0, upStats: { ...(rb.startHp ? { maxHp: rb.startHp } : {}), ...(rb.freeReroll ? { freeRerolls: rb.freeReroll } : {}) }, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
     stats: { fights: 0, elites: 0, minibosses: 0, nodes: 0, shinyEnemies: 0, shinyLoot: 0, goldEarned: 0, purchases: 0 },
   };
   run.maxHp = computeMaxHp(run);
@@ -6567,7 +6701,8 @@ const addItem = (run, id) => {
 };
 const addCard = (run, id) => { run.deck.push(id); found(run, "cards", id); };
 const setWeapon = (run, id) => { run.weapon = id; found(run, "weapons", id); };
-function advanceStage(run) {                                                         // nächste Stage: neue Karte, Teil-Heilung, Hinweis
+function advanceStage(run) {
+  (run.stageLog ??= []).push({ stage: run.stage, earned: run.stats.goldEarned, spent: run.stats.goldSpent ?? 0, fights: run.stats.fights, purchases: run.stats.purchases });          // Messpunkt für die Wirtschafts-Kurve                                                         // nächste Stage: neue Karte, Teil-Heilung, Hinweis
   run.stage++; run.stageClear = false; run.stageFights = 0; run.map = generateMap(run.rng); run.path = []; run.nodeId = null;
   healRun(run, Math.ceil(run.maxHp * CONFIG.stages.heal)); run.stageNotice = run.stage;
 }
@@ -6656,7 +6791,7 @@ const levelRerollCost = (run) => CONFIG.agency.levelRerollBase + CONFIG.agency.l
 function rerollLevelChoices(run) {                                        // Level-up neu würfeln gegen Gold (teurer bei jedem Mal in derselben Beute)
   const r = run.pending?.reward; if (run.phase !== "reward" || !r?.levelChoices?.length) return fail("Kein Level-up offen");
   const cost = levelRerollCost(run); if (run.gold < cost) return fail("Zu wenig Gold");
-  run.gold -= cost; r.levelRerolls = (r.levelRerolls ?? 0) + 1; r.levelChoices = makeLevelChoices(run); return ok({ cost });
+  run.gold -= cost; run.stats.goldSpent = (run.stats.goldSpent ?? 0) + cost; r.levelRerolls = (r.levelRerolls ?? 0) + 1; r.levelChoices = makeLevelChoices(run); return ok({ cost });
 }
 function banish(run, kind, idx) {                                          // Verbannen: das Angebot verschwindet, kommt in diesem Run nicht mehr vor und wird ersetzt
   if (!["cards", "items"].includes(kind)) return fail("Nicht verbannbar");
@@ -6720,7 +6855,7 @@ function completeCombat(run) {
   queueAch(run, { type: "state" });                       // z. B. 500 Gold gleichzeitig
 
   const levelChoices = run.pendingLevels > 0 ? makeLevelChoices(run) : [];
-  const reward = { levelChoices, stageClear: kind === "boss", gold: gold2, shinyBonus: bonus, overkillGold, harvest, midas: midas > 1, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
+  const reward = { levelChoices, kind, stageClear: kind === "boss", gold: gold2, shinyBonus: bonus, overkillGold, harvest, midas: midas > 1, cards: generateCardReward(ctx).map((d) => d.id), items: [], weapons: [], shinyItems: [], shinyWeapons: [], taken: {} };
   if (kind === "elite" || kind === "miniboss" || run.rng.next() < CONFIG.run.normalItemChance) {
     reward.items = generateItemChoices(ctx).map((d) => d.id);
   }
@@ -6762,7 +6897,7 @@ const takeUpgrade = (run, idx) => take(run, "upgrades", idx, (id) => { if ((run.
 const takeWeapon = (run, idx) => take(run, "weapons", idx, (id) => setWeapon(run, id));
 const takeShinyItem = (run, idx) => take(run, "shinyItems", idx, (id) => addItem(run, id));
 const takeShinyWeapon = (run, idx) => take(run, "shinyWeapons", idx, (id) => setWeapon(run, id));
-const skipGoldOf = (run) => Math.round(CONFIG.agency.skipGold * (1 + 0.15 * (run.stage - 1)));
+const skipGoldOf = (run) => Math.round(CONFIG.agency.skipGold * (1 + 0.15 * (run.stage - 1))) + rankBonuses(run.meta?.rank?.level ?? 1).skipGold;
 const skippedCount = (run) => { const r = run.pending?.reward; return r ? ["cards", "items"].filter((k) => r[k]?.length && !r.taken[k]).length : 0; };
 function finishReward(run) {
   if (run.phase !== "reward") return fail("Keine Belohnung offen");
@@ -6775,7 +6910,8 @@ function finishReward(run) {
     run.phase = "shop"; run.pending = { shop };
     return ok({ startShop: true });
   }
-  if (CONFIG.shop.afterFight && run.stats.fights >= 2) {                             // ab dem zweiten Kampf: Schnellladen nach jedem Kampf
+  const rk = run.pending?.reward?.kind, bigFight = ["elite", "miniboss", "boss"].includes(rk);
+  if (CONFIG.shop.afterFight && run.stats.fights >= 2 && (bigFight || run.stats.fights % (CONFIG.shop.quickEvery ?? 1) === 0)) {     // ab dem zweiten Kampf: Schnellladen nach jedem zweiten Kampf und nach Elite, Mini-Boss und Wächter
     const shop = generateShop(ctxOf(run), true); stampNew(run, shop);
     countShiny(run, [...shop.cards, ...shop.items].map((s) => ({ id: s.id, kind: s.kind })));
     run.phase = "shop"; run.pending = { shop };
@@ -6824,9 +6960,9 @@ function shopService(run, id) {                                         // Diens
   if (run.gold < sv.price) return fail("Zu wenig Gold");
   if (id === "heal") {
     if (run.hp >= run.maxHp) return fail("Du bist bei vollen HP");
-    run.gold -= sv.price; sv.uses++; sv.price += S.heal.step; healRun(run, Math.ceil(run.maxHp * S.heal.pct));
+    run.gold -= sv.price; run.stats.goldSpent = (run.stats.goldSpent ?? 0) + sv.price; sv.uses++; sv.price += S.heal.step; healRun(run, Math.ceil(run.maxHp * S.heal.pct));
   } else {
-    run.gold -= sv.price; sv.sold = true; run.maxHp += S.vitality.maxHp; run.hp += S.vitality.maxHp;
+    run.gold -= sv.price; run.stats.goldSpent = (run.stats.goldSpent ?? 0) + sv.price; sv.sold = true; run.maxHp += S.vitality.maxHp; run.hp += S.vitality.maxHp;
   }
   return ok();
 }
@@ -6926,9 +7062,9 @@ function eventChoose(run, choiceIdx) {
 // ---------------------------------------------------------------- Ende, Speichern
 function endRun(run, won) {
   run.phase = won ? "won" : "lost";
-  run.summary = { won, difficulty: run.difficulty, layer: currentLayer(run), stats: { ...run.stats }, items: run.items.length, deck: run.deck.length, meta: null };
+  run.summary = { won, difficulty: run.difficulty, layer: currentLayer(run), stats: { ...run.stats }, items: run.items.length, deck: run.deck.length, meta: null, recap: !won && run.pending?.combat?.result === "lost" ? buildRecap(run, run.pending.combat, currentLayer(run)) : null, rank: null };
   if (run.meta) {
-    run.summary.meta = recordRun(run.meta, run, won);
+    run.summary.meta = recordRun(run.meta, run, won); run.summary.rank = awardRank(run.meta, run, won);
     queueAch(run, { type: "run", won });
   }
   run.summary.achievements = [...(run.achDone ?? [])];
@@ -7326,6 +7462,7 @@ const { keywordsOf } = __require("ui/glossary.js");
 const { CONTENT } = __require("content/index.js");
 const { CONFIG } = __require("data/config.js");
 const { aliveEnemies, activeItems } = __require("engine/combat.js");
+const { rankTitle, rankNeed } = __require("engine/rank.js");
 const { levelRerollCost, skippedCount, skipGoldOf, availableNodes, buildOf, currentLayer, restHealAmount, restPct } = __require("engine/run.js");
 const { lane: mapLane } = __require("engine/map.js");
 const { findNode } = __require("engine/map.js");
@@ -7340,7 +7477,7 @@ const { storyLines, storySpeaker } = __require("engine/story.js");
 const { TAG_NAME, CORE_STATS, STAT_LABELS, STAT_DESC, STAT_ICON, fmtVal, fmtStat, TIER_NAME, TIER_COLOR, NODE_INFO } = __require("ui/theme.js");
 const { xpNeed } = __require("engine/run.js");
 const { recommendIndex } = __require("engine/draft.js");
-const { itemFit } = __require("engine/modifiers.js");
+const { itemFit, itemRoles } = __require("engine/modifiers.js");
 const { reactionText } = __require("ui/util.js");
 const { esc, needsTarget, describeWeapon, describeItem, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
 const { achInfoView, achievementsView, cosmeticsView } = __require("ui/achview.js");
@@ -7369,7 +7506,7 @@ function titleView(ui) {
   return `<div class="screen title"><div class="bgscene">${menuBackdrop(sceneExt(ui, ui.stageH ?? 400))}</div>
     <div class="title-body"><div class="title-l">${logo()}<div class="tag">Ein Anime-Roguelite-Deckbuilder</div></div>
       <div class="title-r"><div class="menu-buttons">${ui.hasSave ? btn("Run fortsetzen", "continue", undefined, { cls: "good big" }) : ""}
-        ${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}${btn("Fähigkeiten", "show-abilities", undefined, { cls: "big" })}</div>
+        <div class="rankchip">Rang ${ui.meta.rank?.level ?? 1} · ${esc(rankTitle(ui.meta.rank?.level ?? 1))} · ${ui.meta.rank?.xp ?? 0}/${rankNeed(ui.meta.rank?.level ?? 1)} EP</div>${btn("Neuer Run", "new-run", undefined, { cls: "primary big" })}${btn("Erfolge", "show-achievements", undefined, { cls: "big" })}${btn("Aussehen", "show-cosmetics", undefined, { cls: "big" })}${btn("Sammlung", "show-collection", undefined, { cls: "big" })}${btn("Fähigkeiten", "show-abilities", undefined, { cls: "big" })}</div>
         <div class="row wrap center">${btn("Einstellungen", "open-settings", undefined, { cls: "small" })}</div>
         <div class="muted center small">Siege ${m.wins} · Runs ${m.runs} · Shinys ${Object.keys(m.dex.shiny).length}</div>
         <div class="muted center small">Version ${esc(CONFIG.version)}</div></div></div></div>`;
@@ -7547,6 +7684,21 @@ function eventView(ui) {
 }
 
 // ---------------------------------------------------------------- Ende
+const pct = (xp, need) => Math.max(0, Math.min(100, Math.round((xp / need) * 100)));
+function rankBox(rk) {                                                              // Konto-Rang: Erfahrung dieses Runs, Balken, Belohnungen, nächstes Ziel
+  if (!rk) return "";
+  const up = rk.levelUps.length > 0, from = up ? 0 : pct(rk.before.xp, rk.before.need), to = pct(rk.after.xp, rk.after.need), left = rk.after.need - rk.after.xp;
+  return `<div class="px pad left rankbox"><div><b>Rang ${rk.after.level} · ${esc(rk.title)}</b> <span class="good">+${rk.gained} EP</span></div>
+    <div class="rankbar"><i style="--from:${from}%;--to:${to}%"></i></div><div class="muted small">${rk.parts.map(([n, v]) => `${esc(n)} +${v}`).join(" · ")}</div>
+    ${rk.levelUps.map((l) => `<div class="rankup">Rang ${l.level} erreicht: <b>${esc(l.text)}</b></div>`).join("")}
+    <div class="muted small">${rk.next ? `Nächste Belohnung bei Rang ${rk.next.level}: ${esc(rk.next.text)} (noch ${left} EP bis Rang ${rk.after.level + 1})` : `Noch ${left} EP bis Rang ${rk.after.level + 1}`}</div></div>`;
+}
+function recapBox(rc) {                                                             // Todes-Rückblick: was hat mich getötet?
+  if (!rc) return "";
+  const hits = rc.hits.map((h) => `<div>Zug ${h.turn}: ${esc(h.name)} <b>-${h.amount}</b>${h.blocked ? ` (${h.blocked} geblockt)` : ""}</div>`).join("");
+  return `<div class="px pad left recap"><b>Wie du gefallen bist</b><div class="muted small">Stage ${rc.stage}, Ebene ${rc.layer + 1} · Gegner: ${rc.enemies.length ? rc.enemies.map(esc).join(", ") : "keiner mehr"} · Zug ${rc.turn}</div>
+    <div class="recaphits">${hits || "<div>Keine Treffer aufgezeichnet.</div>"}</div><div class="muted small">Letzter Gegnerzug: ${rc.lastTurnDmg} Schaden bei ${rc.maxHp} Max-HP, ${rc.blocked} geblockt.</div>${rc.tips.map((x) => `<div class="tip2">Tipp: ${esc(x)}</div>`).join("")}</div>`;
+}
 function endView(ui) {
   const run = ui.run, s = run.summary, won = s.won, m = s.meta, outro = CONTENT.stories.outro, sp = CONTENT.speakers[outro?.speaker];
   const mira = won && outro ? `<div class="outro"><div class="npc">${spr("npc", outro.speaker, { attrs: 'width="58" height="82"' })}</div><div class="bubble static"><div class="who">${esc(sp.name)}</div>${storyLines("outro", run.classId).map((l) => `<p>${esc(l)}</p>`).join("")}</div></div>` : "";
@@ -7558,7 +7710,8 @@ function endView(ui) {
     ${m?.newDifficulty ? `<div class="px pad good"><b>Neue Schwierigkeit freigeschaltet: ${esc(m.newDifficulty)}</b></div>` : ""}
     ${m?.unlocks?.length ? `<div class="px pad"><b>Neu freigeschaltet:</b> ${m.unlocks.slice(0, 6).map((u) => esc(u.name)).join(", ")}${m.unlocks.length > 6 ? ` und ${m.unlocks.length - 6} weitere` : ""}</div>` : ""}
     ${ach.length ? `<div class="px pad left"><b>Neue Erfolge:</b> ${ach.slice(0, 4).map(esc).join(", ")}${ach.length > 4 ? ` und ${ach.length - 4} weitere` : ""}</div>` : ""}
-    ${btn("Zurück zum Titel", "to-title", undefined, { cls: "primary" })}</div></div>`;
+    ${rankBox(s.rank)}${recapBox(s.recap)}
+    <div class="row">${ui.lastSetup ? btn(`Nochmal: ${CONTENT.classes[run.classId].name}`, "again", undefined, { cls: "primary" }) : ""}${btn("Zurück zum Titel", "to-title", undefined, { cls: ui.lastSetup ? "" : "primary" })}</div></div></div>`;
 }
 
 // ---------------------------------------------------------------- Sammlung (Shiny-Dex)
@@ -7680,6 +7833,7 @@ function tipRefHtml(ref) {
 }
 const banBtn = (run, kind, i) => ((run.banishLeft ?? 0) > 0 ? btn(`Verbannen (${run.banishLeft})`, "banish", kind, { arg2: String(i), cls: "small ban", title: "Verbannen: kommt in diesem Run nicht mehr vor" }) : "");
 const banIco = (run, kind, i) => ((run.banishLeft ?? 0) > 0 ? btn("✕", "banish", kind, { arg2: String(i), cls: "small ban banico", title: `Verbannen (${run.banishLeft} übrig): kommt in diesem Run nicht mehr vor` }) : "");
+function roleLine(def) { const r = itemRoles(def); return r.length ? `<div class="fitline role">Rolle: ${r.map(esc).join(" · ")}</div>` : ""; }
 function fitLine(def, run) {                                                       // Kauf-Sinn: wirkt der Gegenstand auf mein Deck?
   const f = itemFit(def, buildOf(run).cards), tags = f.tags.map((t) => TAG_NAME[t] ?? t).join(", ");
   if (f.kind === "always") return `<div class="fitline always">Wirkt immer, unabhängig von deinem Deck.</div>`;
@@ -7691,7 +7845,7 @@ function itemInfoView(ui) {
   const stats = Object.entries(def.stats ?? {}).filter(([, v]) => v).map(([k, v]) => `<span class="chip">${ico(STAT_ICON[k] ?? "star", 12)} ${fmtStat(k, v)}</span>`).join(" ");
   const hero = def.hero && CONTENT.classes[def.hero] ? ` · Passt zu: ${esc(CONTENT.classes[def.hero].name)}` : "";
   const text = kind === "weapons" ? describeWeapon(def) : def.text ?? "";
-  return `<div class="overlay"><div class="sheet mid stack"><div class="row">${itemHtml(def, kind)}</div><h2>${esc(def.name)}</h2><div class="muted small">${esc(rar[0])}${hero}</div><p>${esc(text)}</p>${stats ? `<div class="chips">${stats}</div>` : ""}${kind === "items" && ui.run ? fitLine(CONTENT.get("items", id.replace(/:s$/, "")), ui.run) : ""}${btn("Schließen", "close-item-info", undefined, { cls: "primary" })}</div></div>`;
+  return `<div class="overlay"><div class="sheet mid stack"><div class="row">${itemHtml(def, kind)}</div><h2>${esc(def.name)}</h2><div class="muted small">${esc(rar[0])}${hero}</div><p>${esc(text)}</p>${stats ? `<div class="chips">${stats}</div>` : ""}${kind === "items" ? roleLine(CONTENT.get("items", id.replace(/:s$/, ""))) : ""}${kind === "items" && ui.run ? fitLine(CONTENT.get("items", id.replace(/:s$/, "")), ui.run) : ""}${btn("Schließen", "close-item-info", undefined, { cls: "primary" })}</div></div>`;
 }
 function gainedBox(id) {                                                          // erhaltenes Item oder Karte mit voller Beschreibung
   const kind = CONTENT.get("items", id) ? "items" : CONTENT.get("cards", id) ? "cards" : CONTENT.get("weapons", id) ? "weapons" : null; if (!kind) return "";
@@ -7728,6 +7882,7 @@ __define("ui/controller.js", function (__exports, __require) {
 // dispatch(action, arg, arg2) verändert den Zustand und gibt false zurück, wenn kein Neuzeichnen nötig ist.
 const { CONTENT } = __require("content/index.js");
 const { draftOffer, recommendIndex } = __require("engine/draft.js");
+const { rankBonuses } = __require("engine/rank.js");
 const { abilityAt } = __require("engine/abilities.js");
 const { applyContentLanguage } = __require("ui/i18n.js");
 const { fmtStat } = __require("ui/theme.js");
@@ -7815,6 +7970,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
     if (!inst) return;
     if (tryPlay(idx, pickTarget(combat, inst.def, ui.focus))) maybeEndTurn();
   }
+  const draftN = () => CONFIG.draft.options + rankBonuses(ui.meta.rank?.level ?? 1).draftOptions;
   const saveSettings = () => { ui.meta.settings = { ...ui.meta.settings, speed: ui.speed, manual: ui.manual, autoEnd: ui.autoEnd }; };
   // Chrom-Vorschau: alles ist Shiny, nichts wird gespeichert und nichts zählt (kein Dex, keine Freischaltung, kein Eingriff in den echten Spielstand)
   let savedShiny = null;
@@ -7846,15 +8002,15 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "pick-ability": if (CONTENT.classes[st.classId].abilities.includes(arg)) st.abilityId = arg; break;
       case "setup-next": st.step = 1; break;
       case "setup-draft": {                                                  // Schritt 3: Startdeck zusammenstellen (Seed steht ab jetzt fest)
-        st.draftSeed = parseInt(st.seed, 10) || seedFn(); st.picks = []; st.offer = draftOffer(st.classId, st.draftSeed, st.picks); st.step = 2; break;
+        st.draftSeed = parseInt(st.seed, 10) || seedFn(); st.picks = []; st.offer = draftOffer(st.classId, st.draftSeed, st.picks, draftN()); st.step = 2; break;
       }
       case "draft-pick": {
         const id = st.offer[Number(arg)]; if (!id || st.picks.length >= CONFIG.draft.rounds) break;
-        st.picks = [...st.picks, id]; st.offer = st.picks.length < CONFIG.draft.rounds ? draftOffer(st.classId, st.draftSeed, st.picks) : []; break;
+        st.picks = [...st.picks, id]; st.offer = st.picks.length < CONFIG.draft.rounds ? draftOffer(st.classId, st.draftSeed, st.picks, draftN()) : []; break;
       }
-      case "draft-reset": st.picks = []; st.offer = draftOffer(st.classId, st.draftSeed, st.picks); break;
+      case "draft-reset": st.picks = []; st.offer = draftOffer(st.classId, st.draftSeed, st.picks, draftN()); break;
       case "draft-recommended": {                                                           // automatisch wählen: in jedem Zug die Empfehlung aus den echten Angeboten
-        while (st.picks.length < CONFIG.draft.rounds) { const o = draftOffer(st.classId, st.draftSeed, st.picks); st.picks = [...st.picks, o[recommendIndex(st.classId, o, st.picks)]]; }
+        while (st.picks.length < CONFIG.draft.rounds) { const o = draftOffer(st.classId, st.draftSeed, st.picks, draftN()); st.picks = [...st.picks, o[recommendIndex(st.classId, o, st.picks)]]; }
         st.offer = []; break;
       }
       case "setup-back": if (st.step === 0) ui.screen = "title"; else if (st.step === 2) st.step = 1; else st.step = 0; break;
@@ -7875,6 +8031,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
         endPreview();
         const seed = st.draftSeed ?? (parseInt(st.seed, 10) || seedFn()), deck = st.picks.length === CONFIG.draft.rounds ? st.picks : undefined;     // gewähltes Startdeck (ohne Draft: das Standarddeck der Klasse)
         openRun(createRun({ startDeck: deck, ability: st.abilityId, classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
+        ui.lastSetup = { classId: st.classId, weaponId: st.weaponId, abilityId: st.abilityId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)) };
         if (ui.run.shinyHero) ui.notice = { title: "Chrom-Held!", lines: ["Sehr selten: Dein Held schimmert wie Chrom.", `Bonus für diesen Run: +${CONFIG.shiny.heroLuck} Glück.`, `Chance beim Start: 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)}.`] };
         break;
       }
@@ -7887,6 +8044,11 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
           toast(e.code === "SAVE_INCOMPATIBLE" ? "Spielstand passt nicht zur neuen Version und wurde verworfen" : "Spielstand war beschädigt");
         }
         break;
+      }
+      case "again": {                                                                   // Nochmal mit demselben Helden: gleiche Waffe, Fähigkeit, Schwierigkeit; direkt ins Startdeck-Draft
+        if (!ui.lastSetup) break;
+        Object.assign(st, ui.lastSetup, { seed: "" }); endPreview(); ui.auto = false; ui.cardInfo = null; ui.run = null; ui.victory = false; ui.overlay = null; ui.screen = "setup";
+        return dispatch("setup-draft");
       }
       case "to-title": endPreview(); ui.auto = false; ui.cardInfo = null; ui.settingsOpen = false; ui.screen = "title"; ui.overlay = null; ui.run = null; ui.victory = false; ui.confirmReset = false; break;
       case "show-collection": ui.screen = "collection"; break;
