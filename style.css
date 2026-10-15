@@ -713,3 +713,9 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .screen.end{align-items:stretch}.end-r{max-height:100%;overflow-y:auto;justify-content:flex-start!important;padding:4px 6px 8px 0}
 .rankup{animation:rankpulse 1.4s ease-in-out 3}@keyframes rankpulse{50%{transform:scale(1.04);transform-origin:left center}}
 .fitline.role{color:#ffd166;border-color:#8a6d2f}
+
+/* ---- Lesbarkeit (Phase 6): größere Tippflächen und Mindest-Schrift auf kleinen Bildschirmen */
+.hud .ibtn{min-width:34px;min-height:32px}.side .btn{min-height:32px}.hud .menubtn,.hud .ibtn.menu{min-height:32px}
+.card .c-name.n-l{font-size:.94em;letter-spacing:-.2px}.card .c-name.n-xl{font-size:.88em;letter-spacing:-.3px}.itemcard b.n-l{font-size:.95em}.itemcard b.n-xl{font-size:.9em;letter-spacing:-.2px}
+.card .c-foot{font-size:9.5px}.card.sm .c-top{font-size:9.5px}
+.xpbar b{font-size:9.5px}.abilitybtn small,.abilitybtn .abname small{font-size:9px}

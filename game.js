@@ -99,7 +99,7 @@ __exports.audioState = audioState;
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "7.7",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "7.9",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
@@ -2790,6 +2790,13 @@ __exports.toggleKeep = toggleKeep;
 __exports.endPlayerTurn = endPlayerTurn;
 
 });
+__define("ui/art/gem.js", function (__exports, __require) {
+// ERZEUGT von tools/gem-icons.py (nicht von Hand ändern): Status-Symbole aus dem Gemini-Sheet, 16x16, reduzierte Farben.
+const GEM = {"g_gift": {"w": 16, "h": 16, "pal": ["#3c5e32", "#497934", "#558c35", "#68a739", "#9ad446"], "rows": ["................", "................", "....a..bb.ac....", "...a.addddca....", "....bdeeeedbb...", "....ceeeeeecb...", "...bceeeeedba...", "...abcded.bbb...", "...acbddd.bc....", "...adcdbbdcd....", "....bcbddbcb....", ".....accccb.....", "........a.......", "................", "................", "................"]}, "g_blutung": {"w": 16, "h": 16, "pal": ["#2c272d", "#4b272e", "#846a77", "#831023", "#481c26", "#381e25"], "rows": ["................", "................", ".........abb....", ".........cb.....", "........ccb.....", ".......ccc......", "......ccd.b.....", ".....ccce....b..", ".de.cdb.f.......", "....e...f.ef....", "....db...ddef...", "....ede.dddd....", "...ddddddddde...", "................", "................", "................"]}, "g_verbrennung": {"w": 16, "h": 16, "pal": ["#6f3322", "#c23e12", "#fd6c04", "#b4591d", "#5b2425", "#faa308", "#fcdd53"], "rows": ["................", "................", ".......ab.......", "...a..acb..b....", "...d.edfca......", "....bb.dcbbad...", "....dcbbfccca...", "..ea.dccfcfca...", "...bbdcfffcaba..", "..accfcggcfbcb..", "..ccfffgffffcc..", "..ccgfgggggfcb..", "..acggggggffbe..", "................", "................", "................"]}, "g_kaelte": {"w": 16, "h": 16, "pal": ["#4c7690", "#89d2e9", "#6097b4", "#324b62"], "rows": ["................", "................", ".......aa.......", "......abba......", "...acc.bb.cca...", "....bbccccbb....", "....dacbbcdd....", "....ddcbbcdd....", "....bbccacbc....", "...acc.cc.cca...", "......abcd......", ".......ca.......", "................", "................", "................", "................"]}, "g_schock": {"w": 16, "h": 16, "pal": ["#736839", "#8b7f44", "#dfd17c", "#625935"], "rows": ["................", "................", ".........a.a....", "....a...bb.b....", ".....b.acad.....", "..d..aaccd......", "..dcbaccccc.aa..", "..bddcccccabb...", "......dccad..a..", "....aabca.aa....", "....b.ab...b....", "....b.ba...dd...", "...d...a....d...", "................", "................", "................"]}, "g_fluch": {"w": 16, "h": 16, "pal": ["#402465", "#8131b8", "#53247e", "#62327d", "#9545bb", "#332d41", "#231638"], "rows": ["................", "................", "......abbca.....", "...dcbeeeebaa...", "...dbeddddebc...", "...beaaaaafeb...", "..aedgdedagaea..", "..bbgbeadebgbb..", "..cbgdeccebgeb..", "...bd.ddddfdea..", "...cedaaafdec...", "....cbbddbec....", "......cbbc......", "................", "................", "................"]}, "g_schutz": {"w": 16, "h": 16, "pal": ["#2b3e51", "#344d64", "#7686ab", "#9099cd", "#4e657c", "#a3afdc", "#cee7f7", "#2a3440"], "rows": ["................", "................", "....abcdccea....", "...effggdfffeb..", "..aefgggdddfea..", "..aefgggdddfea..", "..befgggfdddeb..", "..bedgggdcddeb..", "..abcfggdddcba..", "...bedfgdfdeb...", "...aaedffdecc...", "....eeeddeab....", "......hbba......", "................", "................", "................"]}, "g_barrikade": {"w": 16, "h": 16, "pal": ["#5c4639", "#513b30", "#6b4e3c", "#9b7856", "#846348", "#45302a", "#2f2729", "#2e2121"], "rows": ["................", ".....ab....ac...", "...cddebfedddda.", "..gee..adea..ea.", "...ddhfecf..fef.", "...bdacbhadcba..", "...gada...bde...", ".....cda..hbda..", "...a.faebfehcd..", "...ef..fbdc..eb.", "..gdagfceef.gcb.", "...edddebhbabc..", "....baf.........", "................", "................", "................"]}, "g_staerkung": {"w": 16, "h": 16, "pal": ["#972024", "#6d2129", "#8c342b", "#ca6f41", "#c44029", "#cd5735", "#e89c5d", "#322a30"], "rows": ["................", "................", "........abcddb..", ".....e.bfeggga..", ".....c.adggdda..", ".....aaeggfdfb..", "...afeeggddfb...", "...fgggdefehb...", "...feddcdfacb...", "...edaccgfe.....", "...fccadfab.....", "..ecbffffe......", "..ceebbaa.......", "................", "................", "................"]}, "g_tempo": {"w": 16, "h": 16, "pal": ["#7b7475", "#a3b8cb", "#634f49", "#33353c", "#29292f"], "rows": ["................", "................", "...a..a.........", "...bbcabd.......", "...abbbbba......", "....bbbbacc.....", "....cbbbaca.....", "......abbcc.....", ".....aacccc.....", ".....abaeccc....", "......abbacac...", "........aacc....", "................", "................", "................", "................"]}, "g_heilung": {"w": 16, "h": 16, "pal": ["#4daf57", "#529047", "#396038", "#b8ee83"], "rows": ["................", "................", "........a.......", ".......bb.......", "....cbbbbbbc....", "....bddaadab....", "...cbdddddab....", "....baddddab....", "....cbaddabc....", ".....cbaabc.....", "......cbb.......", ".......bc.......", "................", "................", "................", "................"]}, "g_wut": {"w": 16, "h": 16, "pal": ["#8d422d", "#8e2222", "#8f2d25", "#562127", "#d55f2f", "#d54826", "#e48e46", "#4e2d2d"], "rows": ["................", "................", "....a...b..cd...", "....e...fceef...", "...addbfeeeb.d..", "..acfeffeeffcb..", "..bfffeggffc..h.", "..fgegaggffddc..", ".agaceggfccdb...", "..ggabaecb......", ".heagadgeb.a....", ".daegadgfde.....", ".dfagbfa.ha.....", "................", "................", "................"]}, "g_eis": {"w": 16, "h": 16, "pal": ["#3b576b", "#73b5d1", "#4c7793", "#a3e6f5", "#6ed0f3", "#4fadde", "#2a3543"], "rows": ["................", "................", "....ab.bc.......", "...cca.de...a...", "...adcadbacdc...", "..bafdbdefdbaa..", "..a.ceeeeedf....", "....cffdeeecba..", "..abbdbdefbbb...", "...feeeffddfc...", "...bdbdfbdeff...", "..cdeddedffdea..", "..agcbbfgacga...", "................", "................", "................"]}};
+
+__exports.GEM = GEM;
+
+});
 __define("ui/art/core.js", function (__exports, __require) {
 // Pixel-Art-Kern: Text-Raster -> Pixel -> SVG (und PNG für Vorschauen). Keine Bilddateien nötig.
 // Jedes Zeichen im Raster ist ein Farbschlüssel, "." ist durchsichtig.
@@ -4536,6 +4543,7 @@ __exports.ALL_ICONS = ALL_ICONS;
 });
 __define("ui/art/index.js", function (__exports, __require) {
 // Öffentliche Grafik-Schnittstelle.
+const { GEM } = __require("ui/art/gem.js");
 const { pixels, toSvg, parse } = __require("ui/art/core.js");
 const { PALETTES } = __require("ui/art/palettes.js");
 const { SHAPES, MARKS, ITEM_ART } = __require("ui/art/shapes.js");
@@ -4569,7 +4577,12 @@ const enemyPixels = (id, opts = {}) => pixels(rigged(ENEMIES[id], id), opts);
 const CARD_ART_IDS = Object.keys(CARDS2);
 const cardPixels = (id, opts = {}) => pixels(CARDS2[id], opts);          // Kartenmotive (tools/figures/cards.mjs)
 const ICON_IDS = Object.keys(ALL_ICONS);
-const iconPixels = (id, opts = {}) => pixels(ALL_ICONS[id], opts);
+const GEM_PX = new Map();
+const gemPixels = (id) => {                                                        // Symbole aus dem Gemini-Sheet (ui/art/gem.js): fertige Pixel mit eigenen Farben
+  if (!GEM_PX.has(id)) { const g = GEM[id], px = []; g.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== ".") px.push([x, y, g.pal["abcdefghijklmnopqrstuvwxyz".indexOf(ch)]]); })); GEM_PX.set(id, { w: g.w, h: g.h, px, shiny: false }); }
+  return GEM_PX.get(id);
+};
+const iconPixels = (id, opts = {}) => (GEM[id] ? gemPixels(id) : pixels(ALL_ICONS[id], opts));
 
 // ---------------- Für die Oberfläche: fertige SVG-Strings (mit Zwischenspeicher)
 const cache = new Map();
@@ -5383,7 +5396,7 @@ const elementName = (id) => CONTENT.elements[id]?.name ?? id;
 
 // Status -> [Symbol-ID, Name]
 const STATUS = {
-  gift: ["poison", "Gift"], blutung: ["blood", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["wind", "Ausweichen"], dornen: ["thorns", "Dornen"], verbrennung: ["flame", "Verbrennung"], aussetzen: ["wind", "Aussetzen"], frost: ["snow", "Kälte"], eingefroren: ["snow", "Eingefroren"],
+  gift: ["g_gift", "Gift"], blutung: ["g_blutung", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["g_tempo", "Ausweichen"], dornen: ["g_barrikade", "Dornen"], verbrennung: ["g_verbrennung", "Verbrennung"], aussetzen: ["g_schock", "Aussetzen"], frost: ["g_kaelte", "Kälte"], eingefroren: ["g_eis", "Eingefroren"],
 };
 const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
 const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
@@ -5398,7 +5411,7 @@ const PCT_STATS = new Set(["lifesteal", "damagePct", "crit", "critDmg", "dodge",
 const fmtVal = (k, v) => `${v > 0 ? "+" : ""}${v}${PCT_STATS.has(k) ? "%" : ""}`;                       // +3% bzw. -2 (Prozent direkt am Wert)
 const fmtStat = (k, v) => `${fmtVal(k, v)} ${STAT_LABELS[k] ?? k}`;                                       // +3% Lebensraub
 const STAT_ICON = { maxHp: "heart", regen: "s_regen", lifesteal: "s_drop", damagePct: "s_up", meleeDmg: "s_fist", rangedDmg: "s_arrow", elementDmg: "s_orb", crit: "s_crit", armor: "shield", dodge: "wind", luck: "s_clover", ernte: "s_wheat",
-  energy: "bolt", handSize: "pile", goldPct: "coin", blockStart: "shield", shiny: "star", reaction: "s_orb", freezeEase: "snow", priceMod: "coin", rerollMod: "s_dice", freeRerolls: "s_dice", bossDmg: "skull", poisonPower: "poison", burnPower: "flame", bleedPower: "blood", critDmg: "c_burst", healPct: "plus", doubleChance: "s_coins", curse: "s_curse" };
+  energy: "bolt", handSize: "pile", goldPct: "coin", blockStart: "shield", shiny: "star", reaction: "s_orb", freezeEase: "snow", priceMod: "coin", rerollMod: "s_dice", freeRerolls: "s_dice", bossDmg: "skull", poisonPower: "poison", burnPower: "flame", bleedPower: "blood", critDmg: "c_burst", healPct: "plus", doubleChance: "s_coins", curse: "g_fluch" };
 
 const STAT_DESC = { critDmg: "Kritische Treffer machen mehr Schaden (Grundwert 150%).", maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
 const TIER_NAME = ["I", "II", "III", "IV"];
@@ -5603,7 +5616,7 @@ const biomeFor = (run) => (run && run.nodeId === "boss" ? 2 : run && (run.path?.
 // ---------------------------------------------------------------- Bausteine
 const bar = (x, y, w, frac, color = "#c73c3c", h = 5) =>
   `<rect x="${x - 1}" y="${y - 1}" width="${w + 2}" height="${h + 2}" fill="#17121f"/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#4a3a4a"/><rect x="${x}" y="${y}" width="${Math.max(0, Math.round(w * Math.min(1, frac)))}" height="${h}" fill="${color}"/>`;
-const icon = (id, x, y, s = 1, extra = {}) => spr("icon", id, { attrs: `x="${x}" y="${y}" width="${10 * s}" height="${10 * s}"`, ...extra });
+const icon = (id, x, y, s = 1, extra = {}) => { const k = id.startsWith("g_") ? 1.25 : 1; return spr("icon", id, { attrs: `x="${x - (k - 1) * 5 * s}" y="${y - (k - 1) * 5 * s}" width="${10 * s * k}" height="${10 * s * k}"`, ...extra }); };
 const text = (s, x, y, cls = "", extra = "") => `<text class="t ${cls}" x="${x}" y="${y}" ${extra}>${esc(s)}</text>`;
 const sparkles = (cx, cy, w, h) => [[-0.45, -0.4, 0], [0.5, -0.1, 0.5], [-0.1, 0.45, 1], [0.35, 0.5, 1.5]]
   .map(([dx, dy, d]) => `<g transform="translate(${Math.round(cx + dx * w - 6)} ${Math.round(cy + dy * h - 6)})" class="twinkle" style="animation-delay:${d}s">${spr("icon", "fx_spark", { attrs: 'width="12" height="12"' })}</g>`).join("");
@@ -5615,7 +5628,7 @@ function layoutEnemies(enemies) {
   const cols = two ? Math.ceil(n / 2) : n;
   enemies.forEach((e, i) => {
     const row = two ? i % 2 : 0, col = two ? Math.floor(i / 2) : i;
-    const x = zoneL + ((col + 0.5) * zoneW) / cols + (two && row ? 12 : 0);
+    const x = zoneL + ((col + 0.5) * zoneW) / cols + (two && row ? zoneW / cols / 2 : 0);
     const big = sprSize("enemy", e.id).h * enemyPx(e.id) > 100;
     out[e.uid] = { x: Math.min(x, W - 30), y: two ? (row ? 198 : 184) : big ? 196 : 192, order: row };
   });
@@ -5733,7 +5746,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
     const ael = e.elements?.[0];                                                  // Elementar-Aura hinter dem Gegner, beim Boss stärker
     const aura = ael ? `<ellipse class="aura" cx="${w / 2}" cy="${h * 0.56}" rx="${w * 0.66}" ry="${h * 0.6}" fill="url(#eg_${ael})" opacity="${m.rotateElement ? 1 : 0.7}"/>` : "";
     const shadow = `<ellipse cx="${w / 2}" cy="${h - 1}" rx="${w * 0.42}" ry="4.5" fill="#000" opacity=".42"/>`;
-    const sts = Object.entries(e.statuses).filter(([, v]) => v > 0).slice(0, 4);
+    const allSts = Object.entries(e.statuses).filter(([, v]) => v > 0), crowded = c.enemies.length > 3, maxSts = crowded ? 3 : 4, sts = allSts.slice(0, maxSts), moreSts = allSts.length - sts.length, gap = crowded ? 16 : 22;
     const ibox = intent ? `<g transform="translate(${p.x - 18} ${y0 - 17})"><rect width="36" height="14" rx="3" fill="#17121f" stroke="${intent.type === "attack" ? "#c73c3c" : "#4a7fd0"}" stroke-width="1.5"/>
         ${icon(intent.type === "attack" ? "sword" : intent.type === "skip" ? (intent.frozen ? "snow" : "wind") : "shield", 3, 2, 1)}${text(intent.type === "attack" ? `${intent.value}${(intent.hits ?? 1) > 1 ? "x" + intent.hits : ""}` : intent.type === "skip" ? (intent.frozen ? "Eis" : "Aus") : String(intent.value), 15, 11, "int")}</g>` : "";
     const platesTxt = m.plates && !dead ? `<g transform="translate(${p.x - 22} ${y0 - 33})"><rect width="44" height="13" rx="3" fill="#17121f" stroke="#8fa3b8"/>${icon("shield", 2, 1, 1)}${text(e.plates > 0 ? `Platten ${e.plates}` : "gebrochen", 14, 10, "plt")}</g>` : "";
@@ -5746,7 +5759,7 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
         ${spr("enemy", e.id, { shiny: e.shiny, element: el, attrs: `width="${w}" height="${h}"` })}</g></g></g></g></g></g>`;
     const ui = dead ? "" : `<g class="entui" pointer-events="none">${e.shiny ? sparkles(p.x, y0 + h / 2, w, h) : ""}${bar(p.x - bw / 2, p.y + 3, bw, e.hp / e.maxHp)}${text(`${e.hp}`, p.x, p.y + 19, "hp")}
       ${e.block > 0 ? `${icon("shield", p.x + bw / 2 + 1, p.y - 2, 1)}${text(String(e.block), p.x + bw / 2 + 12, p.y + 7, "blk")}` : ""}${elIcon}
-      ${sts.map(([k, v], i) => `${icon(STATUS[k]?.[0] ?? "star", p.x - sts.length * 11 + i * 22, p.y + 21, 1)}${text(String(v), p.x - sts.length * 11 + i * 22 + 10, p.y + 31, "num")}`).join("")}
+      ${sts.map(([k, v], i) => `${icon(STATUS[k]?.[0] ?? "star", p.x - sts.length * (gap / 2) + i * gap, p.y + 21, 1)}${text(String(v), p.x - sts.length * (gap / 2) + i * gap + 10, p.y + 31, "num")}`).join("")}${moreSts > 0 ? text(`+${moreSts}`, p.x + sts.length * (gap / 2) + 6, p.y + 31, "num") : ""}
       ${ibox}${platesTxt}${rot}${target || isFocus ? `<g class="ptr${isFocus && !target ? " focusmark" : ""}" transform="translate(${p.x - 8} ${y0 - 44})">${icon("pointer", 0, 0, 1.6)}</g>` : ""}</g>`;
     return { body, ui };
   });
