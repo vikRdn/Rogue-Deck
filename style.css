@@ -668,3 +668,10 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .wpn.wt2{filter:drop-shadow(0 0 2px #4a8fd8) drop-shadow(0 0 4px #4a8fd8)}.wpn.wt3{filter:drop-shadow(0 0 2px #a45bd6) drop-shadow(0 0 5px #a45bd6)}.wpn.wt4{filter:drop-shadow(0 0 3px #e8a33d) drop-shadow(0 0 7px #ff8a3c);animation:wglow 1.6s ease-in-out infinite}
 @keyframes wglow{50%{filter:drop-shadow(0 0 4px #ffd36b) drop-shadow(0 0 10px #ff8a3c)}}
 .wcmp.upg{background:rgba(107,242,154,.14);animation:upgpulse 1.4s ease-in-out infinite}@keyframes upgpulse{50%{box-shadow:0 0 8px #6bf29a}}
+
+/* ---- Fähigkeiten-Effekte: erscheinen, wachsen, verblassen; Farbe je Fähigkeit */
+.abfx{opacity:0;transform-box:fill-box;transform-origin:center;animation:abfx .75s var(--d,0s) ease-out both;pointer-events:none}
+@keyframes abfx{0%{opacity:0;transform:scale(.3) rotate(var(--r,0deg))}25%{opacity:1;transform:scale(1.15) rotate(var(--r,0deg))}100%{opacity:0;transform:scale(1.35) rotate(var(--r,0deg))}}
+.ab-fluchblitz,.ab-schattentausch,.ab-domain{filter:hue-rotate(250deg) saturate(1.5) drop-shadow(0 0 4px #b07cff)}.ab-seelenpfeil{filter:hue-rotate(160deg) saturate(1.6) drop-shadow(0 0 4px #7ff6ff)}
+.ab-hoellenflamme,.ab-feuerfaust{filter:drop-shadow(0 0 4px #ff8a3c)}.ab-absoluter_befehl{filter:hue-rotate(-30deg) drop-shadow(0 0 4px #a00)}.ab-heilende_ranken{filter:drop-shadow(0 0 4px #6bf29a)}
+@media (prefers-reduced-motion:reduce){.abfx{animation:none;opacity:0}}
