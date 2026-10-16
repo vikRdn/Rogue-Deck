@@ -99,7 +99,7 @@ __exports.audioState = audioState;
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "7.9",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "7.11",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
@@ -180,10 +180,11 @@ const CONFIG = {
     tierSplit: 4,               // ab dieser Ebene kommen Begegnungen der Stufe 2
   },
   // Erfahrung und Wert-Aufstiege (Brotato-Richtung): Gegner geben Erfahrung nach ihren Lebenspunkten, volle Leiste = ein Aufstieg mit 4 Wert-Angeboten
+  curse: { hp: 0.01, dmg: 0.006, gold: 0.03 },                                  // Fluch je Punkt: Gegner-HP, Gegner-Schaden, Gold (dazu +1 Glück je 5 Punkte)
   rank: { minXp: 20, perStage: 18, perFight: 2, win: 150, base: 100, step: 30 },      // Konto-Rang: Erfahrung je Run (auch bei Niederlage), Bedarf für den nächsten Rang = base + step je Rang
   agency: { banishTokens: 3, levelRerollBase: 8, levelRerollStep: 4, skipGold: 6 },     // Einfluss auf den Zufall: Verbannen (Marken je Run), Level-up neu würfeln (Gold), Überspringen einer Karten- oder Item-Beute bringt Gold (wächst mit der Stage)
   weaponUpgrades: { max: 8, offer: 3, tierAt: [0, 1, 3, 6] },                      // Veredelungen: höchstens 8 je Run, 3 zur Wahl nach Mini-Bossen; Stufe I bis IV (nur Optik) nach Anzahl
-  weaponTiers: { power: [0, 1, 2, 3], names: ["I", "II", "III", "IV"] },     // Waffen-Stufen: Zusatzstärke je Stufe; dieselbe Waffe nochmal gewählt = nächste Stufe
+  weaponTiers: { names: ["I", "II", "III", "IV"] },     // Waffen-Stufen: Zusatzstärke je Stufe; dieselbe Waffe nochmal gewählt = nächste Stufe
   draft: { rounds: 4, options: 3, ownWeight: 2.5 },        // Startdeck-Draft: 4 Züge, je 3 Karten zur Wahl, eigene Klassenkarten 2,5x so wahrscheinlich
   xp: { hpPerXp: 14, base: 8, step: 4 },
   // Run-Struktur: 10 Stages mit je einer Karte (Kämpfe, Elite, Mini-Boss, Rast, Händler, Ereignisse). Stage 1 bis 9 enden mit einem Wächter, Stage 10 mit dem Endboss. Gegner, Gold und Preise wachsen von Stage zu Stage.
@@ -1765,7 +1766,7 @@ const PACK = {
     gluecksmuenze: { name: "Glücksmünze", tags: ["item", "gold"], stats: { doubleChance: 10, luck: 1 }, text: "10% Doppel-Gold-Chance, +1 Glück." },
     verfluchter_dolch: { name: "Verfluchter Dolch", rarity: "selten", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 6, damagePct: 14 }, text: "+6 Fluch (Gegner stärker, mehr Gold und bessere Beute), +14% Schaden." },
     fluchsiegel: { name: "Fluchsiegel", rarity: "ungewoehnlich", tags: ["item", "fluch"], stats: { curse: 4, luck: 2, ernte: 1 }, text: "+4 Fluch, +2 Glück, +1 Ernte." },
-    daemonenpakt: { name: "Dämonenpakt", rarity: "legendaer", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 10, damagePct: 20, armor: 2, luck: 2 }, text: "+10 Fluch, +20% Schaden, +2 Rüstung, +2 Glück." },
+    daemonenpakt: { name: "Dämonenpakt", rarity: "legendaer", maxStack: 1, tags: ["item", "fluch"], stats: { curse: 8, damagePct: 20, armor: 2, luck: 2 }, text: "+8 Fluch, +20% Schaden, +2 Rüstung, +2 Glück." },
     herz_der_vollendung: { name: "Herz der Vollendung", rarity: "legendaer", maxStack: 1, tags: ["item"], unlock: { type: "achievement", id: "x_vollendung" }, stats: { damagePct: 10, armor: 2, luck: 3, regen: 2, crit: 6, maxHp: 15, ernte: 2 }, text: "Die Belohnung für 100%: +10% Schaden, +2 Rüstung, +3 Glück, +2 Regeneration, +6% Krit, +15 Max-HP, +2 Ernte." },
     koenigsring: { name: "Königsring", rarity: "selten", tags: ["item", "gold"], stats: { luck: 4, ernte: 2, damagePct: 5, armor: -1 }, text: "+4 Glück, +2 Ernte, +5% Schaden, -1 Rüstung." },
   },
@@ -2224,7 +2225,7 @@ function spawnNextWave(s) {
 // Gegner mit Schwierigkeits-Skalierung und Mechaniken (Element-Wechsel, Panzerplatten, Phasen)
 function makeEnemy(s, id, uid, shiny) {
   const def = CONTENT.enemies[id];
-  const hp = Math.round(def.hp * s.diff.hpMult * stageMul(CONFIG.stageScale.hp, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalHp : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigHp : 1) * (shiny ? CONFIG.shiny.enemyHpMult : 1) * (1 + 0.02 * (s.build.stats.curse ?? 0)));
+  const hp = Math.round(def.hp * s.diff.hpMult * stageMul(CONFIG.stageScale.hp, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalHp : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigHp : 1) * (shiny ? CONFIG.shiny.enemyHpMult : 1) * (1 + CONFIG.curse.hp * (s.build.stats.curse ?? 0)));
   const m = def.mechanics ?? {};
   const e = { uid, id, shiny, name: `${shiny ? "✦ " : ""}${def.name}`, hp, maxHp: hp, block: 0, statuses: {},
               patternIdx: 0, elements: [...def.elements], phasesDone: [] };
@@ -2241,7 +2242,7 @@ function intentOf(s, e) {
   if ((e.statuses.eingefroren ?? 0) > 0) return { type: "skip", value: 0, frozen: true };   // eingefroren: überspringt die nächste Aktion
   if ((e.statuses.aussetzen ?? 0) > 0) return { type: "skip", value: 0 };       // bestochen: setzt diese Runde aus
   const i = getIntent(e);
-  return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult * stageMul(CONFIG.stageScale.dmg, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalDmg : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigDmg : 1) * (1 + 0.012 * (s.build.stats.curse ?? 0)))) } : i;
+  return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult * stageMul(CONFIG.stageScale.dmg, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalDmg : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigDmg : 1) * (1 + CONFIG.curse.dmg * (s.build.stats.curse ?? 0)))) } : i;
 }
 
 function checkPhases(s, e) {
@@ -4544,7 +4545,7 @@ __exports.ALL_ICONS = ALL_ICONS;
 __define("ui/art/index.js", function (__exports, __require) {
 // Öffentliche Grafik-Schnittstelle.
 const { GEM } = __require("ui/art/gem.js");
-const { pixels, toSvg, parse } = __require("ui/art/core.js");
+const { pixels, toSvg } = __require("ui/art/core.js");
 const { PALETTES } = __require("ui/art/palettes.js");
 const { SHAPES, MARKS, ITEM_ART } = __require("ui/art/shapes.js");
 const { WEAPON_SHAPES, WEAPON_ASYM, WEAPON_ART } = __require("ui/art/weapons.js");
@@ -4778,7 +4779,7 @@ const EN_ITEMS = {
   gutschein: ["Guild Coupon", "-10% shop prices."], handelsabkommen: ["Merchant Accord", "-20% shop prices, +1 Harvest."], wuerfelbecher: ["Gacha Capsule", "1 free reroll per shop, reroll price -50%."], gluecksrad: ["Wheel of Fate", "2 free rerolls per shop, +2 Luck."],
   drachentoeter: ["Dragonslayer", "+25% damage vs bosses, guardians and elites."], henkersbeil: ["Executioner's Guillotine", "+50% damage vs bosses, guardians and elites, -1 Armor."], schlangengift: ["Serpent Toxin", "Poison ticks for +1 more damage."], gluthoel: ["Burning Oil", "Burn ticks for +1 more damage."],
   dornenwein: ["Crimson Wine", "Bleed ticks for +1 more damage."], kraeutertee: ["Calming Tea", "+25% healing."], lebensquell: ["Fountain of Youth", "+50% healing, +1 Regeneration."], goldwaescher: ["Prospector's Pan", "15% chance that a combat's Gold reward is doubled."],
-  gluecksmuenze: ["Five-Yen Coin", "10% Double Gold chance, +1 Luck."], verfluchter_dolch: ["Muramasa Dagger", "+6 Curse (stronger enemies, more Gold and better loot), +14% Damage."], fluchsiegel: ["Curse Ofuda", "+4 Curse, +2 Luck, +1 Harvest."], daemonenpakt: ["Demon Lord Pact", "+10 Curse, +20% Damage, +2 Armor, +2 Luck."],
+  gluecksmuenze: ["Five-Yen Coin", "10% Double Gold chance, +1 Luck."], verfluchter_dolch: ["Muramasa Dagger", "+6 Curse (stronger enemies, more Gold and better loot), +14% Damage."], fluchsiegel: ["Curse Ofuda", "+4 Curse, +2 Luck, +1 Harvest."], daemonenpakt: ["Demon Lord Pact", "+8 Curse, +20% Damage, +2 Armor, +2 Luck."],
   herz_der_vollendung: ["Core of Completion", "The reward for 100%: +10% Damage, +2 Armor, +3 Luck, +2 Regeneration, +6% Crit, +15 Max HP, +2 Harvest."],
 };
 
@@ -4925,7 +4926,7 @@ const EN_UI = {
   "Endboss": "Final boss", "Ereignis": "Event", "Erfolg freigeschaltet": "Achievement unlocked", "Erfolge": "Achievements", "Farben der Helden": "Hero colors", "Farbvariante": "Color variant", "Freischaltungen": "Unlocks",
   "Gegner": "Enemies", "Geschichte": "Story", "Gesperrt": "Locked", "Gewöhnlich": "Common", "Ungewöhnlich": "Uncommon", "Selten": "Rare", "Legendär": "Legendary", "Gift": "Poison", "Helden": "Heroes", "Händler": "Merchant",
   "Item für die nächste Runde sperren": "Lock item for the next merchant visit", "Sperre aufheben": "Remove lock", "Midas-Fluch: Sperren ist dauerhaft deaktiviert": "Midas Curse: locking is permanently disabled", "Items": "Items", "Waffen": "Weapons", "Waffe": "Weapon", "Karte": "Card", "Karten": "Cards",
-  "Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Bessere Waffen findest du später, zum Beispiel nach dem Mini-Boss.": "Every weapon is free to choose and suits one hero best. You'll find better weapons later, for example after the mini-boss.",
+  "Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Veredelungen für deine Waffe findest du später, zum Beispiel nach dem Mini-Boss.": "Every weapon is free to choose and suits one hero best. You'll find refinements for your weapon later, for example after a mini-boss.",
   "Kampf": "Combat", "Kampfszene": "Combat scene", "Karte wählen (oder überspringen)": "Choose a card (or skip)", "Klasse:": "Class:", "Kämpfe": "Combats", "Kämpfe:": "Combats:", "Leuchtende Orte sind erreichbar.": "Glowing places are reachable.",
   "Manche Erfolge zeigen sich erst, wenn du sie erreichst.": "Some achievements only appear once you reach them.", "Mehr": "More", "Menü": "Menu", "Mini-Boss": "Mini-boss", "Nachziehstapel": "Draw pile", "Nehmen": "Take", "Gewählt": "Chosen",
   "Neu freigeschaltet:": "Newly unlocked:", "Neue Erfolge:": "New achievements:", "Neue Varianten und Rahmen schaltest du über Erfolge frei. Ein Rahmen umrandet alle Karten und Items im Spiel (Hand, Shop, Beute).": "Unlock new variants and frames through achievements. A frame outlines all cards and items in the game (hand, shop, rewards).", "Neuer Run": "New run", "Noch keine Items.": "No items yet.",
@@ -4972,7 +4973,7 @@ const EN_UI = {
   "Sieg!": "Victory!", "Niederlage": "Defeat",
   "Lebensraub": "Lifesteal", "Schaden": "Damage", "Krit-Chance": "Crit Chance", "Ausweichen": "Dodge", "Gold": "Gold", "Preise": "Prices", "Reroll-Preis": "Reroll price", "Schaden gegen Bosse": "Damage vs bosses", "Heilung": "Healing", "Doppel-Gold": "Double Gold", "Reaktionen": "Reactions",
   "Wird behalten": "Will be kept", "Am Zugende behalten": "Keep at end of turn", "Gratis": "Free",
-  "Automatisch wählen": "Choose automatically", "Empfohlen": "Recommended", "NEU": "NEW", "Neu wählen": "Choose again", "Dein Startdeck steht. Mit Aufbrechen beginnt der Run.": "Your starting deck is set. Set out to begin the run.", "Weiter": "Next",
+  "Automatisch wählen": "Choose automatically", "Empfohlen": "Recommended", "NEU": "NEW", "Neu wählen": "Choose again", "Dein Startdeck steht. Mit Aufbrechen beginnt der Run.": "Your starting deck is set. Set out to begin the run.",
   "Karte für die nächste Runde sperren": "Lock card for the next round",
   "Waffe ▲": "Weapon ▲",
   "Wirkt immer, unabhängig von deinem Deck.": "Always works, independent of your deck.", "Passende Karten in deinem Deck": "Matching cards in your deck", "Keine passende Karte in deinem Deck": "No matching card in your deck",
@@ -4986,6 +4987,14 @@ const EN_UI = {
   "E-Rang": "E-Rank", "D-Rang": "D-Rank", "C-Rang": "C-Rank", "B-Rang": "B-Rank", "A-Rang": "A-Rank", "S-Rang": "S-Rank", "National-Rang": "National-Rank", "Selbstschaden": "Self-damage",
   "Selbstschaden gehörte zum letzten Zug dazu: prüfe, wie viel HP deine Karten und Items dich kosten.": "Self-damage was part of the last turn: check how much HP your cards and items cost you.", "Im letzten Gegnerzug hattest du keinen Block aktiv.": "You had no Block active during the last enemy turn.", "Ein einziger Gegnerzug nahm dir über die Hälfte deiner HP. Die Absicht der Gegner ist vorher sichtbar: halte dann Block oder Ausweichen bereit.": "A single enemy turn took more than half your HP. Enemy intent is shown beforehand: keep Block or Dodge ready then.", "Mehr Max-HP, Rüstung oder Heilung hätten diesen Kampf überbrückt.": "More max HP, armor or healing would have bridged this fight.",
   "Krit-Schaden": "Crit Damage", "Kritische Treffer machen mehr Schaden (Grundwert 150%).": "Critical hits deal more damage (base 150%).", "Überleben": "Survival", "Schaden": "Damage", "Wirtschaft": "Economy", "Karten-Fluss": "Card flow", "Statuseffekte": "Status effects", "Risiko": "Risk", "Einmal je Kampf": "Once per combat",
+  "Ein Kampf beginnt!": "A fight begins!", "Chrom-Gegner besiegt!": "Chrome enemy defeated!", "Keine Karten auf der Hand": "No cards in hand", "Zu wenig Energie": "Not enough energy", "Karte behalten": "Keep card", "Item wählen": "Choose item", "Los geht's": "Let's go", "Entfernen": "Remove", "Nichts passiert.": "Nothing happens.",
+  "✓ Karte": "✓ Card", "✓ Veredelung ▲": "✓ Refinement ▲", "✓ Chrom-Item": "✓ Chrome item", "✓ Chrom-Waffe": "✓ Chrome weapon", "Chrom-Held!": "Chrome hero!", "Sehr selten: Dein Held schimmert wie Chrom.": "Very rare: Your hero shimmers like chrome.", "Typen im Build (für Synergien)": "Types in your build (for synergies)",
+  "Chrom-Vorschau starten": "Start chrome preview", "Ein Run, in dem alles Shiny ist. Nichts wird gespeichert.": "A run where everything is shiny. Nothing is saved.",
+  "Geheimer Erfolg": "Secret achievement", "unbekannt": "unknown", "keiner mehr": "none left", "Kein Level-up offen": "No level-up open", "Nicht verbannbar": "Can't be banished", "Nicht möglich": "Not possible", "Hier nicht möglich": "Not possible here",
+  "älteres Speicherformat": "older save format", "Inhalte haben sich geändert": "content has changed", "Klasse existiert nicht mehr": "class no longer exists", "Spielstand beschädigt": "Save damaged", "Im Kampf kann nicht gespeichert werden": "Can't save during a fight",
+  "Kampf beendet": "Fight over", "Kein aktives Item": "No active item", "Schon benutzt (1x pro Kampf)": "Already used (once per fight)", "Keine Karte": "No card", "Pech gehabt.": "Bad luck.", "Chrom-Vorschau": "Chrome preview", "Spielen": "Play", "Grundpreis": "Base price", "(zu wenig Gold)": "(not enough gold)",
+  "benutzt": "used", "aktiv": "active", "Unbeugsam": "Unyielding", "Nekromanten-Pakt": "Necromancer pact", "Kampfbeginn": "Start of combat", "Zugbeginn": "Start of turn", "Zugende": "End of turn", "Karte gespielt": "Card played", "Alle Karten": "All cards", "Status aufgetragen": "Status applied", "Du wirst getroffen": "You are hit", "Du verlierst HP": "You lose HP", "Kampf gewonnen": "Fight won",
+  "Fluch-Items": "Curse items", "Machen Gegner stärker, geben dafür Gold und Glück.": "Make enemies stronger, but give gold and luck.",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -5006,12 +5015,53 @@ const EN_UI = {
   "Der Schaden hängt von deinem aktuellen Block ab. Der Block bleibt erhalten.": "The damage depends on your current Block. The Block is kept.", "Kostet HP, aber nie die letzte: mindestens 1 HP bleibt. Zählt nicht als erlittener Schaden.": "Costs HP, but never the last one: at least 1 HP remains. Doesn't count as damage taken.",
   "Zwei verschiedene Elemente nacheinander im selben Zug lösen eine Reaktion mit Zusatzwirkung aus.": "Two different elements in a row in the same turn trigger a Reaction with a bonus effect.", "Fängt Schaden ab und verfällt zu Beginn deines nächsten Zuges.": "Absorbs damage and expires at the start of your next turn.",
 };
+// Kampf-Log, Status-Namen und Elemente: eigene Tabellen, damit die Muster unten kurz bleiben
+const ST_EN = { Gift: "Poison", Blutung: "Bleed", Verwundbar: "Vulnerable", Markiert: "Marked", Ausweichen: "Dodge", Dornen: "Thorns", Verbrennung: "Burn", Aussetzen: "Skip", "Kälte": "Chill", Eingefroren: "Frozen", Unbeugsam: "Unyielding", Ausweichwert: "Dodge stat" };
+const ST_LOW = { gift: "poison", blutung: "bleed", verwundbar: "vulnerable", markiert: "marked", verbrennung: "burn", frost: "chill", eingefroren: "frozen", aussetzen: "skip", ausweichen: "dodge", dornen: "thorns" };
+const TAG_EN = { feuer: "fire", wasser: "water", pflanze: "plant", eis: "ice", blut: "blood", gift: "poison", heilung: "healing", dornen: "thorns", block: "block", gold: "gold", fernkampf: "ranged", nahkampf: "melee", zauber: "spell", angriff: "attack", flaeche: "area", utility: "utility", ausweichen: "dodge", ruestung: "armor", pakt: "pact", debuff: "debuff", reaktion: "reaction", item: "item", fluch: "curse" };
+const END_EN = (x) => (x === "besiegt" ? "defeated" : x);
+const MARK_EN = { "sehr effektiv": "very effective", resistent: "resistant", KRITISCH: "CRITICAL" };
+const KIND_EN = { "Wächter": "Guardian", "Mini-Boss": "Mini-boss", Elite: "Elite", Endboss: "Final boss" };
+const DIFF_EN = { Normal: "Normal", Schwer: "Hard", Albtraum: "Nightmare" };
 const EN_PATTERNS = [
+  [/^(\d+) Runs · (\d+) Siege · Stage (\d+) · (Normal|Schwer|Albtraum)$/, (t, a, b, s, d) => `${a} runs · ${b} wins · Stage ${s} · ${DIFF_EN[d]}`], [/^(.+) · (Normal|Schwer|Albtraum)$/, (t, c, d) => `${t(c)} · ${DIFF_EN[d]}`],
+  [/^Sieg · (\d+) Kämpfe$/, (t, n) => `Victory · ${n} fights`], [/^Niederlage in Stage (\d+) · (\d+) Kämpfe$/, (t, s, n) => `Defeat in Stage ${s} · ${n} fights`],
+  [/^(.+) endet$/, (t, n) => `${n} ends`], [/^Nekromanten-Pakt: Heilung (\d+) wird zu (\d+) Schaden an (.+)$/, (t, a, b, n) => `Necromancer pact: healing ${a} becomes ${b} damage to ${n}`],
+  [/^(.+?): (.+) Panzerplatte zerbricht \((\d+) übrig\)$/, (t, s, n, k) => `${s}: ${n} armor plate breaks (${k} left)`], [/^(.+): Panzer gebrochen, 2 Züge verwundbar!$/, (t, n) => `${n}: shell broken, vulnerable for 2 turns!`], [/^(.+): Panzerplatten wachsen nach \((\d+)\)$/, (t, n, k) => `${n}: armor plates regrow (${k})`],
+  [/^(.+) ist unbestechlich$/, (t, n) => `${n} can't be bribed`], [/^(.+) ist immun gegen Kälte$/, (t, n) => `${n} is immune to chill`], [/^(.+) friert ein!$/, (t, n) => `${n} freezes!`], [/^Bestechung kostet (\d+) Gold$/, (t, n) => `Bribe costs ${n} Gold`],
+  [/^> (.+) \(Fähigkeit\)$/, (t, n) => `> ${n} (ability)`], [/^(.+): (\d+) Züge lang ignorieren deine Treffer Block, Endschaden x([\d.,]+)$/, (t, n, k, x) => `${n}: for ${k} turns your hits ignore Block, final damage x${x}`],
+  [/^Behalten: (.+)$/, (t, n) => `Kept: ${n}`], [/^(.+) wechselt zu (.+)$/, (t, n, e) => `${n} switches to ${TAG_EN[e] ?? e}`], [/^Noch (\d+) Züge Cooldown$/, (t, n) => `${n} more turns of cooldown`],
+  [/^Der Kampf dauerte (\d+) Züge: mehr Schaden pro Zug oder Heilung hätte geholfen\.$/, (t, n) => `The fight lasted ${n} turns: more damage per turn or healing would have helped.`],
+  [/^Spielstand nicht kompatibel: (.+)$/, (t, x) => `Save not compatible: ${t(x)}`], [/^Unbekannte Aktion: (.+)$/, (t, x) => `Unknown action: ${x}`], [/^(.+) ist jetzt Stufe (\d+)\.$/, (t, n, l) => `${n} is now level ${l}.`], [/^Du wurdest zu (\d+) ?% geheilt\.$/, (t, n) => `You were healed by ${n}%.`],
+  [/^(.+) gesperrt: wartet auf den nächsten Händler$/, (t, x) => `${t(x)} locked: waits for the next merchant`], [/^(\d+) ?Gesperrt$/, (t, n) => `${n} Locked`], [/^(.+) Tippe einen Gegner an$/, (t, x) => `${x} Tap an enemy`], [/^Stufe (\d+): Wert-Aufstieg wählen$/, (t, n) => `Level ${n}: choose a stat upgrade`], [/^Neu würfeln \((.+)\)$/, (t, x) => `Reroll (${x.replace(/gratis x(\d+)/, "free x$1")})`], [/^Schredder \((\d+)\)$/, (t, n) => `Shredder (${n})`],
+  [/^· Passt zu: (.+)$/, (t, x) => `· Fits: ${x}`], [/^Kein Ort vom Typ (.+) auf dieser Karte$/, (t, x) => `No ${t(x)} location on this map`],
+  [/^Rang (\d+) erreicht:$/, (t, n) => `Rank ${n} reached:`], [/^Teilnahme \+(\d+)$/, (t, n) => `Participation +${n}`], [/^(\d+) Kämpfe \+(\d+)$/, (t, a, b) => `${a} fights +${b}`], [/^Sieg \+(\d+)$/, (t, n) => `Victory +${n}`], [/^Zug (\d+): (.+)$/, (t, n, who) => `Turn ${n}: ${t(who)}`],
+  [/^Ein Shiny taucht mit 1 zu (\d+) pro Gegner auf\. Ein Chrom-Held erscheint mit 1 zu (\d+) beim Run-Start\. Gefundene Shinys erscheinen hier als Chrom-Variante\.$/, (t, a, b) => `A shiny appears at 1 in ${a} per enemy. A chrome hero appears at 1 in ${b} at run start. Found shinies show up here as chrome variants.`],
+  [/^(\d+) Run\(s\) (spielen|gewinnen)$/, (t, n, w) => `${w === "spielen" ? "Play" : "Win"} ${n} run(s)`], [/^(\d+)x den Endboss besiegen$/, (t, n) => `Defeat the final boss ${n}x`], [/^(\d+) Shiny finden$/, (t, n) => `Find ${n} shiny`],
+  [/^(Dornen|Unbeugsam|Blutung|Gift|Verbrennung): (.+) -(\d+) \((HP \d+|besiegt)\)$/, (t, s, n, a, e) => `${ST_EN[s]}: ${n} -${a} (${END_EN(e)})`],
+  [/^(.+) trifft dich für (\d+) \(Block (\d+)\)$/, (t, n, a, b) => `${n} hits you for ${a} (Block ${b})`],
+  [/^(.+) verfehlt dich \((Ausweichen|Ausweichwert)\)$/, (t, n, w) => `${n} misses you (${ST_EN[w]})`],
+  [/^(.+) setzt (diese Runde )?aus$/, (t, n, r) => `${n} skips${r ? " this round" : ""}`],
+  [/^(.+?): \+(\d+) (gift|blutung|verwundbar|markiert|verbrennung|frost|eingefroren|aussetzen|ausweichen|dornen)$/, (t, n, a, s) => `${n === "Du" ? "You" : n}: +${a} ${ST_LOW[s]}`],
+  [/^(.+) \+(\d+) (gift|blutung|verwundbar|markiert|verbrennung|frost|eingefroren|aussetzen|ausweichen|dornen)$/, (t, n, a, s) => `${n} +${a} ${ST_LOW[s]}`],
+  [/^Dornen treffen (.+) für (\d+)$/, (t, n, a) => `Thorns hit ${n} for ${a}`],
+  [/^Unbeugsam: (\d+) Schaden$/, (t, a) => `Unyielding: ${a} damage`], [/^Du verlierst (\d+) HP$/, (t, a) => `You lose ${a} HP`],
+  [/^(.+?): (.+) -(\d+)((?: \[(?:sehr effektiv|resistent|KRITISCH)\])*) \((HP \d+|besiegt)\)$/, (t, c, n, a, m, e) => `${c}: ${n} -${a}${m.replace(/sehr effektiv|resistent|KRITISCH/g, (w) => MARK_EN[w])} (${END_EN(e)})`],
+  [/^--- Welle (\d+): (.+)$/, (t, n, l) => `--- Wave ${n}: ${l}`], [/^\*\*\* Reaktion: (.+) \((\w+) \+ (\w+)\)$/, (t, n, a, b) => `*** Reaction: ${n} (${TAG_EN[a] ?? a} + ${TAG_EN[b] ?? b})`],
+  [/^(Gift|Blutung|Verwundbar|Markiert|Ausweichen|Dornen|Verbrennung|Aussetzen|Kälte|Eingefroren|Unbeugsam) (\d+)$/, (t, s, n) => `${ST_EN[s]} ${n}`],
+  [/^Überschuss \+(\d+)$/, (t, n) => `Overkill +${n}`], [/^Ernte \+(\d+)$/, (t, n) => `Harvest +${n}`],
+  [/^(feuer|wasser|pflanze|eis|blut|gift|heilung|dornen|block|gold|fernkampf|nahkampf|zauber|angriff|flaeche|utility|ausweichen|ruestung|pakt|debuff|reaktion|item|fluch) (\d+)$/, (t, g, n) => `${TAG_EN[g]} ${n}`],
+  [/^Erhalten: (.+)$/, (t, x) => `Received: ${x}`], [/^Chrom-Held: \+(\d+) Glück in diesem Run$/, (t, n) => `Chrome hero: +${n} Luck this run`],
+  [/^Verbannen \((\d+) übrig\): kommt in diesem Run nicht mehr vor$/, (t, n) => `Banish (${n} left): will not appear again this run`],
+  [/^(.+) \(zu wenig Gold\)$/, (t, x) => `${t(x)} (not enough gold)`],
+  [/^(.+) · (Normal|Schwer|Albtraum) · Stage (\d+)\/(\d+) · (.+)$/, (t, c, d, a, b, k) => `${t(c)} · ${{ Normal: "Normal", Schwer: "Hard", Albtraum: "Nightmare" }[d]} · Stage ${a}/${b} · ${KIND_EN[k] ?? t(k)}`],
+  [/^Bonus: \+(\d+) Gold, ein seltenes Chrom-Item und eine Chrom-Waffe zur Wahl\.$/, (t, n) => `Bonus: +${n} Gold, a rare chrome item and a chrome weapon to choose from.`],
+  [/^Chrom-Fund: Waffe \(aktuell: (.+), Stärke (\d+)\)$/, (t, n, p) => `Chrome find: weapon (current: ${n}, Power ${p})`],
   [/^Rolle: (.+)$/, (t, x) => `Role: ${x.split(" · ").map((y) => t(y)).join(" · ")}`],
   [/^Nochmal: (.+)$/, (t, n) => `Again: ${t(n)}`], [/^Rang (\d+) · (.+?)( · (\d+)\/(\d+) EP)?$/, (t, l, ti, x, a, b) => `Rank ${l} · ${t(ti)}${x ? ` · ${a}/${b} XP` : ""}`], [/^\+(\d+) EP$/, (t, n) => `+${n} XP`],
   [/^Rang (\d+) erreicht: (.+)$/, (t, l, x) => `Rank ${l} reached: ${t(x)}`], [/^Nächste Belohnung bei Rang (\d+): (.+) \(noch (\d+) EP bis Rang (\d+)\)$/, (t, l, x, n, r) => `Next reward at rank ${l}: ${t(x)} (${n} XP to rank ${r})`], [/^Noch (\d+) EP bis Rang (\d+)$/, (t, n, r) => `${n} XP to rank ${r}`],
   [/^Zug (\d+): (.+) -(\d+)( \((\d+) geblockt\))?$/, (t, n, who, a, x, b) => `Turn ${n}: ${t(who)} -${a}${b ? ` (${b} blocked)` : ""}`],
-  [/^Stage (\d+), Ebene (\d+) · Gegner: (.+) · Zug (\d+)$/, (t, s, l, e, z) => `Stage ${s}, floor ${l} · Enemies: ${e} · Turn ${z}`], [/^Letzter Gegnerzug: (\d+) Schaden bei (\d+) Max-HP, (\d+) geblockt\.$/, (t, a, m, b) => `Last enemy turn: ${a} damage at ${m} max HP, ${b} blocked.`], [/^Tipp: (.+)$/, (t, x) => `Tip: ${t(x)}`],
+  [/^Stage (\d+), Ebene (\d+) · Gegner: (.+) · Zug (\d+)$/, (t, s, l, e, z) => `Stage ${s}, floor ${l} · Enemies: ${e === "keiner mehr" ? "none left" : e} · Turn ${z}`], [/^Letzter Gegnerzug: (\d+) Schaden bei (\d+) Max-HP, (\d+) geblockt\.$/, (t, a, m, b) => `Last enemy turn: ${a} damage at ${m} max HP, ${b} blocked.`], [/^Tipp: (.+)$/, (t, x) => `Tip: ${t(x)}`],
   [/^Verbannen \((\d+)\)$/, (t, n) => `Banish (${n})`], [/^Neu würfeln \((\d+) Gold\)$/, (t, n) => `Reroll (${n} Gold)`], [/^Weiter \(\+(\d+) Gold\)$/, (t, n) => `Continue (+${n} Gold)`],
   [/^Verbannt: (.+) \((\d+) Marken übrig\)$/, (t, n, m) => `Banished: ${n} (${m} tokens left)`], [/^Neu gewürfelt \(-(\d+) Gold\)$/, (t, n) => `Rerolled (-${n} Gold)`],
   [/^Veredle deine Waffe \((.+), Veredelung (\d+) von (\d+)\)$/, (t, n, a, b) => `Refine your weapon (${n}, refinement ${a} of ${b})`], [/^Waffe veredelt: (.+)$/, (t, n) => `Weapon refined: ${n}`],
@@ -5595,7 +5645,7 @@ __define("ui/scene.js", function (__exports, __require) {
 const { tierOf } = __require("ui/audio.js");
 const { tierOfCount } = __require("engine/upgrades.js");
 const { CONTENT } = __require("content/index.js");
-const { aliveEnemies, intentOf } = __require("engine/combat.js");
+const { intentOf } = __require("engine/combat.js");
 const { spr, sprSize, heroPx, npcPx, enemyPx, enemyFootprint, handOf, weaponPx, weaponGrip, cardIconId, elementIconId } = __require("ui/art/index.js");
 const { esc, skinPal } = __require("ui/util.js");
 const { elementColor, STATUS } = __require("ui/theme.js");
@@ -6105,7 +6155,7 @@ const createMeta = () => ({
   discovered: { items: {}, cards: {}, weapons: {}, enemies: {}, reactions: {} },
   achievements: {},                                   // id -> { at }
   cosmetics: { skin: {}, frame: "default" },          // gewählte Farbvariante je Held und Kartenrahmen
-  settings: { speed: 1, manual: false, autoEnd: true, size: "gross", lang: "de", wake: true, sound: true, volume: "mittel" }, // Kampf-Bedienung: Tempo, manuelles Zielen, Zug automatisch beenden
+  settings: { speed: 1, manual: false, autoEnd: true, size: "gross", lang: "de", wake: true, sound: true, volume: "mittel", curse: true }, // Kampf-Bedienung: Tempo, manuelles Zielen, Zug automatisch beenden
 });
 
 // Ergänzt bei älteren Spielständen fehlende Felder (neue Funktionen, alter Fortschritt bleibt erhalten)
@@ -6384,6 +6434,7 @@ function maxedItems(build) {
     .map(([id]) => id));
 }
 
+const isCurseItem = (d) => (d.stats?.curse ?? 0) > 0 || (d.tags ?? []).includes("fluch");        // Fluch-Items lassen sich vor dem Run abschalten (wie bei Brotato)
 // Ein Item, dessen Wirkung nur auf Karten mit bestimmtem Tag greift, ist für Klassen, deren Kartenpool dieses Tag kaum hat, wenig sinnvoll: es erscheint selten (Gewicht 0,15).
 const POOL_TAGS = new Map();
 function poolTagCount(classId, tag) {
@@ -6398,7 +6449,7 @@ function poolFit(def, classId) {
 }
 function candidates(kind, ctx, rarity, exclude) {
   return Object.values(CONTENT[kind]).filter((d) =>
-    d.rarity === rarity && !exclude.has(d.id) && !(ctx.banned?.[kind] ?? []).includes(baseOf(d.id)) && !d.noReward && isUnlocked(ctx.meta, kind, d) &&
+    d.rarity === rarity && !exclude.has(d.id) && !(ctx.banned?.[kind] ?? []).includes(baseOf(d.id)) && !(ctx.noCurse && kind === "items" && isCurseItem(d)) && !d.noReward && isUnlocked(ctx.meta, kind, d) &&
     (d.pools.includes("alle") || (CONTENT.classes[ctx.classId]?.cardPools ?? [ctx.classId]).some((p) => d.pools.includes(p))));
 }
 
@@ -6462,17 +6513,6 @@ function generateShinyItemChoices(ctx, n = 3) {
   return out;
 }
 
-// Chrom-Waffen als Beute für einen Shiny-Gegner: mindestens ungewöhnlich, nie die Waffe, die man schon trägt
-function generateShinyWeaponChoices(ctx, n = 2) {
-  const out = [], taken = new Set([baseOf(ctx.build.weapon.id)]);
-  for (let i = 0; i < n; i++) {
-    const def = pickOne(ctx, "weapons", taken, false, RARITY_ORDER.indexOf(CONFIG.shiny.enemyWeaponMinRarity));
-    if (!def) break;
-    taken.add(def.id);
-    out.push(CONTENT.get("weapons", `${def.id}:s`));
-  }
-  return out;
-}
 
 const goldDrop = (ctx, base) => Math.round(base * (1 + (ctx.build.stats.goldPct ?? 0) / 100));
 
@@ -6589,11 +6629,11 @@ __exports.baseOf = baseOf;
 __exports.rarityWeights = rarityWeights;
 __exports.rollRarityFor = rollRarityFor;
 __exports.shinyChanceFor = shinyChanceFor;
+__exports.isCurseItem = isCurseItem;
 __exports.generateCardReward = generateCardReward;
 __exports.generateWeaponChoices = generateWeaponChoices;
 __exports.generateItemChoices = generateItemChoices;
 __exports.generateShinyItemChoices = generateShinyItemChoices;
-__exports.generateShinyWeaponChoices = generateShinyWeaponChoices;
 __exports.goldDrop = goldDrop;
 __exports.removalCost = removalCost;
 __exports.generateStartShop = generateStartShop;
@@ -6626,7 +6666,7 @@ const { recordShiny } = __require("engine/dex.js");
 const { recordRun, discover, recordCombat, isUnlocked, trackAbilities, evaluateAbilityLevels } = __require("engine/meta.js");
 const { evaluateAchievements } = __require("engine/achievements.js");
 const { replacementFor, newSlot } = __require("engine/loot.js");
-const { generateCardReward, generateItemChoices, generateWeaponChoices, generateShinyItemChoices, generateShop, generateStartShop, rerollShop, toggleFreeze, buy, payRemoval, goldDrop, generateShinyWeaponChoices } = __require("engine/loot.js");
+const { generateCardReward, generateItemChoices, generateShinyItemChoices, generateShop, generateStartShop, rerollShop, toggleFreeze, buy, payRemoval, goldDrop } = __require("engine/loot.js");
 
 const RARITY_RANK = { gewoehnlich: 0, ungewoehnlich: 1, selten: 2, legendaer: 3 };
 const fail = (reason) => ({ ok: false, reason });
@@ -6636,7 +6676,7 @@ const ok = (extra = {}) => ({ ok: true, ...extra });
 // Shiny-Held: wird beim Run-Start einmal gewürfelt (bewusst NICHT vom Seed abhängig, damit man keine Seeds "farmen" kann).
 const rollShinyHero = (rand = Math.random) => rand() < CONFIG.shiny.heroChance;
 
-function createRun({ startDeck, ability, classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
+function createRun({ curseItems = true, startDeck, ability, classId = "nahkaempfer", seed = (Date.now() >>> 0), difficulty = 0, meta, weapon, shinyHero = false } = {}) {
   const cls = CONTENT.classes[classId];
   const startWeapon = cls.starterWeapons.includes(weapon) ? weapon : cls.weapon;      // jede Klasse darf jede Startwaffe wählen
   const rng = createRng(seed), rb = rankBonuses(meta?.rank?.level ?? 1);                                  // Konto-Rang: dauerhafte kleine Boni
@@ -6647,7 +6687,7 @@ function createRun({ startDeck, ability, classId = "nahkaempfer", seed = (Date.n
     deck: validStartDeck(startDeck, classId) ? [...startDeck] : [...cls.deck], weapon: startWeapon, startWeapon, items: [...(cls.items ?? [])],
     skin: pickSkin(meta, classId), achQueue: [], achDone: [],
     pending: { story: "intro" }, seenEncounters: [], usedEvents: [], summary: null, path: [], verbose: false,
-    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, weaponUpgrades: [], banishLeft: CONFIG.agency.banishTokens + rb.banish, banned: { cards: [], items: [] }, xp: 0, level: 0, upStats: { ...(rb.startHp ? { maxHp: rb.startHp } : {}), ...(rb.freeReroll ? { freeRerolls: rb.freeReroll } : {}) }, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
+    ability: ability ?? CONTENT.classes[classId]?.abilities?.[0] ?? null, curseItems: curseItems !== false, weaponUpgrades: [], banishLeft: CONFIG.agency.banishTokens + rb.banish, banned: { cards: [], items: [] }, xp: 0, level: 0, upStats: { ...(rb.startHp ? { maxHp: rb.startHp } : {}), ...(rb.freeReroll ? { freeRerolls: rb.freeReroll } : {}) }, pendingLevels: 0, stage: 1, stageFights: 0, stageClear: false, stageNotice: null,
     stats: { fights: 0, elites: 0, minibosses: 0, nodes: 0, shinyEnemies: 0, shinyLoot: 0, goldEarned: 0, purchases: 0 },
   };
   run.maxHp = computeMaxHp(run);
@@ -6696,7 +6736,7 @@ const currentLayer = (run) => (run.nodeId ? findNode(run.map, run.nodeId).layer 
 const ctxOf = (run) => {
   const build = buildOf(run);
   return { rng: run.rng, build, classId: run.classId, depth: (run.stage - 1) + currentLayer(run) / 10, stage: run.stage, luck: build.stats.luck + Math.floor((build.stats.curse ?? 0) / 5), meta: run.meta,
-    inflation: (1 + CONFIG.stageScale.price * (run.stage - 1) + CONFIG.shop.inflationPerFight * run.stageFights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)) * Math.max(0.4, 1 + (build.stats.priceMod ?? 0) / 100) * (CONFIG.difficulty[run.difficulty ?? 0]?.priceMult ?? 1), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [], frozenCards: run.frozenCards ?? [], banned: run.banned ?? { cards: [], items: [] } };
+    inflation: (1 + CONFIG.stageScale.price * (run.stage - 1) + CONFIG.shop.inflationPerFight * run.stageFights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)) * Math.max(0.4, 1 + (build.stats.priceMod ?? 0) / 100) * (CONFIG.difficulty[run.difficulty ?? 0]?.priceMult ?? 1), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [], frozenCards: run.frozenCards ?? [], banned: run.banned ?? { cards: [], items: [] }, noCurse: run.curseItems === false };
 };
 
 // Neue Max-HP-Boni heilen um den Zuwachs (wie bei Slay the Spire)
@@ -6862,7 +6902,7 @@ function completeCombat(run) {
   const harvest = Math.max(0, Math.floor(combat.build.stats.ernte ?? 0));                  // Ernte: festes Einkommen nach jedem Kampf
   const midas = goldMult(combat.build.stats);                                                // Midas-Fluch: verdoppelt das gesamte erhaltene Gold
   const gold = Math.round((goldDrop(ctx, Math.round((lo + Math.floor(run.rng.next() * (hi - lo + 1))) * (1 + CONFIG.stageScale.gold * (run.stage - 1)))) + bonus + overkillGold + harvest) * midas);
-  let gold2 = gold; if (run.rng.next() * 100 < (combat.build.stats.doubleChance ?? 0)) gold2 *= 2; gold2 = Math.round(gold2 * (1 + 0.015 * (combat.build.stats.curse ?? 0)) * (CONFIG.difficulty[run.difficulty ?? 0]?.goldMult ?? 1));   // Doppel-Gold-Chance und Fluch-Bonus
+  let gold2 = gold; if (run.rng.next() * 100 < (combat.build.stats.doubleChance ?? 0)) gold2 *= 2; gold2 = Math.round(gold2 * (1 + CONFIG.curse.gold * (combat.build.stats.curse ?? 0)) * (CONFIG.difficulty[run.difficulty ?? 0]?.goldMult ?? 1));   // Doppel-Gold-Chance und Fluch-Bonus
   run.gold += gold2;
   run.stats.goldEarned += gold2;
   queueAch(run, { type: "state" });                       // z. B. 500 Gold gleichzeitig
@@ -7175,7 +7215,7 @@ __define("ui/widgets.js", function (__exports, __require) {
 const { CONTENT } = __require("content/index.js");
 const { CONFIG } = __require("data/config.js");
 const { computeDamage } = __require("engine/modifiers.js");
-const { spr, cardIconId, elementIconId, CARD_ART_IDS } = __require("ui/art/index.js");
+const { spr, cardIconId, CARD_ART_IDS } = __require("ui/art/index.js");
 const { esc, describeItem, describeWeapon } = __require("ui/util.js");
 const { elementColor, STATUS, RARITY } = __require("ui/theme.js");
 
@@ -7249,9 +7289,6 @@ function itemHtml(def, kind = "items", o = {}) {
 const itemIcon = (def, px = 30, kind = "item") =>
   `<span class="mini ${def.shiny ? "sh" : ""}">${spr(kind, def.id.replace(/:s$/, ""), { shiny: def.shiny, attrs: `width="${px}" height="${px}"` })}</span>`;
 
-const statusChips = (statuses) =>
-  Object.entries(statuses).filter(([, v]) => v > 0).map(([k, v]) => `<span class="stchip" title="${(STATUS[k] ?? [])[1] ?? k}">${ico(STATUS[k]?.[0] ?? "star", 14)}${v}</span>`).join("");
-
 // ---------------------------------------------------------------- Pixel-Logo (eigene 5x7-Schrift)
 const FONT = {
   R: ["1111.", "1...1", "1...1", "1111.", "1.1..", "1..1.", "1...1"], O: [".111.", "1...1", "1...1", "1...1", "1...1", "1...1", ".111."],
@@ -7296,7 +7333,6 @@ __exports.cardChips = cardChips;
 __exports.cardHtml = cardHtml;
 __exports.itemHtml = itemHtml;
 __exports.itemIcon = itemIcon;
-__exports.statusChips = statusChips;
 __exports.logo = logo;
 
 });
@@ -7495,8 +7531,8 @@ const { reactionText } = __require("ui/util.js");
 const { esc, needsTarget, describeWeapon, describeItem, skinPal, activeSkin, activeFrame } = __require("ui/util.js");
 const { achInfoView, achievementsView, cosmeticsView } = __require("ui/achview.js");
 const { spr, elementIconId } = __require("ui/art/index.js");
-const { NODE_ICON, NODE_NAME, STATUS, RARITY, elementName } = __require("ui/theme.js");
-const { at, ico, btn, ibtn, bar, pctOf, cardHtml, itemHtml, itemIcon, statusChips, logo, itemNameCls } = __require("ui/widgets.js");
+const { NODE_ICON, NODE_NAME, RARITY, elementName } = __require("ui/theme.js");
+const { at, ico, btn, ibtn, bar, cardHtml, itemHtml, itemIcon, logo, itemNameCls } = __require("ui/widgets.js");
 const { combatScene, introScene, menuBackdrop, heroPortrait } = __require("ui/scene.js");
 
 // ---------------------------------------------------------------- Kopfzeile im Run
@@ -7559,11 +7595,11 @@ function setupView(ui) {
         return `<div class="wtile ${st.weaponId === id ? "on" : ""}"${at("pick-weapon", id)}><span class="wico">${spr("weapon", id, { attrs: 'width="100%" height="100%"' })}</span><span class="wname"><b>${esc(w.name)}</b><small class="${w.signature === cur.id ? "own" : ""}">${sig(w)}</small></span></div>`; }).join("")}</div>
         ${(() => { const w = CONTENT.get("weapons", st.weaponId), r = RARITY[w.rarity] ?? RARITY.gewoehnlich;
           return `<div class="wdetail px"><span class="wico big">${spr("weapon", st.weaponId, { attrs: 'width="100%" height="100%"' })}</span><div><b>${esc(w.name)}</b> <span class="rar" style="color:${r[1]}">${esc(r[0])} · Signatur: ${esc(CONTENT.classes[w.signature]?.name ?? "-")}</span><div>${esc(describeWeapon(w))}</div></div></div>`; })()}
-        <div class="optsbar px"><div class="optrow"><b>Schwierigkeit</b><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
+        <div class="optsbar px"><div class="optrow"><b>Fluch-Items</b>${chips([["1", "An"], ["0", "Aus"]], st.curse === false ? "0" : "1", "set-curse")}<span class="muted small cursehint">Machen Gegner stärker, geben dafür Gold und Glück.</span></div><div class="optrow"><b>Schwierigkeit</b><div class="chips">${CONFIG.difficulty.map((d, i) => i <= maxD
           ? `<span class="chip ${st.difficulty === i ? "on" : ""}"${at("set-diff", String(i))}>${esc(d.name)}</span>` : `<span class="chip lock">${ico("lock", 12)} ${esc(d.name)}</span>`).join("")}</div></div>
           <div class="optrow"><b>Seed</b><input class="seed" inputmode="numeric" placeholder="Zufall" value="${esc(st.seed)}" data-change="set-seed" readonly autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
           ${cur.abilities.length ? `<div class="optrow abil"><b>Fähigkeit</b><div class="chips">${cur.abilities.map((id) => `<span class="chip ${st.abilityId === id ? "on" : ""}"${at("pick-ability", id)}>${esc(CONTENT.abilities[id].name)} · St. ${abLevel(ui.meta, id)}</span>`).join("")}</div></div><div class="muted small optnote abtext">${esc(abilityAt(st.abilityId, abLevel(ui.meta, st.abilityId)).text)}</div>` : ""}
-          <div class="muted small optnote">Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Bessere Waffen findest du später, zum Beispiel nach dem Mini-Boss.</div></div></div></div></div></div>`;
+          <div class="muted small optnote">Jede Waffe ist frei wählbar und passt zu einem Helden am besten. Veredelungen für deine Waffe findest du später, zum Beispiel nach dem Mini-Boss.</div></div></div></div></div></div>`;
 }
 
 // ---------------------------------------------------------------- Geschichte
@@ -7702,7 +7738,7 @@ function rankBox(rk) {                                                          
   if (!rk) return "";
   const up = rk.levelUps.length > 0, from = up ? 0 : pct(rk.before.xp, rk.before.need), to = pct(rk.after.xp, rk.after.need), left = rk.after.need - rk.after.xp;
   return `<div class="px pad left rankbox"><div><b>Rang ${rk.after.level} · ${esc(rk.title)}</b> <span class="good">+${rk.gained} EP</span></div>
-    <div class="rankbar"><i style="--from:${from}%;--to:${to}%"></i></div><div class="muted small">${rk.parts.map(([n, v]) => `${esc(n)} +${v}`).join(" · ")}</div>
+    <div class="rankbar"><i style="--from:${from}%;--to:${to}%"></i></div><div class="muted small">${rk.parts.map(([n, v]) => `<span>${esc(n)} +${v}</span>`).join(" · ")}</div>
     ${rk.levelUps.map((l) => `<div class="rankup">Rang ${l.level} erreicht: <b>${esc(l.text)}</b></div>`).join("")}
     <div class="muted small">${rk.next ? `Nächste Belohnung bei Rang ${rk.next.level}: ${esc(rk.next.text)} (noch ${left} EP bis Rang ${rk.after.level + 1})` : `Noch ${left} EP bis Rang ${rk.after.level + 1}`}</div></div>`;
 }
@@ -7932,7 +7968,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
 
   const ui = {
     screen: "title", run: null, meta, landscape, dev,
-    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.weapon, abilityId: CONTENT.classes.nahkaempfer.abilities[0] ?? null, difficulty: 0, seed: "", draftSeed: null, picks: [], offer: [] },
+    setup: { step: 0, classId: "nahkaempfer", weaponId: CONTENT.classes.nahkaempfer.weapon, abilityId: CONTENT.classes.nahkaempfer.abilities[0] ?? null, difficulty: 0, seed: "", draftSeed: null, picks: [], offer: [], curse: true },
     storyIdx: 0, selected: null, overlay: null, removeMode: null, notice: null, toast: null, showLog: false, confirmReset: false,
     fx: [], enter: null, hasSave: false,
     // Kampf-Bedienung
@@ -8008,10 +8044,11 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
 
     switch (action) {
       // ---- Titel und Vorbereitung
-      case "new-run": Object.assign(st, { step: 0, difficulty: 0 }); ui.screen = "setup"; break;
+      case "new-run": Object.assign(st, { step: 0, difficulty: 0, curse: ui.meta.settings.curse !== false }); ui.screen = "setup"; break;
       case "pick-class":
         if (!isUnlocked(ui.meta, "classes", CONTENT.classes[arg])) { toast(`Noch gesperrt: ${describeUnlock(CONTENT.classes[arg].unlock)}`); break; }
         st.draftSeed = null; st.picks = []; st.offer = []; st.classId = arg; st.weaponId = CONTENT.classes[arg].weapon; st.abilityId = CONTENT.classes[arg].abilities[0] ?? null; break;
+      case "set-curse": st.curse = arg === "1"; ui.meta.settings = { ...ui.meta.settings, curse: st.curse }; break;                     // Fluch-Items an oder aus, wird gemerkt
       case "pick-ability": if (CONTENT.classes[st.classId].abilities.includes(arg)) st.abilityId = arg; break;
       case "setup-next": st.step = 1; break;
       case "setup-draft": {                                                  // Schritt 3: Startdeck zusammenstellen (Seed steht ab jetzt fest)
@@ -8043,8 +8080,8 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       case "start-run": {
         endPreview();
         const seed = st.draftSeed ?? (parseInt(st.seed, 10) || seedFn()), deck = st.picks.length === CONFIG.draft.rounds ? st.picks : undefined;     // gewähltes Startdeck (ohne Draft: das Standarddeck der Klasse)
-        openRun(createRun({ startDeck: deck, ability: st.abilityId, classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
-        ui.lastSetup = { classId: st.classId, weaponId: st.weaponId, abilityId: st.abilityId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)) };
+        openRun(createRun({ curseItems: st.curse !== false, startDeck: deck, ability: st.abilityId, classId: st.classId, weapon: st.weaponId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)), seed, meta: ui.meta, shinyHero: rollShinyHero(shinyRollFn) }));
+        ui.lastSetup = { curse: st.curse !== false, classId: st.classId, weaponId: st.weaponId, abilityId: st.abilityId, difficulty: Math.min(st.difficulty, maxDifficulty(ui.meta, st.classId)) };
         if (ui.run.shinyHero) ui.notice = { title: "Chrom-Held!", lines: ["Sehr selten: Dein Held schimmert wie Chrom.", `Bonus für diesen Run: +${CONFIG.shiny.heroLuck} Glück.`, `Chance beim Start: 1 zu ${Math.round(1 / CONFIG.shiny.heroChance)}.`] };
         break;
       }
