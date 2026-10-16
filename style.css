@@ -720,3 +720,52 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .card .c-foot{font-size:9.5px}.card.sm .c-top{font-size:9.5px}
 .xpbar b{font-size:9.5px}.abilitybtn small,.abilitybtn .abname small{font-size:9px}
 .cursehint{margin-left:6px}
+
+/* ---- Shop zentriert (v7.12): Spaltenzahl = Anzahl der Plätze (Schnellladen mit 3 statt 5 Karten steht nicht mehr links), Inhalt mittig in beide Richtungen, größere Knöpfe */
+.cards5,.items4{grid-template-columns:repeat(var(--cols,5),minmax(0,1fr));width:min(100%,calc(var(--cols,5) * 170px));margin-left:auto;margin-right:auto}
+.shop-main{justify-content:center;align-items:stretch}.shop-main h3{text-align:center}
+.shop .buyrow{display:flex;gap:4px;justify-content:center}.shop .buyrow .btn{min-height:34px;font-size:13px;padding:4px 8px}.shop .buyrow .btn.lockbtn,.shop .buyrow .btn.banico{min-width:36px}
+.shop-side .btn{min-height:34px;font-size:12px}
+.screen.shop{grid-template-rows:minmax(0,1fr);align-items:center}.screen.shop>.shop-side,.screen.shop>.shop-spacer{align-self:stretch}
+.rw-body{display:flex;flex-direction:column;justify-content:center}
+.shop .buyrow{flex-wrap:wrap}.shop .buyrow .btn:first-child{flex:1 1 100%}.shop .buyrow .btn.lockbtn,.shop .buyrow .btn.banico{flex:1 1 40%;min-width:0}
+.shop{--shop-item-h:150px}.compact .shop{--shop-item-h:132px}.tiny .shop{--shop-item-h:120px}
+
+/* ---- Shop v7.12: Kopfzeile mit Werkzeugen statt linker Spalte; der Inhalt nutzt die ganze Breite, mittig und mit größeren Knöpfen */
+.screen.shop.shop2{display:flex;flex-direction:column;grid-template-columns:none;justify-content:center;align-items:stretch;gap:5px;padding:6px 14px;max-width:none;margin:0;width:100%}
+.shop2 .shop-top{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}.shop2 .shop-who{display:flex;align-items:center;gap:8px}.shop2 .shop-title h2{margin:0;font-size:15px}.shop2 .shop-tools{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}.shop2 .shop-tools .btn{min-height:34px;font-size:12px}.shop2 .shop-leave .btn{min-height:34px;min-width:90px}
+.shop2 .shop-bubble{margin:0 auto;max-width:92%;padding:4px 10px;border:2px solid var(--line);background:rgba(0,0,0,.35);font-size:11px;text-align:center}
+.shop2 .shop-main{width:100%;max-width:1100px;margin:0 auto;justify-content:center;gap:3px}.shop2 .shop-lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9fb0d0;text-align:center}
+.shop2 .cards5,.shop2 .items4{width:min(100%,calc(var(--cols,5) * 190px))}
+.shop2 .buyrow{flex-wrap:nowrap}.shop2 .buyrow .btn:first-child{flex:1 1 auto}.shop2 .buyrow .btn.lockbtn,.shop2 .buyrow .btn.banico{flex:0 0 36px;min-width:36px;padding-left:0;padding-right:0}
+.shop2{--shop-item-h:112px}.compact .shop2{--shop-item-h:100px}.tiny .shop2{--shop-item-h:92px}
+/* Shop v7.12 (Höhe): Karten und Items begrenzen, damit Kopfzeile, beide Reihen und die Kaufzeilen auf den Bildschirm passen */
+.shop2 .card.lg{max-height:128px;min-height:0}.shop2 .card.lg .c-art{height:26px}.shop2 .card.lg .c-text{-webkit-line-clamp:4}.shop2 .shop-lbl{font-size:9px;line-height:1}
+.shop2{--shop-item-h:84px}.shop2 .items4 .itemcard .d{-webkit-line-clamp:3}.shop2 .shop-top{gap:6px}.shop2 .shop-who .npc svg,.shop2 .shop-who .npcbox svg{height:30px;width:auto}
+.compact .shop2 .card.lg{max-height:112px}.compact .shop2 .card.lg .c-art{height:22px}.compact .shop2 .card.lg .c-text{-webkit-line-clamp:3}.compact .shop2{--shop-item-h:74px}.compact .shop2 .items4 .itemcard .d{-webkit-line-clamp:2}
+.tiny .shop2 .card.lg{max-height:100px}.tiny .shop2 .card.lg .c-art{height:18px}.tiny .shop2{--shop-item-h:66px}.tiny .shop2 .shop-tools .btn{min-height:28px}.tiny .shop2 .shop-bubble{display:none}
+.shop2 .card.lg{max-height:116px}.shop2{--shop-item-h:74px}.shop2 .shop-lbl{display:none}.screen.shop.shop2{padding-top:2px;padding-bottom:2px;gap:4px}.shop2 .shop-title .muted.small{font-size:10px}
+.hud .ibtn{min-width:34px;min-height:30px;box-sizing:border-box}.hud .menubtn,.hud .ibtn.menu{min-height:30px}
+.tiny .hud{height:35px}.tiny .hud .ibtn,.tiny .hud .menubtn{min-height:32px;min-width:36px}
+.hud{height:34px}.hud .ibtn,.hud .menubtn{min-height:32px;min-width:36px}
+.tiny .shop2 .card.lg{max-height:92px}.tiny .shop2{--shop-item-h:58px}.tiny .shop2 .shop-tools .btn{min-height:26px}.tiny .shop2 .buyrow .btn{min-height:26px;font-size:11px}.tiny .shop2 .shop-top{gap:3px}
+.tiny .shop2 .shop-title .muted{display:none}.tiny .shop2 .shop-who .npc svg,.tiny .shop2 .shop-who .npcbox svg{height:24px}.tiny .shop2 .card.lg{max-height:86px}.tiny .shop2{--shop-item-h:54px}.tiny .shop2 .items4 .itemcard .d{-webkit-line-clamp:1}
+.tiny .shop2 .card.lg{max-height:80px}.tiny .shop2{--shop-item-h:50px}.tiny .shop2 .buyrow .btn{min-height:24px}
+.tiny .shop2 .card.lg{max-height:74px}.tiny .shop2 .buyrow .btn{min-height:22px}.tiny .screen.shop.shop2{gap:2px;padding-bottom:0}
+.tiny .shop2 .shop-tools .btn,.tiny .shop2 .shop-leave .btn{min-height:24px}.tiny .screen.shop.shop2{padding-top:0}
+.tiny .shop2{--shop-item-h:44px}.tiny .shop2 .card.lg{max-height:70px}
+.shop2 .items4 .slot .itemwrap,.shop2 .items4 .slot .itemwrap .itemcard{min-height:0}
+.tiny .shop2 .shop-top{flex-wrap:nowrap;gap:4px}.tiny .shop2 .shop-tools{flex-wrap:nowrap;gap:3px}.tiny .shop2 .shop-tools .btn{font-size:9.5px;padding:2px 4px;white-space:nowrap}.tiny .shop2 .shop-title h2{font-size:12px}.tiny .shop2 .shop-leave .btn{min-width:60px;font-size:10px}
+.compact .shop2 .shop-tools .btn{font-size:11px;padding:3px 6px}
+.tiny .shop2 .shop-title{display:none}.tiny .shop2 .shop-tools .btn{padding:2px 3px}
+.shop2 .items4{grid-auto-rows:auto}.shop2 .items4 .slot{height:auto}.shop2 .items4 .slot .itemwrap{flex:none;height:var(--shop-item-h)}.shop2 .items4 .slot .itemwrap .itemcard{height:100%}
+.shop2{--shop-item-h:66px}.compact .shop2{--shop-item-h:58px}.tiny .shop2{--shop-item-h:42px}
+.shop2 .card.lg{max-height:140px}.shop2 .card.lg .c-art{height:24px}.shop2{--shop-item-h:60px}.compact .shop2 .card.lg{max-height:112px}.compact .shop2{--shop-item-h:54px}
+.shop2 .card.lg{max-height:130px}.shop2{--shop-item-h:58px}
+.shop2 .buyrow .btn,.shop2 .shop-tools .btn{min-height:32px}
+.shop2 .card.lg{max-height:122px}
+
+/* Shop v7.12 (Kopfzeile kompakt): Titel oben, darunter alle Werkzeuge und Weiter in EINER Reihe, Texte dürfen im Knopf umbrechen */
+.shop2 .shop-top{flex-direction:column;align-items:center;gap:3px;flex-wrap:nowrap}.shop2 .shop-tools{flex-wrap:nowrap;width:100%;max-width:1100px;gap:5px}
+.shop2 .shop-tools .btn{flex:1 1 0;min-width:0;white-space:normal;line-height:1.1;font-size:11px;padding:3px 4px;min-height:34px;display:flex;align-items:center;justify-content:center;text-align:center}.shop2 .shop-tools .btn.go{flex:0 0 22%}
+.tiny .shop2 .shop-top{flex-wrap:nowrap}.tiny .shop2 .shop-tools .btn{font-size:9.5px;min-height:24px;padding:1px 3px}.tiny .shop2 .shop-tools .btn.go{flex:0 0 18%}

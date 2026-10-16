@@ -99,7 +99,7 @@ __exports.audioState = audioState;
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "7.11",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "7.12",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
@@ -149,7 +149,7 @@ const CONFIG = {
     priceVariance: 0.15,   // +-15 % Zufallsschwankung
     startDiscount: 0.45,
     inflationPerFight: 0.015,   // Inflation: alle Warenpreise steigen pro abgeschlossenem Kampf um 4 %    // Startladen (nach dem ersten Kampf): halbe Preise
-    afterFight: true, quickEvery: 2, quick: { cards: 3, items: 3 },          // nach JEDEM Kampf ein Schnellladen (kleineres Angebot); Händler-Orte auf der Karte bleiben der große Laden
+    afterFight: true, quickEvery: 2, rerollCarry: 0.85, quick: { cards: 3, items: 3 },          // nach JEDEM Kampf ein Schnellladen (kleineres Angebot); Händler-Orte auf der Karte bleiben der große Laden
     services: { heal: { price: 35, pct: 0.3, step: 10 }, vitality: { price: 75, maxHp: 6 } },   // Dienste beim Händler: Verband (heilt, wird teurer) und Stärkungstrank (+Max-HP, einmal je Besuch)
     removeBase: 50, removeIncrement: 25,
     rerollBase: 4, rerollMult: 1.3,                                // Reroll: 4, 5, 7, 9 ... Gold (Brotato-Stil: im ersten Laden etwa 4 Rerolls)
@@ -4995,6 +4995,7 @@ const EN_UI = {
   "Kampf beendet": "Fight over", "Kein aktives Item": "No active item", "Schon benutzt (1x pro Kampf)": "Already used (once per fight)", "Keine Karte": "No card", "Pech gehabt.": "Bad luck.", "Chrom-Vorschau": "Chrome preview", "Spielen": "Play", "Grundpreis": "Base price", "(zu wenig Gold)": "(not enough gold)",
   "benutzt": "used", "aktiv": "active", "Unbeugsam": "Unyielding", "Nekromanten-Pakt": "Necromancer pact", "Kampfbeginn": "Start of combat", "Zugbeginn": "Start of turn", "Zugende": "End of turn", "Karte gespielt": "Card played", "Alle Karten": "All cards", "Status aufgetragen": "Status applied", "Du wirst getroffen": "You are hit", "Du verlierst HP": "You lose HP", "Kampf gewonnen": "Fight won",
   "Fluch-Items": "Curse items", "Machen Gegner stärker, geben dafür Gold und Glück.": "Make enemies stronger, but give gold and luck.",
+  "Überspringen": "Skip",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -5024,6 +5025,8 @@ const MARK_EN = { "sehr effektiv": "very effective", resistent: "resistant", KRI
 const KIND_EN = { "Wächter": "Guardian", "Mini-Boss": "Mini-boss", Elite: "Elite", Endboss: "Final boss" };
 const DIFF_EN = { Normal: "Normal", Schwer: "Hard", Albtraum: "Nightmare" };
 const EN_PATTERNS = [
+  [/^· Preise: \+(\d+) ?% Inflation$/, (t, n) => `· Prices: +${n}% inflation`], [/^· Preise: (.+)$/, (t, x) => `· Prices: ${t(x)}`], [/^([–✓]) (.+)$/, (t, m, x) => `${m} ${t(x)}`],
+  [/^(Überspringen|Weiter) \(\+(\d+) Gold\)$/, (t, w, n) => `${w === "Weiter" ? "Continue" : "Skip"} (+${n} Gold)`],
   [/^(\d+) Runs · (\d+) Siege · Stage (\d+) · (Normal|Schwer|Albtraum)$/, (t, a, b, s, d) => `${a} runs · ${b} wins · Stage ${s} · ${DIFF_EN[d]}`], [/^(.+) · (Normal|Schwer|Albtraum)$/, (t, c, d) => `${t(c)} · ${DIFF_EN[d]}`],
   [/^Sieg · (\d+) Kämpfe$/, (t, n) => `Victory · ${n} fights`], [/^Niederlage in Stage (\d+) · (\d+) Kämpfe$/, (t, s, n) => `Defeat in Stage ${s} · ${n} fights`],
   [/^(.+) endet$/, (t, n) => `${n} ends`], [/^Nekromanten-Pakt: Heilung (\d+) wird zu (\d+) Schaden an (.+)$/, (t, a, b, n) => `Necromancer pact: healing ${a} becomes ${b} damage to ${n}`],
@@ -6547,9 +6550,11 @@ function generateStartShop(ctx) {
   };
   const cards = pickPlain("cards", ["gewoehnlich"], Math.max(0, S.cardSlots - basics.length - core.length), [...cls.shopBasics, ...cls.coreCards]).map((d) => cheap("cards", d));
   const items = pickPlain("items", ["gewoehnlich"], S.itemSlots, maxedItems(ctx.build)).map((d) => cheap("items", d));
-  return { cards: [...core, ...basics, ...cards], items, removeCost: removalCost(ctx.removedCards ?? 0), removals: 0, rerollCost: S.rerollBase, rerolls: 0, start: true };
+  return { cards: [...core, ...basics, ...cards], items, removeCost: removalCost(ctx.removedCards ?? 0), removals: 0, rerollCost: carriedReroll(ctx, S.rerollBase), rerolls: 0, start: true };
 }
 
+// Reroll-Preis wird nicht bei jedem Shop zurückgesetzt: der letzte Preis zählt weiter und sinkt je neuem Shop nur um einen Teil (CONFIG.shop.rerollCarry), nie unter den Grundpreis
+const carriedReroll = (ctx, base) => Math.max(base, Math.round((ctx.rerollCarry ?? 0) * CONFIG.shop.rerollCarry));
 function generateShop(ctx, quick = false) {
   const S = quick ? { ...CONFIG.shop, cardSlots: CONFIG.shop.quick.cards, itemSlots: CONFIG.shop.quick.items, wildcardCards: 1, wildcardItems: 1 } : CONFIG.shop, infl = ctx.inflation ?? 1;
   // Gesperrte Items der letzten Händlerrunde ("Freeze") kommen zuerst wieder, zu den aktuellen Preisen
@@ -6563,7 +6568,7 @@ function generateShop(ctx, quick = false) {
     cards: [...frozenCards, ...(needCards > 0 ? pickMany(ctx, "cards", needCards, Math.min(S.wildcardCards, needCards), new Set(frozenCards.map((f) => baseOf(f.id)))).map((d) => slot(ctx.rng, "cards", d, infl)) : [])],
     items: [...frozen, ...fresh],
     removeCost: removalCost(ctx.removedCards ?? 0), removals: 0,
-    rerollCost: Math.max(1, Math.round(S.rerollBase * Math.max(0.2, 1 + (ctx.build?.stats?.rerollMod ?? 0) / 100))), freeRerolls: Math.max(0, Math.floor(ctx.build?.stats?.freeRerolls ?? 0)), rerolls: 0,
+    rerollCost: carriedReroll(ctx, Math.max(1, Math.round(S.rerollBase * Math.max(0.2, 1 + (ctx.build?.stats?.rerollMod ?? 0) / 100)))), freeRerolls: Math.max(0, Math.floor(ctx.build?.stats?.freeRerolls ?? 0)), rerolls: 0,
     quick,
     services: [{ id: "heal", price: S.services.heal.price, uses: 0 }, { id: "vitality", price: S.services.vitality.price, sold: false }],
   };
@@ -6736,7 +6741,7 @@ const currentLayer = (run) => (run.nodeId ? findNode(run.map, run.nodeId).layer 
 const ctxOf = (run) => {
   const build = buildOf(run);
   return { rng: run.rng, build, classId: run.classId, depth: (run.stage - 1) + currentLayer(run) / 10, stage: run.stage, luck: build.stats.luck + Math.floor((build.stats.curse ?? 0) / 5), meta: run.meta,
-    inflation: (1 + CONFIG.stageScale.price * (run.stage - 1) + CONFIG.shop.inflationPerFight * run.stageFights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)) * Math.max(0.4, 1 + (build.stats.priceMod ?? 0) / 100) * (CONFIG.difficulty[run.difficulty ?? 0]?.priceMult ?? 1), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [], frozenCards: run.frozenCards ?? [], banned: run.banned ?? { cards: [], items: [] }, noCurse: run.curseItems === false };
+    inflation: (1 + CONFIG.stageScale.price * (run.stage - 1) + CONFIG.shop.inflationPerFight * run.stageFights) * (1 - (CONTENT.classes[run.classId].shopDiscount ?? 0)) * Math.max(0.4, 1 + (build.stats.priceMod ?? 0) / 100) * (CONFIG.difficulty[run.difficulty ?? 0]?.priceMult ?? 1), removedCards: run.removedCards ?? 0, frozen: run.frozenItems ?? [], frozenCards: run.frozenCards ?? [], banned: run.banned ?? { cards: [], items: [] }, rerollCarry: run.rerollCarry ?? 0, noCurse: run.curseItems === false };
 };
 
 // Neue Max-HP-Boni heilen um den Zuwachs (wie bei Slay the Spire)
@@ -7039,6 +7044,7 @@ function shopFreeze(run, idx, kind = "items") {
 }
 function leaveShop(run) {
   if (run.phase !== "shop") return fail("Nicht im Shop");
+  run.rerollCarry = run.pending.shop.rerollCost;                                    // der nächste Shop startet mit diesem Preis (leicht gesenkt)
   run.frozenItems = run.pending.shop.items.filter((s) => s.frozen && !s.sold).map((s) => ({ id: s.id }));     // gesperrte Items und Karten warten auf die nächste Händlerrunde
   run.frozenCards = run.pending.shop.cards.filter((s) => s.frozen && !s.sold).map((s) => ({ id: s.id }));
   backToMap(run);
@@ -7695,8 +7701,8 @@ function rewardView(ui) {
     : sel.kind === "cards"
     ? `<div class="cards3">${sel.ids.map((id, i) => `<div class="slot">${cardHtml(CONTENT.get("cards", id), { size: "lg", build })}${btn(t.cards ? "Gewählt" : "Nehmen", "take", "cards", { arg2: String(i), cls: "small good", disabled: t.cards })}${t.cards ? "" : banBtn(run, "cards", i)}</div>`).join("")}</div>`
     : `<div class="items3">${sel.ids.map((id, i) => `<div class="slot">${itemHtml(CONTENT.get(sel.kind, id), sel.kind, sel.kind === "items" ? { fit: itemFit(CONTENT.get("items", id), build.cards) } : sel.kind === "weapons" && id === run.weapon ? { tier: Math.min(CONFIG.weaponTiers.power.length, (build.weapon.tier ?? 1) + 1) } : {})}${btn(t[sel.key] ? "Gewählt" : "Nehmen", "take", sel.key, { arg2: String(i), cls: "small good", disabled: t[sel.key] })}${sel.kind === "items" && !t[sel.key] ? banBtn(run, "items", i) : ""}</div>`).join("")}</div>`;
-  const tabs = cats.length > 1 ? `<div class="tabs">${cats.map((c) => `<span class="tab ${c.key === sel.key ? "on" : ""}"${at("set-tab", "reward", c.key)}>${t[c.key] ? "✓ " : ""}${c.label}</span>`).join("")}</div>` : "";
-  return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}${r.overkillGold ? `<span class="muted small">&nbsp;Überschuss +${r.overkillGold}</span>` : ""}${r.midas ? `<span class="chrome small">&nbsp;(Midas x2)</span>` : ""}${r.harvest ? `<span class="muted small">&nbsp;Ernte +${r.harvest}</span>` : ""}</div>${tabs}<span class="grow"></span>${(() => { const nextCat = cats.find((c) => c.key !== sel.key && !t[c.key]); return nextCat ? btn("Weiter", "set-tab", "reward", { arg2: nextCat.key, cls: "primary" }) : btn(skippedCount(run) ? `Weiter (+${skippedCount(run) * skipGoldOf(run)} Gold)` : "Weiter", "finish-reward", undefined, { cls: "primary", title: skippedCount(run) ? "Überspringen bringt Gold" : undefined }); })()}</div>
+  const tabs = cats.length > 1 ? `<div class="tabs">${cats.map((c) => `<span class="tab ${c.key === sel.key ? "on" : ""}"${at("set-tab", "reward", c.key)}>${t[c.key] ? "✓ " : r.skipped?.[c.key] ? "– " : ""}${c.label}</span>`).join("")}</div>` : "";
+  return `${hud(ui)}<div class="screen reward"><div class="rw-head"><h2>Beute</h2><div class="gold row">${ico("coin", 16)}<b>+${r.gold} Gold</b>${r.shinyBonus ? `<span class="chrome small">&nbsp;(+${r.shinyBonus} Chrom)</span>` : ""}${r.overkillGold ? `<span class="muted small">&nbsp;Überschuss +${r.overkillGold}</span>` : ""}${r.midas ? `<span class="chrome small">&nbsp;(Midas x2)</span>` : ""}${r.harvest ? `<span class="muted small">&nbsp;Ernte +${r.harvest}</span>` : ""}</div>${tabs}<span class="grow"></span>${(() => { const nextCat = cats.find((c) => c.key !== sel.key && !t[c.key] && !r.skipped?.[c.key]), skipping = !t[sel.key]; return nextCat ? btn(skipping ? "Überspringen" : "Weiter", "reward-skip", sel.key, { arg2: nextCat.key, cls: "primary" }) : btn(skippedCount(run) + (skipping && ["cards", "items"].includes(sel.key) ? 1 : 0) ? `${skipping ? "Überspringen" : "Weiter"} (+${(skippedCount(run) + (skipping && ["cards", "items"].includes(sel.key) ? 1 : 0)) * skipGoldOf(run)} Gold)` : (skipping ? "Überspringen" : "Weiter"), "finish-reward", undefined, { cls: "primary", title: "Überspringen bringt Gold" }); })()}</div>
     <div class="rw-body"><h3 class="${sel.cls ?? ""}">${esc(sel.title)}</h3>${slots}</div></div>`;
 }
 
@@ -7708,16 +7714,14 @@ function shopView(ui) {
   const items = shop.items.map((s, i) => `<div class="slot ${s.sold ? "sold" : ""} ${s.frozen ? "frozen" : ""}"><div class="itemwrap">${s.isNew ? '<span class="newtag">NEU</span>' : ""}${itemHtml(CONTENT.get("items", s.id), "items", { fit: itemFit(CONTENT.get("items", s.id), build.cards) })}<span class="c-info iinfo"${at("item-info", `items:${s.id}`)} role="button" aria-label="Details">i</span></div>
     <div class="buyrow">${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Item für die nächste Runde sperren" })}${s.sold || s.fixed || s.core ? "" : banIco(run, "items", i)}</div></div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
-  const npc = brumm
-    ? `<div class="shop-npc"><div class="npc">${spr("npc", "brumm", { attrs: 'width="46" height="62"' })}</div><div class="bubble static"><div class="who">${esc(CONTENT.speakers.brumm.name)}</div><p>${esc(brumm)}</p></div></div>`
-    : `<div class="shop-npc plain"><div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="44" height="44"' })}</div></div>`;
-  return `${hud(ui)}<div class="screen shop"><div class="shop-side">${npc}<h2>${shop.start ? "Startladen" : shop.quick ? "Schnellladen" : "Händler"}</h2><div class="muted">Dein Gold: <b class="gold">${run.gold}</b></div>
-      <div class="muted small">Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div>
-      ${btn(`${ico("star", 14)} Neu würfeln (${shop.freeRerolls > 0 ? `gratis x${shop.freeRerolls}` : shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: !(shop.freeRerolls > 0) && run.gold < shop.rerollCost })}
+  const npc = brumm ? `<div class="npc">${spr("npc", "brumm", { attrs: 'width="34" height="46"' })}</div>` : `<div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="34" height="34"' })}</div>`;
+  const bubble = brumm ? `<div class="shop-bubble"><b>${esc(CONTENT.speakers.brumm.name)}:</b> ${esc(brumm)}</div>` : "";
+  const tools = `${btn(`${ico("star", 14)} Neu würfeln (${shop.freeRerolls > 0 ? `gratis x${shop.freeRerolls}` : shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: !(shop.freeRerolls > 0) && run.gold < shop.rerollCost })}
       ${btn(`${ico("discard", 14)} Schredder (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
-      ${(shop.services ?? []).map((s) => btn(`${ico(s.id === "heal" ? "heart" : "star", 14)} ${s.id === "heal" ? `Verband +${Math.round(CONFIG.shop.services.heal.pct * 100)}% HP` : `Trank +${CONFIG.shop.services.vitality.maxHp} Max-HP`} (${s.price})`, "service", s.id, { cls: "small", disabled: s.sold || run.gold < s.price })).join("")}
-      <span class="grow"></span>${btn("Weiter", "leave-shop", undefined, { cls: "primary" })}</div>
-    <div class="shop-main"><h3>Karten</h3><div class="cards5">${cards}</div><h3>Items</h3><div class="items4">${items}</div></div><div class="shop-spacer"></div></div>`;
+      ${(shop.services ?? []).map((s) => btn(`${ico(s.id === "heal" ? "heart" : "star", 14)} ${s.id === "heal" ? `Verband +${Math.round(CONFIG.shop.services.heal.pct * 100)}% HP` : `Trank +${CONFIG.shop.services.vitality.maxHp} Max-HP`} (${s.price})`, "service", s.id, { cls: "small", disabled: s.sold || run.gold < s.price })).join("")}`;
+  return `${hud(ui)}<div class="screen shop shop2"><div class="shop-top"><div class="shop-who">${npc}<div class="shop-title"><h2>${shop.start ? "Startladen" : shop.quick ? "Schnellladen" : "Händler"}</h2><div class="muted small">Dein Gold: <b class="gold">${run.gold}</b> · Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div></div></div>
+      <div class="shop-tools">${tools}${btn("Weiter", "leave-shop", undefined, { cls: "primary go" })}</div></div>${bubble}
+    <div class="shop-main"><div class="shop-lbl">Karten</div><div class="cards5" style="--cols:${Math.max(1, shop.cards.length)}">${cards}</div><div class="shop-lbl">Items</div><div class="items4" style="--cols:${Math.max(1, shop.items.length)}">${items}</div></div></div>`;
 }
 function restView(ui) {
   const run = ui.run, heal = Math.min(run.maxHp - run.hp, restHealAmount(run, Math.ceil(run.maxHp * restPct(run))));
@@ -8174,6 +8178,7 @@ function createController({ storage = null, seedFn = () => Math.floor(Math.rando
       }
       case "card-info": ui.cardInfo = arg; break;                                 // Detailansicht einer Karte (Info-Symbol)
       case "close-cardinfo": ui.cardInfo = null; break;
+      case "reward-skip": { const r = run?.pending?.reward; if (!r) break; if (!r.taken[arg]) (r.skipped ??= {})[arg] = true; ui.tab.reward = arg2; break; }                // Überspringen merkt sich die Auswahl, damit Weiter nicht im Kreis läuft
       case "set-tab": ui.tab[arg] = arg2; break;                                  // Reiter in Sammlung, Erfolge und Aussehen
       case "import-save": {                                                      // Datei gelesen: erst prüfen, dann nachfragen
         let d; try { d = JSON.parse(arg); } catch { d = null; }
