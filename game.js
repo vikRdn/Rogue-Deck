@@ -99,7 +99,7 @@ __exports.audioState = audioState;
 __define("data/config.js", function (__exports, __require) {
 // Zentrale Balancing-Konfiguration. Alle Stellschrauben an EINEM Ort.
 const CONFIG = {
-  version: "7.12",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
+  version: "7.14",   // wird auf dem Titelbildschirm angezeigt: so sieht man sofort, ob die neue Version geladen ist (nicht aus dem Browser-Zwischenspeicher)
   player: { startEnergy: 3, handSize: 4, openingDraw: 1, maxHp: 70 },       // kleine Start-Decks: Hand 4, im ersten Zug jedes Kampfes +1 Karte
 
   balance: {
@@ -108,7 +108,7 @@ const CONFIG = {
     vulnerableMult: 1.5,  // Schaden gegen "verwundbare" Gegner
     maxChainDepth: 4,     // Max. Tiefe von Trigger-Ketten (Schutz vor Endlosschleifen)
     maxCardsPerTurn: 25,  // Harte Grenze gegen Kartenschleifen
-    enemyDmgScale: 0.83,
+    enemyDmgScale: 0.83, vulnerableMult: 1.5, weakMult: 0.75,
     markBonus: 1,         // Markierte Ziele erhalten pro Treffer +1 Schaden
     tempoCap: 3, unbeugsamPct: 0.25, unbeugsamCap: 2,
     maxHpGainPerCombat: 2,   // Photosynthese: dauerhaftes Max-HP höchstens so oft pro Kampf (sonst wächst es ohne Grenze)
@@ -509,14 +509,14 @@ __exports.default = {
   },
 
   enemies: {
-    ratte:   { name: "Ratte",   hp: 10, pattern: [{ type: "attack", value: 4 }] },
-    goblin:  { name: "Goblin",  hp: 22, pattern: [{ type: "attack", value: 8 }, { type: "attack", value: 5 }] },
-    skelett: { name: "Skelett", hp: 28, pattern: [{ type: "attack", value: 9 }, { type: "block", value: 8 }] },
+    ratte:   { name: "Ratte",   hp: 10, pattern: [{ type: "attack", value: 4 }, { type: "attack", value: 4 }, { type: "buff", value: 1 }] },
+    goblin:  { name: "Goblin",  hp: 22, pattern: [{ type: "attack", value: 8 }, { type: "attack", value: 5 }, { type: "debuff", status: "verwundbar", stacks: 1 }] },
+    skelett: { name: "Skelett", hp: 28, pattern: [{ type: "attack", value: 9 }, { type: "block", value: 8 }, { type: "buff", value: 2 }] },
     bandit:  { name: "Bandit",  hp: 26, pattern: [{ type: "attack", value: 5 }, { type: "attack", value: 3, hits: 2 }, { type: "block", value: 6 }] },
     steingolem: { name: "Steingolem", hp: 130,
-      pattern: [{ type: "block", value: 14 }, { type: "attack", value: 22 }, { type: "attack", value: 12 }] },
-    knochenhauptmann: { name: "Knochenhauptmann", hp: 245,
-      pattern: [{ type: "attack", value: 14 }, { type: "block", value: 16 }, { type: "attack", value: 6, hits: 3 }] },
+      pattern: [{ type: "block", value: 14 }, { type: "buff", value: 3 }, { type: "attack", value: 22 }, { type: "attack", value: 12 }] },
+    knochenhauptmann: { name: "Knochenhauptmann", hp: 245, mechanics: { phases: [{ hpBelow: 0.5, summon: ["skelett", "skelett"], text: "Der Marschall ruft seine Wache" }] },
+      pattern: [{ type: "attack", value: 14 }, { type: "block", value: 16 }, { type: "attack", value: 6, hits: 3 }, { type: "buffAll", stat: "staerke", value: 1 }] },
   },
 
   encounters: {
@@ -571,7 +571,7 @@ __exports.default = {
       passives: [{ trigger: "damage_calc", cardTag: "feuer", requires: { tag: "feuer", count: 6 }, op: "pct", value: 0.25 }] },
   },
   enemies: {
-    glutgeist: { immune: ["eingefroren"], name: "Glutgeist", hp: 24, elements: ["feuer"], pattern: [{ type: "attack", value: 8 }, { type: "attack", value: 5 }] },
+    glutgeist: { immune: ["eingefroren"], name: "Glutgeist", hp: 24, elements: ["feuer"], pattern: [{ type: "attack", value: 8 }, { type: "debuff", status: "verbrennung", stacks: 3 }, { type: "attack", value: 5 }] },
   },
   encounters: {
     gluthoehle: { tier: 2, name: "Glutöhle (Feuergeister)", waves: [["glutgeist", "glutgeist", "glutgeist"]] },
@@ -706,7 +706,7 @@ __exports.default = {
       passives: [{ trigger: "on_card_played", cardTag: "eis", action: "status", status: "frost", stacks: 1, target: "random_enemy", maxPerTurn: 2 }] },
   },
   enemies: {
-    frostwolf: { name: "Frostwolf", hp: 26, elements: ["eis"], pattern: [{ type: "attack", value: 9 }, { type: "attack", value: 6 }] },
+    frostwolf: { name: "Frostwolf", hp: 26, elements: ["eis"], pattern: [{ type: "attack", value: 9 }, { type: "debuff", status: "schwach", stacks: 2 }, { type: "attack", value: 6 }] },
   },
   encounters: {
     frostmeute: { tier: 2, name: "Frostmeute (Wolfsrudel)", waves: [["frostwolf", "frostwolf", "frostwolf"]] },
@@ -723,9 +723,9 @@ __exports.default = {
   id: "wildnis",
   name: "Wildnis",
   enemies: {
-    dornenranke: { name: "Dornenranke", hp: 18, elements: ["pflanze"], pattern: [{ type: "attack", value: 6 }, { type: "attack", value: 3, hits: 2 }] },
-    flussgeist:  { name: "Flussgeist", hp: 24, elements: ["wasser"],  pattern: [{ type: "attack", value: 7 }, { type: "block", value: 6 }] },
-    sumpfgeist:  { name: "Sumpfgeist", hp: 45, elements: ["pflanze", "wasser"], pattern: [{ type: "block", value: 8 }, { type: "attack", value: 10 }] },
+    dornenranke: { name: "Dornenranke", hp: 18, elements: ["pflanze"], pattern: [{ type: "attack", value: 6 }, { type: "debuff", status: "verwundbar", stacks: 1 }, { type: "attack", value: 3, hits: 2 }] },
+    flussgeist:  { name: "Flussgeist", hp: 24, elements: ["wasser"],  pattern: [{ type: "attack", value: 7 }, { type: "block", value: 6 }, { type: "heal", value: 8 }] },
+    sumpfgeist:  { name: "Sumpfgeist", hp: 45, elements: ["pflanze", "wasser"], pattern: [{ type: "block", value: 8 }, { type: "attack", value: 10 }, { type: "debuff", status: "gift", stacks: 3 }] },
   },
   encounters: {
     pflanzenhain: { tier: 2, name: "Pflanzenhain (Ranken + Sumpfgeist)", waves: [["dornenranke", "dornenranke", "dornenranke", "sumpfgeist"]] },
@@ -806,7 +806,7 @@ __exports.default = {
   id: "boss",
   name: "Endboss",
   enemies: {
-    funke: { name: "Funke", hp: 16, elements: ["feuer"], pattern: [{ type: "attack", value: 5 }] },
+    funke: { name: "Funke", hp: 16, elements: ["feuer"], pattern: [{ type: "attack", value: 5 }, { type: "buffAll", stat: "staerke", value: 1 }] },
     elementarwandler: {
       immune: ["aussetzen", "eingefroren"],   // Bestechung und Einfrieren wirken nicht auf den Endboss
       name: "Elementarwandler", hp: 230, elements: ["feuer"],
@@ -815,7 +815,7 @@ __exports.default = {
         plates: { count: 5, regenAfter: 3 },
         phases: [{ hpBelow: 0.5, summon: ["funke", "funke"], setPlates: 6, text: "Der Wandler zerfällt in Funken und panzert sich neu!" }],
       },
-      pattern: [{ type: "attack", value: 11 }, { type: "attack", value: 5, hits: 2 }, { type: "block", value: 12 }, { type: "attack", value: 16 }],
+      pattern: [{ type: "attack", value: 11 }, { type: "debuff", status: "verwundbar", stacks: 2 }, { type: "attack", value: 5, hits: 2 }, { type: "block", value: 12 }, { type: "attack", value: 16 }],
     },
   },
   encounters: {
@@ -1723,6 +1723,28 @@ __exports.default = {
 
 
 });
+__define("content/packs/wende.js", function (__exports, __require) {
+// WENDE-ITEMS (v7.14): Items, die eine Regel ändern statt Werte zu erhöhen, je ein Endstück für Gift, Krit, Block, Pflanze und Heilung, Feuer, Gold, Zauber und Reaktion.
+// Bewusst kaum Obergrenzen: Builds dürfen "kaputt" werden. Neue Engine-Bausteine: double_status, on_crit, everyPlay, payGold, refund, Stats blockKeep, overhealBlock, reactionEcho.
+__exports.default = {
+  id: "wende",
+  name: "Wende-Items",
+  items: {
+    pestdoktor_maske: { name: "Pestdoktor-Maske", rarity: "legendaer", tags: ["gift", "item"], stats: { poisonPower: 1 }, pools: ["alle"], maxStack: 1, text: "Gift-Karte gespielt: das Gift des Ziels verdoppelt sich (max. 4 mal pro Zug).", passives: [{ trigger: "on_card_played", cardTag: "gift", action: "double_status", status: "gift", target: "event_target", maxPerTurn: 4 }] },
+    henkers_kodex: { name: "Henkers-Kodex", rarity: "legendaer", tags: ["item"], stats: { crit: 6 }, pools: ["alle"], maxStack: 1, text: "+6% Krit-Chance. Kritischer Treffer: ziehe 1 Karte (max. 3 pro Zug).", passives: [{ trigger: "on_crit", action: "draw", value: 1, maxPerTurn: 3 }] },
+    eisenwall_schild: { name: "Eisenwall-Schild", rarity: "selten", tags: ["block", "item"], stats: { blockKeep: 50 }, pools: ["alle"], maxStack: 1, text: "Die Hälfte deines übrigen Blocks bleibt in den nächsten Zug.", passives: [] },
+    unerschuetterliche_festung: { name: "Unerschütterliche Festung", rarity: "legendaer", tags: ["block", "item"], stats: { blockKeep: 100, armor: 1 }, pools: ["alle"], maxStack: 1, text: "+1 Rüstung. Dein ganzer übriger Block bleibt in den nächsten Zug.", passives: [] },
+    lebensbaum_saat: { name: "Lebensbaum-Saat", rarity: "legendaer", tags: ["pflanze", "item"], stats: { maxHp: 6, overhealBlock: 100 }, pools: ["alle"], maxStack: 1, text: "+6 Max-HP. Zugbeginn: heile 4 HP. Heilung über das Maximum wird zu Block.", passives: [{ trigger: "on_turn_start", action: "heal", value: 4 }] },
+    brandherd_funke: { name: "Brandherd-Funke", rarity: "legendaer", tags: ["feuer", "item"], stats: { burnPower: 1 }, pools: ["alle"], maxStack: 1, text: "Ein brennender Gegner stirbt: alle anderen Gegner erhalten 3 Verbrennung.", passives: [{ trigger: "on_kill", whenStatus: "verbrennung", action: "status_all", status: "verbrennung", stacks: 3 }] },
+    schwarzmarkt_lizenz: { name: "Schwarzmarkt-Lizenz", rarity: "legendaer", tags: ["gold", "item"], stats: { goldPct: 10 }, pools: ["alle"], maxStack: 1, text: "+10% Gold. Zugbeginn: zahle 12 Gold, erhalte 1 Energie.", passives: [{ trigger: "on_turn_start", action: "energy", value: 1, payGold: 12 }] },
+    arkaner_resonator: { name: "Arkaner Resonator", rarity: "legendaer", tags: ["zauber", "item"], stats: { energy: 0 }, pools: ["alle"], maxStack: 1, text: "Jede dritte Karte, die du in einem Zug spielst, kostet 0.", passives: [{ trigger: "on_card_played", everyPlay: 3, action: "energy", refund: true }] },
+    echo_prisma: { name: "Echo-Prisma", rarity: "legendaer", tags: ["reaktion", "item"], stats: { reaction: 20, reactionEcho: 1 }, pools: ["alle"], maxStack: 1, text: "+20% Reaktions-Wirkung. Elementreaktionen lösen zweimal aus.", passives: [] },
+  },
+};
+
+
+
+});
 __define("content/packs/stat_items.js", function (__exports, __require) {
 // WERT-ITEMS (Brotato-Richtung): Items geben Werte, oft mit Plus UND Minus. Dazu skalieren drei Items mit einem Wert (perStat).
 // ADAPT: bestehende Items werden auf die Werte umgebaut (ersetzen ihre alten Boni).
@@ -1860,11 +1882,12 @@ const abilityPack = __require("content/packs/abilities.js").default;
 const upgradePack = __require("content/packs/waffen_upgrades.js").default;
 const wasserPack = __require("content/packs/wasser.js").default;
 const archetypenPack = __require("content/packs/archetypen.js").default;
+const wendePack = __require("content/packs/wende.js").default;
 const statItems = __require("content/packs/stat_items.js").default;
 const thema = __require("content/packs/thema_anime.js").default;
 
 const CONTENT = createContent();
-[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems, abilityPack, upgradePack, wasserPack, archetypenPack].forEach((pack) => CONTENT.register(pack));
+[core, ausruestung, feuer, gift, blut, frost, wildnis, boss, events, fernkaempfer, magier, story, achievements, aktiv, bollwerk, pyro, aristokratGaertner, waffenStufe2, helden2, heldenItems, statItems, abilityPack, upgradePack, wasserPack, archetypenPack, wendePack].forEach((pack) => CONTENT.register(pack));
 
 CONTENT.finalize();
 for (const [id, patch] of Object.entries(statItems.adapt)) { const d = CONTENT.items[id]; if (d) { d.stats = { ...d.stats, ...patch.stats }; if (patch.passives) d.passives = patch.passives; if (patch.text) d.text = patch.text; if (patch.maxStack) d.maxStack = patch.maxStack; } }     // bestehende Items auf die Werte umbauen
@@ -2004,7 +2027,7 @@ const get = (kind, id) => {
 };
 
 // Alle Werte, die Items über "stats" verändern können (werden über alle Items summiert, auch gestapelt).
-const STAT_KEYS = ["critDmg", "luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal", "priceMod", "rerollMod", "freeRerolls", "bossDmg", "poisonPower", "burnPower", "bleedPower", "healPct", "doubleChance", "curse"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
+const STAT_KEYS = ["blockKeep", "overhealBlock", "reactionEcho", "critDmg", "luck", "maxHp", "energy", "handSize", "goldPct", "regen", "blockStart", "shiny", "reaction", "ernte", "healLoss", "goldDouble", "healToDamage", "freezeEase", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "lifesteal", "priceMod", "rerollMod", "freeRerolls", "bossDmg", "poisonPower", "burnPower", "bleedPower", "healPct", "doubleChance", "curse"];   // ernte: Gold nach jedem Kampf, healLoss: Anteil, um den Heilung sinkt
 
 // spec = { deck: [ids], weapon: id, items: [ids] }  ->  Build mit echten Definitionen
 function resolveBuild(spec) {
@@ -2176,9 +2199,9 @@ const log = (s, msg) => { if (s.verbose) s.log.push(msg); };
 const fx = (s, e) => { if (s.verbose) s.fx.push(e); };
 
 const aliveEnemies = (s) => s.enemies.filter((e) => e.hp > 0);
-const getIntent = (e) => {
+const getIntent = (e, off = 0) => {
   const p = CONTENT.enemies[e.id].pattern;
-  return p[e.patternIdx % p.length];
+  return p[(e.patternIdx + off) % p.length];
 };
 
 // ---------------------------------------------------------------- Aufbau
@@ -2238,11 +2261,11 @@ function makeEnemy(s, id, uid, shiny) {
 }
 
 // Angekündigte Aktion, Schaden mit Schwierigkeit skaliert
-function intentOf(s, e) {
-  if ((e.statuses.eingefroren ?? 0) > 0) return { type: "skip", value: 0, frozen: true };   // eingefroren: überspringt die nächste Aktion
-  if ((e.statuses.aussetzen ?? 0) > 0) return { type: "skip", value: 0 };       // bestochen: setzt diese Runde aus
-  const i = getIntent(e);
-  return i.type === "attack" ? { ...i, value: Math.max(1, Math.round(i.value * CONFIG.balance.enemyDmgScale * s.diff.dmgMult * stageMul(CONFIG.stageScale.dmg, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalDmg : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigDmg : 1) * (1 + CONFIG.curse.dmg * (s.build.stats.curse ?? 0)))) } : i;
+function intentOf(s, e, off = 0) {
+  if (off === 0 && (e.statuses.eingefroren ?? 0) > 0) return { type: "skip", value: 0, frozen: true };   // eingefroren: überspringt die nächste Aktion
+  if (off === 0 && (e.statuses.aussetzen ?? 0) > 0) return { type: "skip", value: 0 };       // bestochen: setzt diese Runde aus
+  const i = getIntent(e, off);
+  return i.type === "attack" || i.type === "drain" ? { ...i, value: Math.max(1, Math.round((i.value + (e.statuses.staerke ?? 0)) * CONFIG.balance.enemyDmgScale * s.diff.dmgMult * stageMul(CONFIG.stageScale.dmg, s.stage) * (s.finalBoss ? CONFIG.stageScale.finalDmg : 1) * (!s.finalBoss && ["miniboss", "boss"].includes(s.kind) ? CONFIG.stageScale.bigDmg : 1) * (1 + CONFIG.curse.dmg * (s.build.stats.curse ?? 0)))) } : i;
 }
 
 function checkPhases(s, e) {
@@ -2287,13 +2310,21 @@ function draw(s, n) {
   }
 }
 
+const PSTATUS_NAME = { gift: "Gift", verbrennung: "Verbrennung", schwach: "Schwach", verwundbar: "Verwundbar" };
 function startPlayerTurn(s) {
   s.turn++;
+  for (const k of ["gift", "verbrennung"]) {                                                // Schaden über Zeit auf den Helden (Gegner-Debuffs), danach schwächer
+    const v = s.player.statuses[k] ?? 0; if (v <= 0) continue;
+    s.player.hp -= v; s.player.statuses[k] = v - 1; s.metrics.damageTaken += v; s.hpLostThisTurn = true;
+    log(s, `  ${PSTATUS_NAME[k]}: du verlierst ${v} HP`); (s.hitLog ??= []).push({ turn: s.turn, name: PSTATUS_NAME[k], amount: v, blocked: 0, src: "other" }); fx(s, { t: "phit", amount: v, blocked: 0 });
+  }
+  if (s.player.hp <= 0) { s.result = "lost"; return; }
   if (s.ability && s.ability.cd > 0) s.ability.cd--;                                      // Cooldown zählt eigene Züge
   if (s.field && --s.field.turnsLeft <= 0) { log(s, `  ${s.field.name} endet`); fx(s, { t: "field", on: false }); s.field = null; }
   s.counters = {};
   s.playsThisTurn = 0;
   s.metrics.reactionsTurn = 0;
+  const carriedBlock = Math.floor((s.player.block ?? 0) * Math.min(100, s.build.stats.blockKeep ?? 0) / 100);
   s.player.block = s.build.stats.blockStart;
   s.player.energy = CONFIG.player.startEnergy + s.build.stats.energy;
   s.player.statuses.ausweichen = 0;     // Ausweichen hält nur einen Zug
@@ -2305,6 +2336,7 @@ function startPlayerTurn(s) {
   fx(s, { t: "turn", n: s.turn });
   emit(s, "on_turn_start", {}, 0);
   s.player.block = Math.min(s.player.block, CONFIG.balance.maxTurnStartBlock);          // Gratis-Block pro Zug ist gedeckelt (Block aus Karten nicht)
+  s.player.block += carriedBlock;                                                         // Block-Übertrag (Stat blockKeep): ein Teil des Blocks vom letzten Zug bleibt
   draw(s, Math.max(1, CONFIG.player.handSize + s.build.stats.handSize + (s.turn === 1 ? CONFIG.player.openingDraw ?? 0 : 0) - s.piles.hand.length));          // behaltene Karten zählen zur Handgröße
 }
 
@@ -2325,7 +2357,8 @@ function healPlayer(s, v) {
   }
   const before = s.player.hp;
   s.player.hp = Math.min(s.player.maxHp, before + want);
-  const got = s.player.hp - before;
+  const got = s.player.hp - before, over = want - got;
+  if (over > 0 && (s.build.stats.overhealBlock ?? 0) > 0) { const b = Math.floor((over * s.build.stats.overhealBlock) / 100); if (b > 0) { s.player.block += b; log(s, `  Überheilung: +${b} Block`); fx(s, { t: "block", amount: b }); } }
   if (got > 0) fx(s, { t: "heal", amount: got });
   return got;
 }
@@ -2373,7 +2406,7 @@ function dealDamage(s, enemy, amount, source, { pierce = false, ignoreBlock = fa
     fx(s, { t: "kill", uid: enemy.uid, shiny: enemy.shiny });
     s.killLog.push({ id: enemy.id, shiny: Boolean(enemy.shiny) });
     if (enemy.shiny) { s.shinyKills.push(enemy.id); log(s, `  *** ${enemy.name} war SHINY! ***`); }
-    emit(s, "on_kill", { target: enemy }, depth);
+    emit(s, "on_kill", { target: enemy, status: (enemy.statuses.verbrennung ?? 0) > 0 ? "verbrennung" : null }, depth);
   }
   return rest;                                                  // tatsächlich verlorene HP (für Lebensraub)
 }
@@ -2387,6 +2420,7 @@ function damagePlayer(s, amount, source, attacker) {
   }
   const dd = Math.min(CONFIG.balance.dodgeCap, s.build.stats.dodge ?? 0);                    // Ausweichen (Wert): Chance, dass ein Angriff ganz danebengeht
   if (dd > 0 && s.rng.next() * 100 < dd) { log(s, `  ${source} verfehlt dich (Ausweichwert)`); fx(s, { t: "dodge", uid: attacker?.uid }); s.metrics.dodges = (s.metrics.dodges ?? 0) + 1; return; }
+  if ((s.player.statuses.verwundbar ?? 0) > 0) amount = Math.round(amount * CONFIG.balance.vulnerableMult);       // Verwundbar: mehr Schaden
   const ar = s.build.stats.armor ?? 0, K = CONFIG.balance.armorK;                              // Rüstung (Wert): senkt den Schaden vor dem Block, negative Rüstung erhöht ihn
   if (ar !== 0 && amount > 0) amount = Math.max(1, Math.round(ar > 0 ? (amount * K) / (K + ar) : amount * (1 + -ar / K)));
   const absorbed = Math.min(s.player.block, amount);
@@ -2435,12 +2469,15 @@ function emit(s, event, payload, depth) {
     if (s.result) return;
     if (!conditionsMet(eff, { card: payload.card, build: s.build })) continue;
     if (eff.whenStatus && payload.status !== eff.whenStatus) continue;
+    if (eff.everyPlay && s.playsThisTurn % eff.everyPlay !== 0) continue;                 // everyPlay: jede N-te gespielte Karte dieses Zuges
+    if (eff.payGold && s.gold < eff.payGold) continue;                                   // payGold: kostet Gold, sonst keine Wirkung
     const used = s.counters[eff.key] ?? 0;
     if (eff.maxPerTurn !== undefined && used >= eff.maxPerTurn) continue;
     if (eff.everyN && (s.turn - 1) % eff.everyN !== 0) continue;                       // everyN: nur jeden N-ten Zug (1., N+1., ...)
     if (eff.chance !== undefined && s.rng.next() >= eff.chance) continue;
     if (eff.oncePerCombat) { if (s.once[eff.key]) continue; s.once[eff.key] = true; }       // oncePerCombat: nur einmal pro Kampf (z. B. "Erster Zug: 8 Block")
     s.counters[eff.key] = used + 1;
+    if (eff.payGold) loseGold(s, eff.payGold);
     runPassive(s, eff, payload, depth);
   }
 }
@@ -2462,13 +2499,14 @@ function runPassive(s, eff, payload, depth) {
     case "heal":  { const got = healPlayer(s, magnitude(eff, s.build, { hp: P.hp, maxHp: P.maxHp, hand: s.piles.hand.length, gold: s.gold })); if (got > 0) log(s, `  ${eff.sourceName}: +${got} HP`); return; }
     case "hurt":  { loseHp(s, magnitude(eff, s.build, { hp: P.hp, maxHp: P.maxHp })); return; }
     case "draw":  { draw(s, magnitude(eff, s.build)); return; }
-    case "energy": { P.energy += magnitude(eff, s.build); return; }
+    case "energy": { P.energy += eff.refund ? (payload.card?.cost ?? 0) : magnitude(eff, s.build); return; }
     case "player_status": { P.statuses[eff.status] = (P.statuses[eff.status] ?? 0) + eff.stacks; log(s, `  ${eff.sourceName}: +${eff.stacks} ${eff.status}`); return; }
     case "damage_all": {
       const v = magnitude(eff, s.build);
       for (const t of aliveEnemies(s)) dealDamage(s, t, v, eff.sourceName, { pierce: true, depth: depth + 1 });
       return;
     }
+    case "double_status": { const tg = payload.target; if (tg && tg.hp > 0) { const cur = tg.statuses[eff.status] ?? 0; if (cur > 0) applyStatus(s, tg, eff.status, Math.min(cur, eff.cap ?? 40), depth); } return; }
     case "status_all": {
       for (const t of aliveEnemies(s)) applyStatus(s, t, eff.status, eff.stacks, depth);
       return;
@@ -2492,7 +2530,7 @@ function triggerReaction(s, a, b, target) {
   if (!s.metrics.reactionIds.includes(r.id)) s.metrics.reactionIds.push(r.id);
   log(s, `  *** Reaktion: ${r.name} (${a} + ${b})`);
   fx(s, { t: "reaction", name: r.name, a, b, target: target?.uid });
-  for (const eff of r.effects) {
+  for (let echo = 0; echo <= Math.min(1, s.build.stats.reactionEcho ?? 0); echo++) for (const eff of r.effects) {      // Reaktions-Echo: die Wirkung löst zweimal aus
     runPassive(s, {
       ...eff, sourceName: r.name, target: eff.target ?? "event_target",
       value: eff.value !== undefined ? Math.round(eff.value * mult) : undefined,
@@ -2525,6 +2563,8 @@ function runActions(s, def, chosen) {
           let { amount, detail } = computeDamage({ build: s.build, card: def, action, target: t, playsBefore: s.playsThisTurn - 1, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
           let crit = false;
           if ((s.build.stats.crit ?? 0) > 0 && s.rng.next() * 100 < s.build.stats.crit) { amount = Math.floor(amount * (CONFIG.balance.critMult + (s.build.stats.critDmg ?? 0) / 100)); crit = true; s.metrics.crits = (s.metrics.crits ?? 0) + 1; }   // kritischer Treffer
+          if (crit) emit(s, "on_crit", { card: def, target: t }, 0);
+          if ((s.player.statuses.schwach ?? 0) > 0) amount = Math.floor(amount * CONFIG.balance.weakMult);                  // Schwach: weniger Schaden
           if (s.bigFight && (s.build.stats.bossDmg ?? 0) !== 0) amount = Math.max(0, Math.floor(amount * (1 + s.build.stats.bossDmg / 100)));      // Schaden gegen Bosse, Wächter und Elite
           s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
           const note = (detail.elem > 1 ? " [sehr effektiv]" : detail.elem < 1 ? " [resistent]" : "") + (crit ? " [KRITISCH]" : "");
@@ -2617,7 +2657,8 @@ function useAbility(s, targetUid) {
       for (let h = 0; h < (e.hits ?? 1); h++) for (const x of targets) {
         if (x.hp <= 0) continue;
         const card = { name: d.name, element: e.element ?? null, tags: [...(e.tags ?? []), ...(e.element ? [e.element] : [])] };
-        const { amount } = computeDamage({ build: s.build, card, action: { base: e.base, weaponScale: e.weaponScale, element: e.element }, target: x, playsBefore: s.playsThisTurn, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
+        let { amount } = computeDamage({ build: s.build, card, action: { base: e.base, weaponScale: e.weaponScale, element: e.element }, target: x, playsBefore: s.playsThisTurn, hp: s.player.hp, maxHp: s.player.maxHp, gold: s.gold });
+        if ((s.player.statuses.schwach ?? 0) > 0) amount = Math.floor(amount * CONFIG.balance.weakMult);
         s.metrics.maxHit = Math.max(s.metrics.maxHit, amount);
         total += dealDamage(s, x, amount, d.name, { ignoreBlock: e.ignoreBlock ?? false }) ?? 0;     // Panzerplatten bleiben ein Treffer-Zähler
         if (e.status && x.hp > 0) applyStatus(s, x, e.status.status, e.status.stacks, 0);
@@ -2739,6 +2780,7 @@ function tickMechanics(s, e) {
 }
 
 function enemyPhase(s) {
+  for (const k of ["schwach", "verwundbar"]) if ((s.player.statuses[k] ?? 0) > 0) s.player.statuses[k]--;       // Debuffs auf dem Helden zählen je Gegnerphase herunter
   for (const e of [...s.enemies]) {            // Kopie: beschworene Gegner handeln erst in der nächsten Runde
     if (e.hp <= 0) continue;
     e.block = 0;
@@ -2763,6 +2805,22 @@ function enemyPhase(s) {
       }
     } else if (intent.type === "block") {
       e.block += intent.value;
+    } else if (intent.type === "debuff") {                                                 // Schwach, Verwundbar, Gift, Verbrennung auf den Helden
+      s.player.statuses[intent.status] = (s.player.statuses[intent.status] ?? 0) + (intent.stacks ?? 1);
+      log(s, `  ${e.name} belegt dich mit ${PSTATUS_NAME[intent.status]} ${intent.stacks ?? 1}`); fx(s, { t: "pstatus", status: intent.status, stacks: intent.stacks ?? 1 });
+    } else if (intent.type === "buff") {                                                   // Stärke aufbauen (bleibt)
+      e.statuses.staerke = (e.statuses.staerke ?? 0) + intent.value; log(s, `  ${e.name} verstärkt sich: +${intent.value} Stärke`);
+    } else if (intent.type === "buffAll") {                                                // alle Gegner: Stärke oder Block
+      for (const a of aliveEnemies(s)) { if (intent.stat === "block") a.block += intent.value; else a.statuses.staerke = (a.statuses.staerke ?? 0) + intent.value; }
+      log(s, `  ${e.name} stärkt alle Gegner: +${intent.value} ${intent.stat === "block" ? "Block" : "Stärke"}`);
+    } else if (intent.type === "heal") {                                                   // heilt den am stärksten verletzten Gegner (auch sich selbst)
+      const t = [...aliveEnemies(s)].sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0] ?? e, n = Math.min(intent.value, t.maxHp - t.hp);
+      t.hp += n; log(s, `  ${e.name} heilt ${t.name} um ${n}`); fx(s, { t: "eheal", uid: t.uid, amount: n });
+    } else if (intent.type === "summon") {                                                 // ruft Verstärkung, solange Platz ist
+      if (aliveEnemies(s).length < (intent.max ?? 5)) { const add = makeEnemy(s, intent.id, `add${s.addCount++}`, false); s.enemies.push(add); log(s, `  ${e.name} ruft Verstärkung: ${add.name}`); fx(s, { t: "summon", uid: add.uid }); }
+    } else if (intent.type === "drain") {                                                  // Angriff, der den Gegner heilt
+      damagePlayer(s, intent.value, e.name, e); if (s.result) return;
+      const n = Math.min(Math.ceil(intent.value * 0.5), e.maxHp - e.hp); if (n > 0 && e.hp > 0) { e.hp += n; log(s, `  ${e.name} saugt ${n} HP auf`); }
     }
     if (e.hp > 0) tickMechanics(s, e);
   }
@@ -3222,6 +3280,7 @@ Object.assign(ITEM_ART, {
   fluchsiegel: ["ofuda", "schatten", null], seuchenbeutel: ["ofuda", "gift", null], federstiefel: ["sneaker", "wasser", null], gewichtsweste: ["weights", "eisen", null],
   kampfhorn: ["siren", "blut", null], feldflasche: ["teacup", "stein", null], kraeutertee: ["teacup", "pflanze", "leaf"], kartenhaus: ["cards", "schatten", null],
   glueckspilz: ["mushroom", "blut", null],
+  pestdoktor_maske: ["mushroom", "gift", "skull"], henkers_kodex: ["license", "blut", "skull"], eisenwall_schild: ["cloak", "eisen", null], unerschuetterliche_festung: ["weights", "stein", null], lebensbaum_saat: ["bean", "pflanze", "leaf"], brandherd_funke: ["lighter", "feuer", "flame"], schwarzmarkt_lizenz: ["creditcard", "gold", null], arkaner_resonator: ["wheel", "arkan", null], echo_prisma: ["moon", "prisma", null],
   flutmantel: ["cloak", "wasser", null], mondsee_spiegel: ["moon", "wasser", "star"], tsunami_herz: ["heart", "wasser", "drop"], henkers_kette: ["razor", "blut", null], koenigs_henker: ["crown", "blut", "skull"], blutmond_kelch: ["bowl", "blut", "moon"], jagdzeichen: ["license", "gold", null], funkenfeuerzeug: ["lighter", "eisen", "flame"], bankier: ["creditcard", "schatten", null], gluecksrad: ["wheel", "blut", null],
 });
 
@@ -4526,6 +4585,7 @@ Object.assign(ICONS, {
   s_up: A(["...RR...", "..RRRR..", ".RRRRRR.", "RR.RR.RR", "...RR...", "...RR...", "...RR...", "........"]),
   s_fist: A(["..SSSS..", ".SSSSSS.", "SSsSsSsS", "SSSSSSSS", "SSSSSSSS", ".SSSSSS.", "..hhhh..", "..hhhh.."]),
   s_arrow: A(["......hh", ".....hhh", "...nhhh.", "..nnh...", ".nn.....", "wn......", "ww......", "w......."]),
+  s_weak: A(["...RR...", "...RR...", "...RR...", ".RRRRRR.", "..RRRR..", "...RR...", "........", "........"]),
   s_orb: A(["..RRuu..", ".RRRuuu.", "RRRRuuuu", "RRRRuuuu", "ffffjjjj", "ffffjjjj", ".fffjjj.", "..ffjj.."]),
   s_crit: A(["...Y....", "...Y..Y.", "Y.YYY.Y.", ".YYYYY..", "YYYwYYYY", ".YYYYY..", "Y.YYY.Y.", "...Y..Y."]),
   s_clover: A(["..FF.FF.", ".FFFFFFF", "..FFGFF.", ".FFFFFFF", "..FF.FF.", "....F...", "...F....", "..F....."]),
@@ -4719,6 +4779,15 @@ const EN_CARDS = {
   dekadenz: ["Golden Excess", "12 damage to ALL enemies. You pay 10% of your Gold."], rankendornen: ["Entwined Thorns", "4 Block. Thorns 3 (attackers take 3 damage until your next turn)."], wurzelgeflecht: ["Life Roots", "8 Block. Heal 4 HP."],
 };
 const EN_ITEMS = {
+  pestdoktor_maske: ["Plague Doctor's Mask", "Poison card played: the target's Poison doubles (max. 4 times per turn)."],
+  henkers_kodex: ["Executioner's Codex", "+6% Crit Chance. Critical hit: draw 1 card (max. 3 per turn)."],
+  eisenwall_schild: ["Ironwall Shield", "Half of your leftover Block carries into the next turn."],
+  unerschuetterliche_festung: ["Unshakable Fortress", "+1 Armor. All your leftover Block carries into the next turn."],
+  lebensbaum_saat: ["Tree of Life Seed", "+6 Max HP. Start of turn: heal 4 HP. Healing above your maximum becomes Block."],
+  brandherd_funke: ["Hotspot Spark", "A burning enemy dies: all other enemies get 3 Burn."],
+  schwarzmarkt_lizenz: ["Black Market License", "+10% Gold. Start of turn: pay 12 Gold, gain 1 Energy."],
+  arkaner_resonator: ["Arcane Resonator", "Every third card you play in a turn costs 0."],
+  echo_prisma: ["Echo Prism", "+20% Reaction power. Elemental reactions trigger twice."],
   flutmantel: ["Flood Mantle", "Water card played: 2 Block and 1 damage to ALL (max. 3/turn)."], mondsee_spiegel: ["Moonlake Mirror", "Water cards: +1 damage. Water card played: 20% chance to draw 1 card (max. 2/turn)."], tsunami_herz: ["Tsunami Heart", "Water cards: +60% damage and 4 Block when played (no cap)."],
   henkers_kette: ["Executioner's Chain", "+10% Crit Chance, +25% Crit Damage."], koenigs_henker: ["King of Execution", "+8% Crit Chance, +60% Crit Damage (no cap)."], blutmond_kelch: ["Bloodmoon Chalice", "+12% Lifesteal, +3 Bleed Power (no cap)."],
   quellstein: ["Ocean Shard", "Water cards: +2 damage."], gezeitenperle: ["Moontide Pearl", "Water card played: 3 Block (max. 4/turn)."], treibholz: ["Shipwreck Splinter", "First turn of every combat: 2 Block per Water tag (max. 8)."],
@@ -4996,6 +5065,7 @@ const EN_UI = {
   "benutzt": "used", "aktiv": "active", "Unbeugsam": "Unyielding", "Nekromanten-Pakt": "Necromancer pact", "Kampfbeginn": "Start of combat", "Zugbeginn": "Start of turn", "Zugende": "End of turn", "Karte gespielt": "Card played", "Alle Karten": "All cards", "Status aufgetragen": "Status applied", "Du wirst getroffen": "You are hit", "Du verlierst HP": "You lose HP", "Kampf gewonnen": "Fight won",
   "Fluch-Items": "Curse items", "Machen Gegner stärker, geben dafür Gold und Glück.": "Make enemies stronger, but give gold and luck.",
   "Überspringen": "Skip",
+  "Schwach": "Weak", "Stärke": "Strength", "Der Marschall ruft seine Wache": "The marshal calls his guard",
   "Sprache": "Language", "Anzeigegröße": "Display size", "Vollbild": "Fullscreen", "Tempo im Kampf": "Combat speed", "Zug beenden ": "End turn", "Ziele wählen": "Choose targets", "Automatisch": "Automatic", "Von Hand": "Manual",
   "Größer heißt: weniger Platz, aber alles erscheint größer. Vollbild blendet die Browser-Leisten aus.": "Larger means less room, but everything looks bigger. Fullscreen hides the browser bars.", "Automatisch: Der Zug endet von selbst, sobald du keine Karte mehr spielen kannst. Von Hand: Du tippst immer selbst auf Zug beenden.": "Automatic: your turn ends by itself once you can't play a card. Manual: you always tap End turn yourself.",
   "Der Elementarwandler": "The Elemental Wanderer", "Erst Karte wählen": "Choose a card first", "Tempo": "Speed", "Auto": "Auto", "Normal ": "Normal", "Ausruhen": "Rest",
@@ -5024,7 +5094,12 @@ const END_EN = (x) => (x === "besiegt" ? "defeated" : x);
 const MARK_EN = { "sehr effektiv": "very effective", resistent: "resistant", KRITISCH: "CRITICAL" };
 const KIND_EN = { "Wächter": "Guardian", "Mini-Boss": "Mini-boss", Elite: "Elite", Endboss: "Final boss" };
 const DIFF_EN = { Normal: "Normal", Schwer: "Hard", Albtraum: "Nightmare" };
+const PST_EN = { Gift: "Poison", Verbrennung: "Burn", Schwach: "Weak", Verwundbar: "Vulnerable" };
 const EN_PATTERNS = [
+  [/^!!! (.+)$/, (t, x) => `!!! ${t(x)}`],
+  [/^(.+) belegt dich mit (Gift|Verbrennung|Schwach|Verwundbar) (\d+)$/, (t, n, s, k) => `${n} afflicts you with ${PST_EN[s]} ${k}`], [/^(Gift|Verbrennung): du verlierst (\d+) HP$/, (t, s, n) => `${PST_EN[s]}: you lose ${n} HP`],
+  [/^(.+) verstärkt sich: \+(\d+) Stärke$/, (t, n, v) => `${n} powers up: +${v} Strength`], [/^(.+) stärkt alle Gegner: \+(\d+) (Block|Stärke)$/, (t, n, v, w) => `${n} empowers all enemies: +${v} ${w === "Block" ? "Block" : "Strength"}`],
+  [/^(.+) heilt (.+) um (\d+)$/, (t, n, o, v) => `${n} heals ${o} for ${v}`], [/^(.+) ruft Verstärkung: (.+)$/, (t, n, a) => `${n} calls reinforcements: ${a}`], [/^(.+) saugt (\d+) HP auf$/, (t, n, v) => `${n} drains ${v} HP`],
   [/^· Preise: \+(\d+) ?% Inflation$/, (t, n) => `· Prices: +${n}% inflation`], [/^· Preise: (.+)$/, (t, x) => `· Prices: ${t(x)}`], [/^([–✓]) (.+)$/, (t, m, x) => `${m} ${t(x)}`],
   [/^(Überspringen|Weiter) \(\+(\d+) Gold\)$/, (t, w, n) => `${w === "Weiter" ? "Continue" : "Skip"} (+${n} Gold)`],
   [/^(\d+) Runs · (\d+) Siege · Stage (\d+) · (Normal|Schwer|Albtraum)$/, (t, a, b, s, d) => `${a} runs · ${b} wins · Stage ${s} · ${DIFF_EN[d]}`], [/^(.+) · (Normal|Schwer|Albtraum)$/, (t, c, d) => `${t(c)} · ${DIFF_EN[d]}`],
@@ -5449,7 +5524,7 @@ const elementName = (id) => CONTENT.elements[id]?.name ?? id;
 
 // Status -> [Symbol-ID, Name]
 const STATUS = {
-  gift: ["g_gift", "Gift"], blutung: ["g_blutung", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["g_tempo", "Ausweichen"], dornen: ["g_barrikade", "Dornen"], verbrennung: ["g_verbrennung", "Verbrennung"], aussetzen: ["g_schock", "Aussetzen"], frost: ["g_kaelte", "Kälte"], eingefroren: ["g_eis", "Eingefroren"],
+  gift: ["g_gift", "Gift"], schwach: ["s_weak", "Schwach"], staerke: ["g_staerkung", "Stärke"], blutung: ["g_blutung", "Blutung"], verwundbar: ["crack", "Verwundbar"], markiert: ["mark", "Markiert"], ausweichen: ["g_tempo", "Ausweichen"], dornen: ["g_barrikade", "Dornen"], verbrennung: ["g_verbrennung", "Verbrennung"], aussetzen: ["g_schock", "Aussetzen"], frost: ["g_kaelte", "Kälte"], eingefroren: ["g_eis", "Eingefroren"],
 };
 const NODE_ICON = { kampf: "n_kampf", elite: "n_elite", miniboss: "n_miniboss", rast: "n_rast", haendler: "n_haendler", ereignis: "n_ereignis", boss: "n_boss" };
 const NODE_NAME = { kampf: "Kampf", elite: "Elite", miniboss: "Mini-Boss", rast: "Rast", haendler: "Händler", ereignis: "Ereignis", boss: "Endboss" };
@@ -5459,14 +5534,14 @@ const CLASS_ART = { nahkaempfer: "nahkaempfer", fernkaempfer: "fernkaempfer", ma
 // Werte (Brotato-Richtung): Kernwerte in fester Reihenfolge, dazu Spezialwerte der Items
 const CORE_STATS = ["maxHp", "regen", "lifesteal", "damagePct", "meleeDmg", "rangedDmg", "elementDmg", "crit", "armor", "dodge", "luck", "ernte"];
 const STAT_LABELS = { maxHp: "Max-HP", regen: "Regeneration", lifesteal: "Lebensraub", damagePct: "Schaden", meleeDmg: "Nahkampfschaden", rangedDmg: "Fernkampfschaden", elementDmg: "Elementarschaden", crit: "Krit-Chance", armor: "Rüstung", dodge: "Ausweichen", luck: "Glück", ernte: "Ernte",
-  energy: "Energie", handSize: "Handkarten", goldPct: "Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "Reaktionen", freezeEase: "Einfrier-Hilfe", priceMod: "Preise", rerollMod: "Reroll-Preis", freeRerolls: "Freie Rerolls", bossDmg: "Schaden gegen Bosse", poisonPower: "Gift-Stärke", burnPower: "Brenn-Stärke", bleedPower: "Blutungs-Stärke", critDmg: "Krit-Schaden", healPct: "Heilung", doubleChance: "Doppel-Gold", curse: "Fluch" };
-const PCT_STATS = new Set(["lifesteal", "damagePct", "crit", "critDmg", "dodge", "goldPct", "shiny", "reaction", "priceMod", "rerollMod", "bossDmg", "healPct", "doubleChance"]);
+  energy: "Energie", handSize: "Handkarten", goldPct: "Gold", blockStart: "Block/Zug", shiny: "Shiny-Chance", reaction: "Reaktionen", freezeEase: "Einfrier-Hilfe", priceMod: "Preise", rerollMod: "Reroll-Preis", freeRerolls: "Freie Rerolls", bossDmg: "Schaden gegen Bosse", poisonPower: "Gift-Stärke", burnPower: "Brenn-Stärke", bleedPower: "Blutungs-Stärke", critDmg: "Krit-Schaden", blockKeep: "Block-Übertrag", overhealBlock: "Überheilung zu Block", reactionEcho: "Reaktions-Echo", healPct: "Heilung", doubleChance: "Doppel-Gold", curse: "Fluch" };
+const PCT_STATS = new Set(["lifesteal", "damagePct", "crit", "critDmg", "blockKeep", "overhealBlock", "dodge", "goldPct", "shiny", "reaction", "priceMod", "rerollMod", "bossDmg", "healPct", "doubleChance"]);
 const fmtVal = (k, v) => `${v > 0 ? "+" : ""}${v}${PCT_STATS.has(k) ? "%" : ""}`;                       // +3% bzw. -2 (Prozent direkt am Wert)
 const fmtStat = (k, v) => `${fmtVal(k, v)} ${STAT_LABELS[k] ?? k}`;                                       // +3% Lebensraub
 const STAT_ICON = { maxHp: "heart", regen: "s_regen", lifesteal: "s_drop", damagePct: "s_up", meleeDmg: "s_fist", rangedDmg: "s_arrow", elementDmg: "s_orb", crit: "s_crit", armor: "shield", dodge: "wind", luck: "s_clover", ernte: "s_wheat",
-  energy: "bolt", handSize: "pile", goldPct: "coin", blockStart: "shield", shiny: "star", reaction: "s_orb", freezeEase: "snow", priceMod: "coin", rerollMod: "s_dice", freeRerolls: "s_dice", bossDmg: "skull", poisonPower: "poison", burnPower: "flame", bleedPower: "blood", critDmg: "c_burst", healPct: "plus", doubleChance: "s_coins", curse: "g_fluch" };
+  energy: "bolt", handSize: "pile", goldPct: "coin", blockStart: "shield", shiny: "star", reaction: "s_orb", freezeEase: "snow", priceMod: "coin", rerollMod: "s_dice", freeRerolls: "s_dice", bossDmg: "skull", poisonPower: "poison", burnPower: "flame", bleedPower: "blood", critDmg: "c_burst", blockKeep: "shield", overhealBlock: "plus", reactionEcho: "s_orb", healPct: "plus", doubleChance: "s_coins", curse: "g_fluch" };
 
-const STAT_DESC = { critDmg: "Kritische Treffer machen mehr Schaden (Grundwert 150%).", maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
+const STAT_DESC = { blockKeep: "Dieser Anteil deines übrigen Blocks bleibt in den nächsten Zug.", overhealBlock: "Heilung über die Max-HP hinaus wird zu Block.", reactionEcho: "Elementreaktionen lösen ein zweites Mal aus.", critDmg: "Kritische Treffer machen mehr Schaden (Grundwert 150%).", maxHp: "Mehr Lebenspunkte.", regen: "Heilung nach jedem Kampf.", lifesteal: "Heilt dich um einen Teil deines Kartenschadens.", damagePct: "Alle Karten machen mehr Schaden.", meleeDmg: "Mehr Schaden mit Nahkampfkarten.", rangedDmg: "Mehr Schaden mit Fernkampfkarten.", elementDmg: "Mehr Schaden mit Element- und Zauberkarten.", crit: "Chance auf einen kritischen Treffer (x1,5 Schaden).", armor: "Gegner machen weniger Schaden (15 Rüstung = halber Schaden).", dodge: "Chance, dass ein Angriff danebengeht (höchstens 60 %).", luck: "Bessere Seltenheiten bei Belohnungen und im Shop.", ernte: "Festes Gold nach jedem Kampf." };
 const TIER_NAME = ["I", "II", "III", "IV"];
 const TIER_COLOR = ["#9aa0a6", "#4a8fd8", "#a45bd6", "#e8a33d"];
 
@@ -5800,8 +5875,21 @@ function combatScene({ run, c, fx = [], enter = null, targetable = new Set(), fo
     const aura = ael ? `<ellipse class="aura" cx="${w / 2}" cy="${h * 0.56}" rx="${w * 0.66}" ry="${h * 0.6}" fill="url(#eg_${ael})" opacity="${m.rotateElement ? 1 : 0.7}"/>` : "";
     const shadow = `<ellipse cx="${w / 2}" cy="${h - 1}" rx="${w * 0.42}" ry="4.5" fill="#000" opacity=".42"/>`;
     const allSts = Object.entries(e.statuses).filter(([, v]) => v > 0), crowded = c.enemies.length > 3, maxSts = crowded ? 3 : 4, sts = allSts.slice(0, maxSts), moreSts = allSts.length - sts.length, gap = crowded ? 16 : 22;
-    const ibox = intent ? `<g transform="translate(${p.x - 18} ${y0 - 17})"><rect width="36" height="14" rx="3" fill="#17121f" stroke="${intent.type === "attack" ? "#c73c3c" : "#4a7fd0"}" stroke-width="1.5"/>
-        ${icon(intent.type === "attack" ? "sword" : intent.type === "skip" ? (intent.frozen ? "snow" : "wind") : "shield", 3, 2, 1)}${text(intent.type === "attack" ? `${intent.value}${(intent.hits ?? 1) > 1 ? "x" + intent.hits : ""}` : intent.type === "skip" ? (intent.frozen ? "Eis" : "Aus") : String(intent.value), 15, 11, "int")}</g>` : "";
+    const lookOf = (it) => {                                                       // Symbol, Text und Farbe je Aktionsart
+      if (it.type === "attack") return { i: "sword", txt: `${it.value}${(it.hits ?? 1) > 1 ? "x" + it.hits : ""}`, c: "#c73c3c" };
+      if (it.type === "skip") return { i: it.frozen ? "snow" : "wind", txt: it.frozen ? "Eis" : "Aus", c: "#4a7fd0" };
+      if (it.type === "block") return { i: "shield", txt: String(it.value), c: "#4a7fd0" };
+      if (it.type === "debuff") return { i: STATUS[it.status]?.[0] ?? "star", txt: String(it.stacks ?? 1), c: "#b07cff" };
+      if (it.type === "buff") return { i: "g_staerkung", txt: `+${it.value}`, c: "#e8a33d" };
+      if (it.type === "buffAll") return { i: it.stat === "block" ? "shield" : "g_staerkung", txt: `+${it.value}*`, c: "#e8a33d" };
+      if (it.type === "heal") return { i: "plus", txt: String(it.value), c: "#58d68d" };
+      if (it.type === "summon") return { i: "skull", txt: "+1", c: "#b07cff" };
+      if (it.type === "drain") return { i: "blood", txt: String(it.value), c: "#c73c3c" };
+      return { i: "star", txt: "?", c: "#888" };
+    };
+    const look = intent ? lookOf(intent) : null, nxtIntent = intent && !m.rotateElement && CONTENT.enemies[e.id].pattern.length > 1 ? intentOf(c, e, intent.type === "skip" ? 0 : 1) : null, nlook = nxtIntent && nxtIntent.type !== "skip" ? lookOf(nxtIntent) : null;
+    const ibox = intent ? `<g transform="translate(${p.x - 18} ${y0 - 17})"><rect width="36" height="14" rx="3" fill="#17121f" stroke="${look.c}" stroke-width="1.5"/>
+        ${icon(look.i, 3, 2, 1)}${text(look.txt, 15, 11, "int")}</g>${nlook ? `<g class="nextint" transform="translate(${p.x + 19} ${y0 - 14})"><rect width="20" height="10" rx="2" fill="#17121f" stroke="${nlook.c}" stroke-width="1" opacity=".75"/>${icon(nlook.i, 2, 1, 0.8)}<text x="12" y="8" class="int">›</text></g>` : ""}` : "";
     const platesTxt = m.plates && !dead ? `<g transform="translate(${p.x - 22} ${y0 - 33})"><rect width="44" height="13" rx="3" fill="#17121f" stroke="#8fa3b8"/>${icon("shield", 2, 1, 1)}${text(e.plates > 0 ? `Platten ${e.plates}` : "gebrochen", 14, 10, "plt")}</g>` : "";
     const rot = m.rotateElement && !dead ? `<g transform="translate(${p.x + 22} ${y0 - 17})"><rect width="38" height="14" rx="3" fill="#17121f" stroke="#c9b8ff" stroke-width="1.5"/>${icon(elementIconId(e.nextElement), 3, 2, 1)}${text(`in ${Math.max(1, m.rotateElement.every - e.rotTimer)}`, 14, 11, "int")}</g>` : "";
     const elIcon = (e.elements ?? []).slice(0, 2).map((el2, i) => icon(elementIconId(el2), p.x - bw / 2 - 12 - i * 11, p.y + 1, 1)).join("");
@@ -7715,12 +7803,12 @@ function shopView(ui) {
     <div class="buyrow">${btn(s.sold ? "Verkauft" : `${ico("coin", 14)} ${s.price}`, "buy", "items", { arg2: String(i), cls: "small", disabled: s.sold || s.price > run.gold })}${s.sold ? "" : run.flags?.noFreeze ? btn(ico("lock", 14), "freeze", String(i), { cls: "small lockbtn", disabled: true, title: "Midas-Fluch: Sperren ist dauerhaft deaktiviert" }) : btn(ico("lock", 14), "freeze", String(i), { cls: `small lockbtn ${s.frozen ? "good" : ""}`, title: s.frozen ? "Sperre aufheben" : "Item für die nächste Runde sperren" })}${s.sold || s.fixed || s.core ? "" : banIco(run, "items", i)}</div></div>`).join("");
   const brumm = shop.start ? storyLines("startladen", run.classId)[0] : null;
   const npc = brumm ? `<div class="npc">${spr("npc", "brumm", { attrs: 'width="34" height="46"' })}</div>` : `<div class="npcbox">${spr("icon", "n_haendler", { attrs: 'width="34" height="34"' })}</div>`;
-  const bubble = brumm ? `<div class="shop-bubble"><b>${esc(CONTENT.speakers.brumm.name)}:</b> ${esc(brumm)}</div>` : "";
+  const bubble = brumm ? `<div class="shop-quote"><b>${esc(CONTENT.speakers.brumm.name)}:</b> „${esc(brumm)}“</div>` : "";
   const tools = `${btn(`${ico("star", 14)} Neu würfeln (${shop.freeRerolls > 0 ? `gratis x${shop.freeRerolls}` : shop.rerollCost})`, "reroll", undefined, { cls: "small", disabled: !(shop.freeRerolls > 0) && run.gold < shop.rerollCost })}
       ${btn(`${ico("discard", 14)} Schredder (${shop.removeCost})`, "remove-start", undefined, { cls: "small", disabled: run.gold < shop.removeCost || run.deck.length <= CONFIG.run.minDeck })}
       ${(shop.services ?? []).map((s) => btn(`${ico(s.id === "heal" ? "heart" : "star", 14)} ${s.id === "heal" ? `Verband +${Math.round(CONFIG.shop.services.heal.pct * 100)}% HP` : `Trank +${CONFIG.shop.services.vitality.maxHp} Max-HP`} (${s.price})`, "service", s.id, { cls: "small", disabled: s.sold || run.gold < s.price })).join("")}`;
-  return `${hud(ui)}<div class="screen shop shop2"><div class="shop-top"><div class="shop-who">${npc}<div class="shop-title"><h2>${shop.start ? "Startladen" : shop.quick ? "Schnellladen" : "Händler"}</h2><div class="muted small">Dein Gold: <b class="gold">${run.gold}</b> · Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div></div></div>
-      <div class="shop-tools">${tools}${btn("Weiter", "leave-shop", undefined, { cls: "primary go" })}</div></div>${bubble}
+  return `${hud(ui)}<div class="screen shop shop2"><div class="shop-head"><div class="shop-who">${npc}<div class="shop-title"><h2>${shop.start ? "Startladen" : shop.quick ? "Schnellladen" : "Händler"}</h2><div class="muted small">Dein Gold: <b class="gold">${run.gold}</b> · Preise: ${run.stats.fights ? `+${Math.round(CONFIG.shop.inflationPerFight * run.stats.fights * 100)} % Inflation` : "Grundpreis"}</div></div></div>
+      </div>${bubble}<div class="shop-tools">${tools}${btn("Weiter", "leave-shop", undefined, { cls: "primary go" })}</div>
     <div class="shop-main"><div class="shop-lbl">Karten</div><div class="cards5" style="--cols:${Math.max(1, shop.cards.length)}">${cards}</div><div class="shop-lbl">Items</div><div class="items4" style="--cols:${Math.max(1, shop.items.length)}">${items}</div></div></div>`;
 }
 function restView(ui) {

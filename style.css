@@ -769,3 +769,14 @@ input.seed{padding:6px 8px;border-width:2px;width:100%}
 .shop2 .shop-top{flex-direction:column;align-items:center;gap:3px;flex-wrap:nowrap}.shop2 .shop-tools{flex-wrap:nowrap;width:100%;max-width:1100px;gap:5px}
 .shop2 .shop-tools .btn{flex:1 1 0;min-width:0;white-space:normal;line-height:1.1;font-size:11px;padding:3px 4px;min-height:34px;display:flex;align-items:center;justify-content:center;text-align:center}.shop2 .shop-tools .btn.go{flex:0 0 22%}
 .tiny .shop2 .shop-top{flex-wrap:nowrap}.tiny .shop2 .shop-tools .btn{font-size:9.5px;min-height:24px;padding:1px 3px}.tiny .shop2 .shop-tools .btn.go{flex:0 0 18%}
+
+/* Shop v7.12b: Luft zwischen den Gruppen (Kopf, Werkzeuge, Karten, Items), Brumm als leise Zeile, schlankere Werkzeug-Reihe */
+.screen.shop.shop2{gap:12px;padding:8px 28px}.shop2 .shop-head{display:flex;justify-content:center}.shop2 .shop-main{gap:12px}.shop2 .cards5,.shop2 .items4{gap:12px}.shop2 .slot{gap:6px}
+.shop2 .shop-quote{margin:0 auto;max-width:78%;font-size:11px;font-style:italic;color:#9fb0d0;text-align:center;line-height:1.3}
+.shop2 .shop-tools{max-width:740px;margin:0 auto;width:100%}
+.compact .screen.shop.shop2{gap:7px;padding:4px 18px}.compact .shop2 .shop-main{gap:7px}.compact .shop2 .cards5,.compact .shop2 .items4{gap:8px}.compact .shop2 .slot{gap:4px}.compact .shop2 .shop-quote{font-size:10px}
+.tiny .screen.shop.shop2{gap:3px;padding:0 12px}.tiny .shop2 .shop-main{gap:3px}.tiny .shop2 .cards5,.tiny .shop2 .items4{gap:5px}.tiny .shop2 .slot{gap:3px}.tiny .shop2 .shop-quote{display:none}
+.screen.shop.shop2{gap:8px;padding:4px 28px}.shop2 .shop-main{gap:8px}.shop2 .cards5,.shop2 .items4{gap:10px}.shop2 .slot{gap:4px}.shop2 .card.lg{max-height:116px}.shop2{--shop-item-h:56px}
+.shop2 .shop-tools{margin-bottom:8px}.compact .shop2 .shop-tools{margin-bottom:4px}.tiny .shop2 .shop-tools{margin-bottom:0}
+.screen.shop.shop2{gap:6px}.shop2 .shop-tools{margin-bottom:4px}.shop2 .shop-main{gap:7px}.shop2 .shop-quote{font-size:10.5px;line-height:1.2}
+.nextint{opacity:.85}.nextint text{fill:#9fb0d0;font-size:8px}
